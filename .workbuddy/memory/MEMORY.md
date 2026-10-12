@@ -66,6 +66,9 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | 2 | `docs/decisions/OPEN-DECISIONS.md` | **裁决唯一真源**，40+ 条 |
 | 3 | `docs/spec/SPEC-remotion-overlay-workflow.md` | 实现规格，**与层 2 冲突时以层 2 为准** |
 | 4 | `docs/changelog/` | KB 侧变更记录 |
+| 5 | `docs/proposals/` | **待裁决议题 + 方案对比 + 落地计划**（未裁决前不含结论）|
+
+- **待裁决项命名**：用带前缀的编号（已有 `M-1`~`M-4` 用于模型选型），**裁决后必须回写登记册**。
 
 - KB 文档：`entry_id = cc6a8c8fa38e4fa68d59e4141d747c71`，`space_id = 57d1ad38cf8f4617ba18729f7661972d`。
 - 乐享是 v2 MCP：`company_domain = https://lexiangla.com` 是顶级域 → 访问链接必须带 `?company_from=<company.code>`。

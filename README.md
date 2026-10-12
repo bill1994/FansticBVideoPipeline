@@ -135,9 +135,23 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 
 ## 外部工具适配
 
-`align` 与 `perceive` 需要重型模型（ASR 对齐、人体/关键点/显著性检测）。
-本仓库**不内置**这些模型 —— 它们的体积与许可需要单独决策，故只定义**输入输出契约**，
-通过环境变量接入：
+`align` 与 `perceive` 需要**专用模型** —— 但**都不是「重型」的**：
+
+| 阶段 | 用什么 | 体积 |
+|------|--------|------|
+| `align` | `@remotion/install-whisper-cpp`（Remotion 官方包，逐词时间戳 + probability） | 75MB ~ 1.5GB |
+| `perceive` | MediaPipe（pose 9.4MB / hand 7.8MB / face 230KB）+ 经典显著性（零模型） | 几 MB 级 |
+
+**为什么不让多模态大模型直接干？** 分界是「**测量 vs 选择**」：
+逐词时间戳、bbox 坐标、显著性峰值属于**测量**，多模态模型的实测误差比容差大一个数量级
+（grounding 偏差 20–40%，IoU 仅 0.09–0.13，而我们的容差是 ±33ms / <3% 坐标误差）。
+它擅长的是**选择** —— 候选框三选一、shot 分类、挑模板写文案。
+
+完整论证、待裁决项与落地计划见
+[`docs/proposals/2026-10-13-模型选型与分工.md`](docs/proposals/2026-10-13-模型选型与分工.md)。
+
+本仓库**暂不内置**这两个阶段的模型实现 —— 选型有两条待裁决的岔路，故先只定义
+**输入输出契约**，通过环境变量接入：
 
 ```bash
 # 强制对齐：把 {fps, words: WordTimestamp[], cues: Cue[]} 写到 {out}
@@ -149,6 +163,9 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 
 未配置时**直接报错退出（退出码 2）**，绝不伪造对齐或检测结果 ——
 一条静默产出的错误 storyboard，比一次显式失败危险得多。
+
+> 换模型的代价很低：`02-perceive` 的产物契约已定死形状，实现只需填内容，
+> 下游校验器不关心模型怎么来。
 
 ---
 
@@ -230,6 +247,7 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 |------|------|----------|
 | [`docs/spec/SPEC-remotion-overlay-workflow.md`](docs/spec/SPEC-remotion-overlay-workflow.md) | 实现者 | 照着做：字段是什么、校验怎么判、目录怎么建 |
 | [`docs/decisions/OPEN-DECISIONS.md`](docs/decisions/OPEN-DECISIONS.md) | 自己 / 未来的我 | 为什么这么定？否决了什么？**冲突时以它为准** |
+| [`docs/proposals/`](docs/proposals/) | 我 / 拍板者 | 待裁决的议题、方案对比、落地计划（**未裁决前不含结论**）|
 | [`.workbuddy/skills/`](.workbuddy/skills/) | 模型（执行时读） | 这一步该遵守什么、何时必须停 |
 
 三者**不互相替代**：登记册是决策的考古层（保留否决理由），Spec 是完整规格，
