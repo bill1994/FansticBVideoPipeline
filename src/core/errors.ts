@@ -52,22 +52,21 @@ export const CODES = {
    * fullscreen 需人工确认。
    *
    * 来源：D3「`fullscreen` 类 motion 必然覆盖全画面，一律走人工确认，**不设自动放行规则**」。
-   * ⚠️ 该规则**未出现在 F2 的 14 项表**中（同 `E-E5-01` 的情况）。此处列为 warning：
-   *    validate 只提示，真正的**硬停**在 render 阶段的启动闸（校验全过 + 无待确认 fullscreen）。
-   *    理由：SPEC §2.1 明确限定构建期校验「只读 03-storyboard + 01-align + 02-perceive」，
-   *    而人工确认落在 06-review —— 校验期读不到，故不在 validate 内硬拦。
+   * **刻意不进构建期清单**（D3-a 定其落点）：确认记录产在 `06-review/confirmed.json`，
+   * 而构建期只读 `03`/`01`/`02` —— 「输入在本阶段可读」这条判据不满足。
+   * 故 `validate` 只出 warning 预告，**硬停在 render 阶段的启动闸**（见 stages/render.ts `renderGate`）。
    */
   FULLSCREEN_CONFIRM: W('W-D3-01', 'fullscreen-needs-confirmation', 'D3', null, 'fullscreen 需人工确认'),
 
   // ── 起草原生约束 ─────────────────────────────────────────────
   /**
-   * 禁配段相交。
+   * 禁配段相交 —— 校验项 #15。
    *
    * 来源：SPEC §1.4（E5 裁决）「校验期：任何 motion 与禁配段相交 → error」。
-   * ⚠️ 该规则**未出现在 F2 的 14 项表**中（两份清单存在缺口），
-   *    本实现按 §1.4 执行并编为 `E-E5-01` —— `<source>` 取决策编号 E5，符合 §2.5 命名规则。
+   * 2026-10-13 由 D3-a / E5 的补录正式纳入构建期清单（原 §7 清单成型早于 E5，编表时漏收）。
+   * 三条准入判据（输入可读 / 纯结构化判定 / 渲染前就该拦）全中，故进 15 项，不再计入 `extra`。
    */
-  NO_MOTION_RANGE: E('E-E5-01', 'no-motion-range-overlap', 'E5', null, 'motion 与禁配段相交'),
+  NO_MOTION_RANGE: E('E-E5-01', 'no-motion-range-overlap', 'E5', 15, 'motion 与禁配段相交'),
 
   // ── 兜底告警 ─────────────────────────────────────────────────
   /**

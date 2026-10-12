@@ -12,7 +12,7 @@
         {
           "_author": {
             "anchor": "word:8",
-            "offset": "+2f"
+            "offset": "-8f"
           },
           "motion": "cinematic/punch-in@1.0",
           "footprint": [
@@ -62,7 +62,7 @@
         {
           "_author": {
             "anchor": "word:4",
-            "offset": "+2f"
+            "offset": "-8f"
           },
           "motion": "typography/kinetic-line@1.0",
           "footprint": [
@@ -81,7 +81,7 @@
         {
           "_author": {
             "anchor": "word:12",
-            "offset": "+2f"
+            "offset": "-8f"
           },
           "motion": "typography/kinetic-line@1.0",
           "footprint": [
@@ -100,7 +100,7 @@
         {
           "_author": {
             "anchor": "word:22",
-            "offset": "+2f"
+            "offset": "-8f"
           },
           "motion": "typography/kinetic-line@1.0",
           "footprint": [
@@ -149,7 +149,7 @@
         {
           "_author": {
             "anchor": "word:2",
-            "offset": "+2f"
+            "offset": "-8f"
           },
           "motion": "caption/karaoke-word@1.0",
           "footprint": [

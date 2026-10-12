@@ -36,10 +36,9 @@
   "jobId": "demo",
   "ok": true,
   "summary": {
-    "checked": 14,
+    "checked": 15,
     "error": 0,
     "extra": [
-      "E-E5-01",
       "W-D3-01",
       "W-F6-01"
     ],

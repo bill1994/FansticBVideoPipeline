@@ -23,12 +23,12 @@ beforeEach(() => {
 });
 
 describe('基线', () => {
-  it('空 storyboard → ok，且 14 项全跑', () => {
+  it('空 storyboard → ok，且 15 项全跑', () => {
     const r = runValidation(makeCtx());
     expect(r.ok).toBe(true);
-    expect(r.summary.checked).toBe(14);
-    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(14);
-    expect(r.summary.extra).toEqual([...EXTRA_CHECKS].sort());
+    expect(r.summary.checked).toBe(15);
+    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(15);
+    expect(r.summary.extra).toEqual(['W-D3-01', 'W-F6-01']);
     expect(r.items).toEqual([]);
   });
 
@@ -56,7 +56,7 @@ describe('基线', () => {
   });
 });
 
-describe('#1 时序校验 E-C2-5-01', () => {
+describe('#1 时序校验 E-C2-5-01（区间下界 = 锚定词所在 cue 的起点，C2-5a）', () => {
   const rec = (fromFrame: number): BakeRecord => ({
     trackId: 'a',
     itemIndex: 0,
@@ -68,12 +68,11 @@ describe('#1 时序校验 E-C2-5-01', () => {
     fromFrame,
   });
 
+  /** 一条覆盖 word:5（200..219）的 cue。 */
+  const cue = (fromFrame: number) => [{ index: 0, fromFrame, toFrame: 400, text: '示例句' }];
+
   it('落在目标词区间内 → 通过', () => {
     expect(codesOf({ bake: { fps: 30, records: [rec(205)] } })).not.toContain('E-C2-5-01');
-  });
-
-  it('早于目标词 → error', () => {
-    expect(codesOf({ bake: { fps: 30, records: [rec(140)] } })).toContain('E-C2-5-01');
   });
 
   it('晚于目标词 → error', () => {
@@ -84,6 +83,38 @@ describe('#1 时序校验 E-C2-5-01', () => {
     const r = rec(140);
     expect(codesOf({ bake: { fps: 30, records: [{ ...r, wordIndex: -1, wordStartFrame: -1 }] } }))
       .not.toContain('E-C2-5-01');
+  });
+
+  // ── C2-5a 的核心：负偏移＝抢拍，合法 ──────────────────────
+  it('负偏移仍在 cue 内 → 通过（这是修正后的关键行为）', () => {
+    // cue 起点 150，词起点 200，fromFrame 160 早于词但在 cue 内
+    expect(codesOf({ bake: { fps: 30, records: [rec(160)] }, cues: cue(150) }))
+      .not.toContain('E-C2-5-01');
+  });
+
+  it('负偏移跨过 cue 起点 → error（真错位）', () => {
+    // cue 起点 180，fromFrame 160 已抢到上一句
+    expect(codesOf({ bake: { fps: 30, records: [rec(160)] }, cues: cue(180) }))
+      .toContain('E-C2-5-01');
+  });
+
+  it('无 cue 覆盖该词 → 退化为词起点（保守）', () => {
+    // 不传 cues，fromFrame 160 < 词起点 200 → 报错
+    expect(codesOf({ bake: { fps: 30, records: [rec(160)] } })).toContain('E-C2-5-01');
+  });
+
+  it('错误消息能区分「抢过头」与「太晚」', () => {
+    const early = runValidation(makeCtx({ bake: { fps: 30, records: [rec(160)] }, cues: cue(180) }));
+    const late = runValidation(makeCtx({ bake: { fps: 30, records: [rec(260)] }, cues: cue(150) }));
+    expect(early.items.find((i) => i.code === 'E-C2-5-01')?.hint).toContain('上一句');
+    expect(late.items.find((i) => i.code === 'E-C2-5-01')?.hint).toContain('晚于');
+  });
+
+  it('负偏移本身被明确说明为合法（hint 不误导）', () => {
+    const r = runValidation(
+      makeCtx({ bake: { fps: 30, records: [rec(160)] }, cues: cue(180) }),
+    );
+    expect(r.items.find((i) => i.code === 'E-C2-5-01')?.hint).toContain('负偏移本身是合法的');
   });
 });
 

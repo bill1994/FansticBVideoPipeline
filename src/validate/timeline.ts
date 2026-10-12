@@ -5,29 +5,58 @@
 import { CODES } from '../core/errors.ts';
 import type { ReportItem } from '../core/report.ts';
 import { DENSITY, HANDOFF_GAP_SECONDS } from '../core/config.ts';
+import type { Cue } from '../core/types.ts';
 import type { ValidateContext } from './context.ts';
 import { mk } from './item.ts';
 
 /**
- * #1 时序校验：`fromFrame` 须落在目标词区间内，否则 error。
+ * 找到覆盖该词起点的 cue。
+ * 找不到时返回 `null` —— 调用方退化为「词起点」，即保守收紧。
+ */
+export function cueForWord(cues: Cue[], wordStartFrame: number): Cue | null {
+  return cues.find((c) => wordStartFrame >= c.fromFrame && wordStartFrame <= c.toFrame) ?? null;
+}
+
+/**
+ * #1 时序校验 → `E-C2-5-01`。
  *
- * 「目标词」由 `03-storyboard/bake-report.json` 提供 —— 烘焙后 `_author` 已剥离，
- * fromFrame 本身不再携带词信息。无锚点的 item（`abs:` 逃生口）不参与本项。
+ * **合法区间 = `[锚定词所在 cue 的起点, 该词 endFrame]`**（C2-5a 补正）。
+ *
+ * ⚠️ 下界**不是词起点**。C2-5 原文写的是「目标词区间」，但那样一来 C2 自身的规范示例
+ * （`{anchor:"word:37", offset:"-8f"}` → 帧 372）必然报错 —— 负偏移就是把帧推到词起点之前。
+ * 而禁掉负偏移，抢拍只能靠 `abs:` 手写帧号，即失去「跟着词走」的能力，违反 C2 铁律
+ * 「不让模型手算帧」。故把下界放宽到 cue 起点：**同一句话内提前进入可接受，跨到上一句才是真错位**。
+ *
+ * cue 覆盖不到该词时退化为词起点（保守）。
+ * `abs:` 锚点无目标词，不参与本项。
  */
 export function checkTiming(ctx: ValidateContext): ReportItem[] {
   const out: ReportItem[] = [];
   for (const r of ctx.bake.records) {
     if (r.wordIndex < 0 || r.wordStartFrame < 0) continue; // abs 逃生口，无目标词
-    if (r.fromFrame >= r.wordStartFrame && r.fromFrame <= r.wordEndFrame) continue;
+
+    const cue = cueForWord(ctx.cues, r.wordStartFrame);
+    const lowerBound = cue ? cue.fromFrame : r.wordStartFrame;
+
+    if (r.fromFrame >= lowerBound && r.fromFrame <= r.wordEndFrame) continue;
+
     const ref = `${r.trackId}/${String(r.itemIndex).padStart(3, '0')}`;
+    const tooEarly = r.fromFrame < lowerBound;
+    const boundDesc = cue
+      ? `锚定词所在 cue#${cue.index} 的起点`
+      : `锚定词起点（该词未被任何 cue 覆盖）`;
+
     out.push(
       mk(
         CODES.TIMING,
         'build',
         [ref],
-        [r.fromFrame, r.wordEndFrame],
-        `fromFrame=${r.fromFrame} 落在目标词 word:${r.wordIndex} 区间 [${r.wordStartFrame}, ${r.wordEndFrame}] 之外`,
-        '收紧 offset，或改锚到相邻的词 —— 动效早于词出现或晚于词结束都会被观众察觉',
+        [lowerBound, r.wordEndFrame],
+        `fromFrame=${r.fromFrame} 落在合法区间 [${lowerBound}, ${r.wordEndFrame}] 之外` +
+          `（目标词 word:${r.wordIndex}，下界＝${boundDesc}）`,
+        tooEarly
+          ? '动效抢到上一句里去了。收紧 offset，让它落回本 cue 内。注意：**负偏移本身是合法的**（抢拍），只有跨过 cue 起点才算错位。'
+          : '动效晚于该词结束。前移 fromFrame，或改锚到下一个词。',
       ),
     );
   }

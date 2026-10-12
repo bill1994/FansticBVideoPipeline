@@ -23,7 +23,7 @@
 
 ```
 00-input ──► 01-align ──► 02-perceive ──► 03-storyboard ──► 04-validate ──► 05-render ──► 06-review
-  素材       强制对齐        感知与安全区      storyboard 起草      14 项校验       渲染出片      人工放行
+  素材       强制对齐        感知与安全区      storyboard 起草      校验（当前 15 项）       渲染出片      人工放行
              ↑ 门控                                ↑ 烘焙锚点→帧      ↑ 有 error 停
 ```
 
@@ -34,7 +34,7 @@
 | `align` | 抽 16kHz 单声道 wav → 强制对齐 → 置信度门控 | **门控不达标必须停**，降级必须阻断 |
 | `perceive` | 抽帧、主体检测、安全区与区域预算基线 | 无硬阻断（低置信走告警 + 人工兜底） |
 | `storyboard` | 按**词级锚点**起草并烘焙 `storyboard.json` | 安全阀 / fullscreen / custom 不许绕地板 |
-| `validate` | 跑 14 项构建期校验（纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
+| `validate` | 跑构建期校验项（当前 15 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
 | `render` | C6 双栈映射 + 本地渲染 | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
 
 每阶段的详细行为契约见 [`.workbuddy/skills/`](.workbuddy/skills/) —— 那是**执行期读**的精简版，
@@ -82,7 +82,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：N-3 五组单测 + 烘焙 + 14 项校验
+npm test            # vitest：N-3 五组单测 + 烘焙 + 校验（当前 15 项）
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```
 
@@ -101,7 +101,7 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 │   │   ├── schedule.ts       两道闸 + 产路地板 + 动态阈值 T
 │   │   ├── bake.ts           锚点 → 帧的一次性烘焙
 │   │   └── io.ts             job 目录 + 不可变快照守卫
-│   ├── validate/             14 项构建期校验（纯函数）
+│   ├── validate/             构建期校验（当前 15 项，纯函数）
 │   ├── templates/            模板契约（双轴 family × scope）与注册表
 │   ├── stages/               五个阶段的执行逻辑
 │   └── remotion/             Remotion 工程（C6 双栈映射）
@@ -155,7 +155,10 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 ## 几条硬规则（写在代码里，不是写在文档里）
 
 - **帧是真相。** 落盘只有 `fromFrame` + `durationInFrames`；模型写的是锚点
-  `{anchor:"word:37", offset:"+2f"}`，由烘焙器一次性解析成帧，**锚点用完即弃**。
+  `{anchor:"word:37", offset:"-8f"}`，由烘焙器一次性解析成帧，**锚点用完即弃**。
+- **偏移可为负 —— 负偏移＝抢拍，合法。** 边界只有一条：**不得早于锚定词所在 cue 的起点**。
+  动效在同一句话内提前进入可接受，跨到上一句才算错位（C2-5a）。
+  这条边界是**修正过的** —— 原先写成「须落在目标词区间内」，那样连文档自己的示例都过不了。
 - **不手算帧。** 模型只填表不写代码：只挑模板 + 填文字，禁写坐标/帧数/颜色/CSS。
 - **禁用 `<Series>`。** 它的语义是「依次播放」，**结构上无法表达重叠**，与硬约束 3 直接冲突。
 - **禁用显式 `z-index`。** z 序由 `(layer 升序, trackIndex 升序)` + DOM 嵌套决定。
@@ -194,19 +197,30 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 
 ---
 
-## 实现过程中发现的三处文档缺口
+## 实现期发现的三处文档缺口 —— 已裁决并回写（2026-10-13）
 
-写在代码注释里，也在这里集中列一次（**未擅自改文档，只是显式标注**）：
+这三处是实现 `src/validate/` 时暴露的：代码必须对它们给出确定行为，写到那里才发现文档答不上来。
+**已按 `docs/proposals/2026-10-13-三处缺口修改方案.md` 裁决并同步到登记册 / Spec / Skill / 代码**；
+乐享 KB 正文同步写回。结论如下：
 
-1. **D3 的「fullscreen 一律人工确认」不在 14 项校验表内。**
-   validate 只能读 `03/01/02`（人工确认落在 `06-review`），读不到 → 故 validate 只出
-   `W-D3-01` warning，**真正的硬停放在 `render` 的启动闸**。
-2. **E5 的「motion 与禁配段相交 → error」同样不在 14 项表内。**
-   已按 §1.4 实现，编为 `E-E5-01`（`<source>` 取决策编号，符合命名规则）。
-3. **`offset: "-8f"` 这个规范示例会违反时序校验。**
-   C2-5 要求 `fromFrame` 落在目标词的 `[startFrame, endFrame]` 内（「否则动效早于词出现」），
-   而负偏移必然把 `fromFrame` 推到词起点**之前**。当前实现**照字面执行 C2-5**，
-   因此示例 job 统一用 `+2f`。这条需要裁决：是放宽区间，还是负偏移本就只用于 `abs` 锚点。
+1. **D3 的「fullscreen 一律人工确认」不设落点，且 F3 的 `confirmed.json` 装不下它。**
+   → 裁决 **D3-a**：确认落在 **render 启动闸**，不进构建期清单。
+   理由：确认记录产在 `06-review`，而构建期的输入边界只到 `03`/`01`/`02`，**读不到** ——
+   这是「谁有资格拦」的问题。`validate` 只出 `W-D3-01` 预告；
+   `confirmed.json` 补 `stage: "render"` 与 `acknowledgedFullscreen`。
+2. **E5 的「motion 与禁配段相交 → error」漏收。**
+   → 并入清单，成为**第 15 项**（`E-E5-01`）。它的三条准入判据与其余各项完全同质，
+   原清单成型早于 E5，属**纯漏收**而非设计分歧。清单同时改为**不带计数的命名**，
+   免得再被数字钉死。
+3. **`offset: "-8f"` 这个规范示例会违反 C2-5 的时序校验。**
+   → 裁决 **C2-5a**：**改 C2-5 的区间下界** —— 由「词起点」改为「**锚定词所在 cue 的起点**」。
+   负偏移＝抢拍，**合法**；跨过 cue 起点才算错位。
+   决定性理由：禁负偏移会把抢拍逼回 `abs:` 手写帧号 → 写死帧号后失去「跟着词走」的能力 →
+   违反 C2 铁律「不让模型手算帧」。
+   **`examples/demo` 的起草稿已改回负偏移（抢拍 8 帧），作为这条修复的回归证据。**
+
+**判据（清单准入规则）**：某个规则该不该进清单，看三条 —— 输入在本阶段可读 / 纯结构化判定 /
+渲染前就该阻断。全中才进；否则另找落点并写明。**例外只应该有 D3 这一条。**
 
 ---
 

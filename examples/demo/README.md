@@ -31,7 +31,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ## 预期结果
 
 ```
-✅ 校验通过（checked=14 项 + 3 条起草原生约束, warning=2）
+✅ 校验通过（checked=15 项 + 2 条起草原生约束, warning=2）
    ! W-F6-01 [face-s2] 区域 face-s2（face）为低置信检测结果
    ! W-F6-01 [s2] shot s2 的主体归属为低置信，安全区未确
 ```
@@ -44,10 +44,14 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 - **锚点烘焙**：`draft.json` 里全是 `word:N` 锚点，没有一帧是手写的；
   `durationInFrames` 也全部省略，由 `max(模板 minVisibleInFrames, 锚定词区间长度)` 导出
+- **负偏移＝抢拍（C2-5a 的回归证据）**：8 条锚点里有 5 条用 `-8f`（抢在词前 8 帧），
+  它们**全部通过**时序校验；剩下 3 条（`word:40` / `word:30` / `word:50`）保持 `+2f`，
+  因为它们的词**正好是所在 cue 的首词** —— 负偏移会跨过 cue 起点，那是真错位。
+  一个示例同时展示「负偏移合法」和「跨 cue 才拦」两侧
 - **动态阈值 T**：8 个 `sim_max` 走 elbow → `T = 0.641`
   （其中 `typo-main` 的第三个 item `sim_max=0.55` 低于 T，走 `custom` 产路 → 被地板锁到 `must_review`）
 - **双栈分离**：`bg-punch`（`footage-transform`）落背景链串联，其余 7 项落叠加栈并列
-- **禁配段**：`noMotionRanges` 里有一条片尾空镜区间
+- **禁配段**：`noMotionRanges` 里有一条片尾空镜区间（校验项 #15）
 
 ## 改它
 

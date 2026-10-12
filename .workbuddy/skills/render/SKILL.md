@@ -131,13 +131,28 @@ rotation.set((frame / fps) * Math.PI);
 ## 必须停条件
 
 文档 §10.4 给本阶段的「必须停」标记是 **`—`（无门控）** —— 因为阻断已在前一步的 `validate` 用掉了。
-但以下三种情形**拒绝启动或立即中止**，不许硬跑：
+但以下**四种情形拒绝启动或立即中止**，不许硬跑：
 
 | 情形 | 处置 |
 |------|------|
 | `04-validate/validate-report.json` 的 `ok !== true` | **拒绝启动**。回去走 `validate` 的人工返修回路，不许「先渲出来看看」 |
 | storyboard 的 `meta.fps` 与本次渲染 fps 不一致 | **停** —— 全部已烘焙 `fromFrame` 语义已漂移，必须**重新烘焙**，不允许跨 fps 复用 storyboard |
 | 版本未锁死（含 `^`）或缺 `--gl=angle` | **停**，先修环境。带着这两个问题渲出来的多半是空白 canvas |
+| **storyboard 内有 `fullscreen` 项，但未被 `06-review/confirmed.json` 的 `acknowledgedFullscreen` 全部覆盖** | **拒绝启动**（**D3-a**）。`fullscreen` 必然覆盖全画面，D3 规定一律人工确认、**不设自动放行规则** |
+
+> **为什么这条闸在本阶段而不是 `validate`**：确认记录产在 `06-review`，而 `validate` 的输入边界只到 `03`/`01`/`02`，**它读不到** —— 这是「谁有资格拦」的问题，不是「谁愿意拦」的问题。`validate` 只出 `W-D3-01` 预告（不阻断）。**例外只应该有这一条。**
+
+`06-review/confirmed.json` 的相关字段：
+
+```jsonc
+{
+  "stage": "render",
+  "reason": "fullscreen 类 motion 覆盖全画面，人工确认后放行",
+  "confirmedBy": "人工署名",
+  "confirmedAt": "ISO 时间",
+  "acknowledgedFullscreen": ["fs-track/000"]   // 必须覆盖 storyboard 内全部 fullscreen item ref
+}
+```
 
 ## 产物（落 `05-render/`）
 

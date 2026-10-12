@@ -1,13 +1,13 @@
 ---
 name: validate
 description: >-
-  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑 14 项结构化校验
+  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑构建期校验项（当前 15 项）
   并产出 validate-report.json 时使用。负责构建期校验（纯 JSON→JSON）与渲染期兜底。
   不用于对齐、感知、storyboard 起草或渲染。
 agent_created: true
 ---
 
-# validate —— 14 项校验与阻断门控
+# validate —— 构建期校验与阻断门控（当前 15 项）
 
 > **管线位置**：第 4 步 / 共 5 步
 > **上游**：`03-storyboard/storyboard.json` + `01-align/` + `02-perceive/`
@@ -24,10 +24,14 @@ agent_created: true
 
 | 阶段 | 可判条件 | 覆盖 |
 |------|----------|------|
-| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **14 项全部** |
+| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **全部校验项（当前 15 项）** |
 | **渲染期兜底** | 需实际渲染才暴露 | 字体未加载、Canvas 未挂载（`delayRender` 超时）、GPU 上下文创建失败 |
 
-构建期之所以能判全 14 项：校验器读的全是**结构化数据**（footprint / minVisibleInFrames / 各区域预算占用 / 主体框），不需要渲染。
+构建期之所以能判全：校验器读的全是**结构化数据**（footprint / minVisibleInFrames / 各区域预算占用 / 主体框 / noMotionRanges），不需要渲染。
+
+> **清单是活清单。** 增补要**先改 `docs/decisions/OPEN-DECISIONS.md`**，不得只在这里加。
+> **准入判据**（三条全中才进清单）：输入在本阶段可读 / 纯结构化判定 / 渲染前就该阻断。
+> 有一条规则**刻意不在清单内** —— D3 的 fullscreen 人工确认：它的确认记录产在 `06-review`，而本阶段的输入边界只到 `03`/`01`/`02`，**读不到**。故本阶段只出 `W-D3-01` 预告，硬拦在 render 启动闸。**例外只应该有这一条。**
 
 ### 2. 校验器是纯函数
 
@@ -51,13 +55,13 @@ agent_created: true
 - 有任何 `level: "error"` → **阻断**，退出码 `1`
 - 只有 `warning` → **放行**，warning 不阻断
 
-## 14 项校验全表
+## 校验项全表（当前 15 项）
 
 **时间轴类（9 项）**
 
 | # | 校验项 | 判定 | 来源 | error | warning |
 |---|--------|------|------|-------|---------|
-| 1 | 时序校验：`fromFrame` 须落在目标词区间内 | 否则 error | C2-5 | `E-C2-5-01` | — |
+| 1 | 时序校验：`fromFrame` 须落在 `[锚定词所在 cue 起点, 该词 endFrame]` 内 | 否则 error | C2-5 / **C2-5a** | `E-C2-5-01` | — |
 | 2 | 密度校验：每 cue 的 item 数超阈值 | error | C2-5 | `E-C2-5-02` | — |
 | 3 | footprint 相交 · 同 `exclusive` 组 | error | C4 | `E-C4-01` | — |
 | 4 | footprint 相交 · 异组 | warning | C4 | — | `W-C4-01` |
@@ -67,7 +71,7 @@ agent_created: true
 | 8 | 跨越 `subject-transform` 裁切边界 | error | C3 | `E-C3-02` | — |
 | 9 | 接力 gap > 1.5s | warning | C5 | — | `W-C5-01` |
 
-**工程与遮挡类（5 项）**
+**工程与遮挡类（6 项）**
 
 | # | 校验项 | 判定 | 来源 | error | warning |
 |---|--------|------|------|-------|---------|
@@ -76,15 +80,18 @@ agent_created: true
 | 12 | 遮挡分级预算：各区域被占额度超预算 | error | D2 | `E-D2-01` | — |
 | 13 | 载体自动降级（三级退让后仍冲突） | error | D4 | `E-D4-01` | — |
 | 14 | B-roll 主体遮挡 > 30% 预算 | error | D2 | `E-D2-02` | — |
+| **15** | **禁配段相交**：任何 motion 与 `noMotionRanges` 相交 | error | **E5** | **`E-E5-01`** | — |
 
-**兜底告警**
+**不在 15 项内、但同样会出现在报告里**
 
 | 项 | 判定 | 来源 | code |
 |----|------|------|------|
 | shot 主体未确（感知标了 `lowConfidence: true`） | warning，**不阻断** | F6 | `W-F6-01` |
+| fullscreen 需人工确认 | warning，**不阻断**（硬拦在 render 启动闸） | D3 / **D3-a** | `W-D3-01` |
 
 > 第 5 项**无错误码** —— 它不校验、直接放行，不产 report 条目。
 > 第 10 项最危险：`item` 结束帧超出 `<Composition>` 时长时 Remotion **静默截断，不打日志**，成片少一截而全链路无报错。**不可省略**。
+> **`summary.checked` 只数那 15 项**，不含下面两条警告 —— 它们记在 `summary.extra`。别把 `checked` 读成「全跑完了」。
 
 ## 关键判定细则
 
@@ -116,7 +123,7 @@ agent_created: true
 |-------------|----------------|------|
 | `overlay-safe` / `under-subject` | 须**避开**各级区域 | 超预算 → error |
 | `subject-transform` / `footage-transform` | 须**包住**安全区 | 未包住 → warning |
-| `fullscreen` | — | **一律人工确认** |
+| `fullscreen` | — | **一律人工确认** → 本阶段只出 `W-D3-01`，硬拦在 render 启动闸 |
 
 **第 13 项三级退让**：冲突 → ① 同预算内尝试挪 `footprint`（不动时间轴、不改文案）→ ② 挪不动则自动切 `carrier` 模式 → ③ 仍冲突才报错。
 
@@ -128,7 +135,7 @@ agent_created: true
 {
   "jobId": "2026-10-12-demo",
   "ok": false,                       // 无 error 才为 true（warning 不影响）
-  "summary": { "error": 2, "warning": 3, "checked": 14 },
+  "summary": { "error": 2, "warning": 3, "checked": 15, "extra": ["W-D3-01", "W-F6-01"] },
   "items": [
     {
       "code": "E-C4-01",
@@ -146,6 +153,7 @@ agent_created: true
 ```
 
 渲染期兜底用同结构，`stage: "render"`，`code` 前缀 `E-RT-*` / `W-RT-*`。
+`summary.extra` 列出**不在 15 项内**但已执行的规则码（`W-D3-01` / `W-F6-01`）—— `checked` 与 `extra` 相加才是本次执行的全貌。
 
 ## 两套码不要混用
 
@@ -177,20 +185,24 @@ agent_created: true
   "reason": "人工核验后放行",
   "confirmedBy": "人工署名",
   "confirmedAt": "ISO 时间",
+  "acknowledgedFullscreen": [],
   "overrides": [{ "itemId": "...", "field": "fromFrame", "from": 120, "to": 135 }]
 }
 ```
 
 这就是「降级必须阻断」的闭环：**阻断 → 人工改 → 重校验 → 写 confirmed.json 放行 → 进渲染**。
 `overrides` 记录改了什么，审计链不断。**放行信息不得写进 storyboard** —— 那会污染烘焙产物。
+`acknowledgedFullscreen` 属 D3-a，由 render 阶段读取 —— 本阶段不判它。
 
 ## 落盘检查清单
 
-- [ ] 14 项**全部**已跑（`summary.checked == 14`），无早退短路
+- [ ] 15 项**全部**已跑（`summary.checked == 15`），无早退短路
 - [ ] `items` 已按 `level` → `code` 排序，输出可逐字节复现
 - [ ] 有 error 时 `ok=false` 且已阻断（退出码 `1`）
 - [ ] 安全区判定优先级高于 exclusive 组判定
 - [ ] 第 5 项（主从冲突）未产出任何 report 条目
 - [ ] 第 10 项（尾部截断）**没有**被跳过
+- [ ] 第 15 项（禁配段相交）**没有**被跳过
+- [ ] `summary.extra` 已列出 `W-D3-01` / `W-F6-01`，未被误当成 `checked` 的一部分
 - [ ] 未做任何语义判断 / LLM 调用
 - [ ] 未修改 `03-storyboard/` 或任何上游产物（校验器只读）

@@ -28,11 +28,25 @@ import {
   checkSubjectUnknown,
 } from './occlusion.ts';
 
-/** 文档明示的 14 个校验项序号。第 5 项（主从冲突）不产条目，但**确实执行**。 */
-export const DOCUMENTED_CHECK_ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] as const;
+/**
+ * 文档校验项序号。**当前 15 项**（时间轴类 9 + 工程与遮挡类 6）。
+ * 第 5 项（主从冲突）不产条目，但**确实执行**。
+ * 第 15 项（禁配段相交，E5）于 2026-10-13 增补 —— 原清单成型早于 E5，编表时漏收。
+ *
+ * ⚠️ 这是**活清单**：增补须先改 `docs/decisions/OPEN-DECISIONS.md`，不得只在这里加。
+ */
+export const DOCUMENTED_CHECK_ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] as const;
 
-/** 14 项之外的起草原生约束 —— 文档有明文，却未进 F2 的 14 项表。 */
-export const EXTRA_CHECKS = ['E-E5-01', 'W-D3-01', 'W-F6-01'] as const;
+/**
+ * 不在 15 项内、但同样会执行并产条目的规则 —— 记入 `summary.extra`。
+ *
+ * 二者都是**刻意**不进清单的，理由同一条：三条准入判据没全中。
+ * - `W-D3-01`：确认记录产在 `06-review`，构建期读不到（D3-a）
+ * - `W-F6-01`：主体未确只是提示，不属「渲染前就该阻断」（F6）
+ *
+ * 因此 `summary.checked` **不等于**「全部执行的规则数」，两者相加才是全貌。
+ */
+export const EXTRA_CHECKS = ['W-D3-01', 'W-F6-01'] as const;
 
 export function runValidation(ctx: ValidateContext): ValidateReport {
   // 结构错误（如 handoffTo 指向不存在的 track）应抛 ConfigError → 退出码 2，

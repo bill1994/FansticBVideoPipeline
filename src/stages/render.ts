@@ -37,18 +37,26 @@ export interface RenderOutcome {
 }
 
 /**
- * 06-review/confirmed.json —— 人工放行记录（C2-4 审计链落点）。
+ * 06-review/confirmed.json —— 人工放行闸的落点（F3）。
  *
- * `acknowledgedFullscreen` 为【实现期拟定】：D3 要求 fullscreen 一律人工确认，
- * 但未定义「确认」如何表达。此处约定用 item ref 列表承载。
+ * **F3 不只服务对齐降级**：它同时承载 D3-a 的 fullscreen 确认，故 `stage` 含 `render`。
+ *
+ * | 字段 | 承载 | 语义 |
+ * |------|------|------|
+ * | `overrides` | C2-4 降级放行 | **改了什么**（field/from/to）|
+ * | `acknowledgedFullscreen` | D3-a | **确认了哪些**（原样放行，没有「改」）|
  */
 export interface ConfirmedRecord {
   jobId: string;
-  stage: 'alignment' | 'storyboard' | 'validate';
+  stage: 'alignment' | 'storyboard' | 'validate' | 'render';
   reason: string;
   confirmedBy: string;
   confirmedAt: string;
   overrides?: { itemId: string; field: string; from: unknown; to: unknown }[];
+  /**
+   * D3-a：已人工确认的 fullscreen item ref（`trackId/000` 形式）。
+   * 必须覆盖 storyboard 内**全部** fullscreen 项，否则 render 启动闸拒绝启动。
+   */
   acknowledgedFullscreen?: string[];
 }
 
