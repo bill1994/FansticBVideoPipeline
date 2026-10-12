@@ -1,0 +1,212 @@
+{
+  "meta": {
+    "alignmentConfidence": 0.897,
+    "anchorMode": "word",
+    "fps": 30
+  },
+  "noMotionRanges": [
+    {
+      "durationInFrames": 60,
+      "fromFrame": 840,
+      "reason": "片尾实拍空镜"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "bg-punch",
+      "items": [
+        {
+          "decision": {
+            "confidence": 0.8,
+            "review": "auto",
+            "routing": "template",
+            "sim_max": 0.86
+          },
+          "durationInFrames": 120,
+          "footprint": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "fromFrame": 166,
+          "motion": "cinematic/punch-in@1.0",
+          "params": {
+            "scale": 1.08
+          }
+        }
+      ],
+      "layer": 1
+    },
+    {
+      "id": "data-card",
+      "items": [
+        {
+          "decision": {
+            "confidence": 0.58,
+            "review": "alternatives",
+            "routing": "template",
+            "sim_max": 0.68
+          },
+          "durationInFrames": 45,
+          "footprint": [
+            0.66,
+            0.6,
+            0.3,
+            0.24
+          ],
+          "fromFrame": 582,
+          "motion": "data/stat-card@1.0",
+          "params": {
+            "unit": "x",
+            "value": "3.2"
+          }
+        }
+      ],
+      "layer": 55
+    },
+    {
+      "id": "typo-main",
+      "items": [
+        {
+          "decision": {
+            "confidence": 0.88,
+            "review": "auto",
+            "routing": "template",
+            "sim_max": 0.82
+          },
+          "durationInFrames": 30,
+          "exclusive": "lower-third",
+          "footprint": [
+            0.02,
+            0.74,
+            0.4,
+            0.16
+          ],
+          "fromFrame": 114,
+          "motion": "typography/kinetic-line@1.0",
+          "params": {
+            "text": "接近全自动"
+          }
+        },
+        {
+          "decision": {
+            "confidence": 0.72,
+            "review": "alternatives",
+            "routing": "template",
+            "sim_max": 0.78
+          },
+          "durationInFrames": 30,
+          "exclusive": "lower-third",
+          "footprint": [
+            0.05,
+            0.1,
+            0.4,
+            0.18
+          ],
+          "fromFrame": 218,
+          "motion": "typography/kinetic-line@1.0",
+          "params": {
+            "text": "强制对齐"
+          }
+        },
+        {
+          "decision": {
+            "confidence": 0.45,
+            "review": "must_review",
+            "routing": "custom",
+            "sim_max": 0.55
+          },
+          "durationInFrames": 30,
+          "exclusive": "lower-third",
+          "footprint": [
+            0.02,
+            0.74,
+            0.4,
+            0.16
+          ],
+          "fromFrame": 348,
+          "motion": "typography/kinetic-line@1.0",
+          "params": {
+            "text": "词级时间戳"
+          }
+        }
+      ],
+      "layer": 60
+    },
+    {
+      "id": "typo-secondary",
+      "items": [
+        {
+          "decision": {
+            "confidence": 0.66,
+            "review": "alternatives",
+            "routing": "template",
+            "sim_max": 0.71
+          },
+          "durationInFrames": 36,
+          "footprint": [
+            0.68,
+            0.06,
+            0.28,
+            0.18
+          ],
+          "fromFrame": 452,
+          "motion": "typography/tag-float@1.0",
+          "params": {
+            "text": "主体安全区"
+          }
+        }
+      ],
+      "layer": 60
+    },
+    {
+      "id": "caption-bar",
+      "items": [
+        {
+          "decision": {
+            "confidence": 0.93,
+            "review": "auto",
+            "routing": "template",
+            "sim_max": 0.9
+          },
+          "durationInFrames": 12,
+          "footprint": [
+            0.1,
+            0.86,
+            0.8,
+            0.08
+          ],
+          "fromFrame": 88,
+          "motion": "caption/karaoke-word@1.0",
+          "params": {
+            "boxed": false,
+            "highlightColor": "#ffd166"
+          }
+        },
+        {
+          "decision": {
+            "confidence": 0.9,
+            "review": "auto",
+            "routing": "template",
+            "sim_max": 0.88
+          },
+          "durationInFrames": 12,
+          "footprint": [
+            0.1,
+            0.86,
+            0.8,
+            0.08
+          ],
+          "fromFrame": 712,
+          "motion": "caption/karaoke-word@1.0",
+          "params": {
+            "boxed": true,
+            "highlightColor": "#ffd166"
+          }
+        }
+      ],
+      "layer": 90
+    }
+  ]
+}

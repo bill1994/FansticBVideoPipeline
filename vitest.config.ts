@@ -1,0 +1,13 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  // 缓存落在仓库内，避免依赖系统临时目录（受限环境下可能不可写）。
+  cacheDir: '.vitest-cache',
+  test: {
+    include: ['tests/**/*.test.ts'],
+    environment: 'node',
+    reporters: ['default'],
+    // 校验器是纯函数、测试极快；串行跑可避免多 worker 并发写缓存时的偶发竞态。
+    fileParallelism: false,
+  },
+});

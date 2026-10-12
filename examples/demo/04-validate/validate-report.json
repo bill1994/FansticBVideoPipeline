@@ -1,0 +1,48 @@
+{
+  "items": [
+    {
+      "check": "subject-unknown",
+      "code": "W-F6-01",
+      "frames": [
+        360,
+        540
+      ],
+      "hint": "不阻断。人工核验后补 subjectBox 覆盖。",
+      "level": "warning",
+      "message": "区域 face-s2（face）为低置信检测结果",
+      "source": "F6",
+      "stage": "build",
+      "targets": [
+        "face-s2"
+      ]
+    },
+    {
+      "check": "subject-unknown",
+      "code": "W-F6-01",
+      "frames": [
+        360,
+        540
+      ],
+      "hint": "不阻断。人工在 06-review/confirmed.json 里补 subjectBox 覆盖后才算确定。",
+      "level": "warning",
+      "message": "shot s2 的主体归属为低置信，安全区未确",
+      "source": "F6",
+      "stage": "build",
+      "targets": [
+        "s2"
+      ]
+    }
+  ],
+  "jobId": "demo",
+  "ok": true,
+  "summary": {
+    "checked": 14,
+    "error": 0,
+    "extra": [
+      "E-E5-01",
+      "W-D3-01",
+      "W-F6-01"
+    ],
+    "warning": 2
+  }
+}

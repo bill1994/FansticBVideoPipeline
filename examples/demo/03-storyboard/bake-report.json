@@ -1,0 +1,85 @@
+{
+  "fps": 30,
+  "records": [
+    {
+      "anchor": "word:8",
+      "fromFrame": 166,
+      "itemIndex": 0,
+      "offset": "+2f",
+      "trackId": "bg-punch",
+      "wordEndFrame": 175,
+      "wordIndex": 8,
+      "wordStartFrame": 164
+    },
+    {
+      "anchor": "word:40",
+      "fromFrame": 582,
+      "itemIndex": 0,
+      "offset": "+2f",
+      "trackId": "data-card",
+      "wordEndFrame": 591,
+      "wordIndex": 40,
+      "wordStartFrame": 580
+    },
+    {
+      "anchor": "word:4",
+      "fromFrame": 114,
+      "itemIndex": 0,
+      "offset": "+2f",
+      "trackId": "typo-main",
+      "wordEndFrame": 123,
+      "wordIndex": 4,
+      "wordStartFrame": 112
+    },
+    {
+      "anchor": "word:12",
+      "fromFrame": 218,
+      "itemIndex": 1,
+      "offset": "+2f",
+      "trackId": "typo-main",
+      "wordEndFrame": 227,
+      "wordIndex": 12,
+      "wordStartFrame": 216
+    },
+    {
+      "anchor": "word:22",
+      "fromFrame": 348,
+      "itemIndex": 2,
+      "offset": "+2f",
+      "trackId": "typo-main",
+      "wordEndFrame": 357,
+      "wordIndex": 22,
+      "wordStartFrame": 346
+    },
+    {
+      "anchor": "word:30",
+      "fromFrame": 452,
+      "itemIndex": 0,
+      "offset": "+2f",
+      "trackId": "typo-secondary",
+      "wordEndFrame": 461,
+      "wordIndex": 30,
+      "wordStartFrame": 450
+    },
+    {
+      "anchor": "word:2",
+      "fromFrame": 88,
+      "itemIndex": 0,
+      "offset": "+2f",
+      "trackId": "caption-bar",
+      "wordEndFrame": 97,
+      "wordIndex": 2,
+      "wordStartFrame": 86
+    },
+    {
+      "anchor": "word:50",
+      "fromFrame": 712,
+      "itemIndex": 1,
+      "offset": "+2f",
+      "trackId": "caption-bar",
+      "wordEndFrame": 721,
+      "wordIndex": 50,
+      "wordStartFrame": 710
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "fps": 30,
+  "meanConfidence": 0.897,
+  "lowConfidenceRatio": 0.1,
+  "gatePassed": true,
+  "lowConfidenceWords": [
+    0,
+    11,
+    22,
+    33,
+    44,
+    55
+  ],
+  "thresholds": {
+    "meanConfidenceMin": 0.6,
+    "lowConfidenceRatioMax": 0.3
+  }
+}

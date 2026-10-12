@@ -1,0 +1,81 @@
+[
+  {
+    "id": "face-s0",
+    "kind": "face",
+    "shotId": "s0",
+    "fromFrame": 0,
+    "durationInFrames": 180,
+    "box": [
+      0.34,
+      0.08,
+      0.3,
+      0.24
+    ]
+  },
+  {
+    "id": "handheld-s0",
+    "kind": "handheld",
+    "shotId": "s0",
+    "fromFrame": 0,
+    "durationInFrames": 180,
+    "box": [
+      0.46,
+      0.56,
+      0.16,
+      0.18
+    ]
+  },
+  {
+    "id": "broll-s1",
+    "kind": "broll",
+    "shotId": "s1",
+    "fromFrame": 180,
+    "durationInFrames": 180,
+    "box": [
+      0.15,
+      0.2,
+      0.7,
+      0.5
+    ]
+  },
+  {
+    "id": "face-s2",
+    "kind": "face",
+    "shotId": "s2",
+    "fromFrame": 360,
+    "durationInFrames": 180,
+    "box": [
+      0.34,
+      0.08,
+      0.3,
+      0.24
+    ],
+    "lowConfidence": true
+  },
+  {
+    "id": "broll-s3",
+    "kind": "broll",
+    "shotId": "s3",
+    "fromFrame": 540,
+    "durationInFrames": 180,
+    "box": [
+      0.18,
+      0.25,
+      0.64,
+      0.45
+    ]
+  },
+  {
+    "id": "face-s4",
+    "kind": "face",
+    "shotId": "s4",
+    "fromFrame": 720,
+    "durationInFrames": 180,
+    "box": [
+      0.34,
+      0.08,
+      0.3,
+      0.24
+    ]
+  }
+]

@@ -1,0 +1,197 @@
+{
+  "meta": {
+    "fps": 30,
+    "anchorMode": "word",
+    "alignmentConfidence": 0.91
+  },
+  "tracks": [
+    {
+      "id": "bg-punch",
+      "layer": 1,
+      "items": [
+        {
+          "_author": {
+            "anchor": "word:8",
+            "offset": "+2f"
+          },
+          "motion": "cinematic/punch-in@1.0",
+          "footprint": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "durationInFrames": 120,
+          "sim_max": 0.86,
+          "confidence": 0.8,
+          "params": {
+            "scale": 1.08
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-card",
+      "layer": 55,
+      "items": [
+        {
+          "_author": {
+            "anchor": "word:40",
+            "offset": "+2f"
+          },
+          "motion": "data/stat-card@1.0",
+          "footprint": [
+            0.66,
+            0.6,
+            0.3,
+            0.24
+          ],
+          "sim_max": 0.68,
+          "confidence": 0.58,
+          "params": {
+            "value": "3.2",
+            "unit": "x"
+          }
+        }
+      ]
+    },
+    {
+      "id": "typo-main",
+      "layer": 60,
+      "items": [
+        {
+          "_author": {
+            "anchor": "word:4",
+            "offset": "+2f"
+          },
+          "motion": "typography/kinetic-line@1.0",
+          "footprint": [
+            0.02,
+            0.74,
+            0.4,
+            0.16
+          ],
+          "sim_max": 0.82,
+          "confidence": 0.88,
+          "exclusive": "lower-third",
+          "params": {
+            "text": "接近全自动"
+          }
+        },
+        {
+          "_author": {
+            "anchor": "word:12",
+            "offset": "+2f"
+          },
+          "motion": "typography/kinetic-line@1.0",
+          "footprint": [
+            0.05,
+            0.1,
+            0.4,
+            0.18
+          ],
+          "sim_max": 0.78,
+          "confidence": 0.72,
+          "exclusive": "lower-third",
+          "params": {
+            "text": "强制对齐"
+          }
+        },
+        {
+          "_author": {
+            "anchor": "word:22",
+            "offset": "+2f"
+          },
+          "motion": "typography/kinetic-line@1.0",
+          "footprint": [
+            0.02,
+            0.74,
+            0.4,
+            0.16
+          ],
+          "sim_max": 0.55,
+          "confidence": 0.45,
+          "exclusive": "lower-third",
+          "params": {
+            "text": "词级时间戳"
+          }
+        }
+      ]
+    },
+    {
+      "id": "typo-secondary",
+      "layer": 60,
+      "items": [
+        {
+          "_author": {
+            "anchor": "word:30",
+            "offset": "+2f"
+          },
+          "motion": "typography/tag-float@1.0",
+          "footprint": [
+            0.68,
+            0.06,
+            0.28,
+            0.18
+          ],
+          "sim_max": 0.71,
+          "confidence": 0.66,
+          "params": {
+            "text": "主体安全区"
+          }
+        }
+      ]
+    },
+    {
+      "id": "caption-bar",
+      "layer": 90,
+      "items": [
+        {
+          "_author": {
+            "anchor": "word:2",
+            "offset": "+2f"
+          },
+          "motion": "caption/karaoke-word@1.0",
+          "footprint": [
+            0.1,
+            0.86,
+            0.8,
+            0.08
+          ],
+          "sim_max": 0.9,
+          "confidence": 0.93,
+          "params": {
+            "highlightColor": "#ffd166",
+            "boxed": false
+          }
+        },
+        {
+          "_author": {
+            "anchor": "word:50",
+            "offset": "+2f"
+          },
+          "motion": "caption/karaoke-word@1.0",
+          "footprint": [
+            0.1,
+            0.86,
+            0.8,
+            0.08
+          ],
+          "sim_max": 0.88,
+          "confidence": 0.9,
+          "params": {
+            "highlightColor": "#ffd166",
+            "boxed": true
+          }
+        }
+      ]
+    }
+  ],
+  "noMotionRanges": [
+    {
+      "fromFrame": 840,
+      "durationInFrames": 60,
+      "reason": "片尾实拍空镜"
+    }
+  ]
+}

@@ -6,6 +6,57 @@
 - **根目录**：`C:\Users\63088\WorkBuddy\video pipeline`
   ⚠️ **路径含空格** —— 所有 shell 命令必须加引号，脚本里也用绝对路径 + 引号。
 - **目标产物**：一个可运行的完整 Remotion 项目（自动起草 → 人工审 → 渲染导出）。
+- **形态**：Node/TypeScript 工程（Node ≥ 22.19，ESM，tsx 直跑 TS）。MIT。
+
+## 常用命令
+
+```bash
+npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
+npm run typecheck        # tsc --noEmit
+npm test                 # vitest（69 项）
+npm run studio           # Remotion Studio
+npm run render:video     # 已内置 --gl=angle
+```
+
+demo（无需真实素材，端到端跑通）：
+```bash
+npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
+npm run pipeline -- validate   --job demo --jobs-dir examples
+npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
+```
+预期：0 error / 2 warning（都是 W-F6-01）。
+
+## 代码结构
+
+| 路径 | 职责 |
+|------|------|
+| `src/core/` | 类型契约、错误码、报告、**调度**（两道闸+地板+动态T）、**烘焙**（锚点→帧）、IO |
+| `src/validate/` | 14 项构建期校验（纯函数） |
+| `src/templates/` | 模板契约（双轴 family × scope）与注册表 |
+| `src/stages/` | 五阶段执行逻辑 |
+| `src/remotion/` | C6 双栈映射（背景链串联 / 叠加栈并列） |
+| `.workbuddy/skills/` | 五阶段 Skill（执行期行为契约） |
+
+- **`align` / `perceive` 不内置模型**，走 `ALIGNER_CMD` / `PERCEIVER_CMD` 环境变量契约；
+  未配置**直接退出码 2**，绝不伪造结果。
+- **`03-storyboard/draft.json` 是「模型产出」的等价物** —— 仓库不调模型。
+
+## 数值占位（🔴 勿当结论）
+
+| 项 | 值 | 状态 |
+|----|----|------|
+| 对齐门控 | 均值 0.60 / 低置信词 30% | 文档初值，待实测 |
+| 闸2 confidence 分档 | high 0.80 / mid 0.50 | **占位值**（真源只给组合矩阵） |
+| 每 cue item 数 | 3 | **占位值**（真源只写「超阈值」） |
+| `CARRIER_FALLBACK` 映射 | 空 | 默认不可用 → 报 `E-D4-01`；填表才启用自动载体降级 |
+
+## 文档缺口（实现期发现，**未擅自改文档**）
+
+1. D3 fullscreen 人工确认、E5 禁配段相交 —— **都不在 F2 的 14 项表内**；
+   已分别编为 `W-D3-01` / `E-E5-01` 并计入 `summary.extra`。
+2. **`offset:"-8f"` 与 C2-5 时序校验冲突**：负偏移必然把 `fromFrame` 推到词起点之前 →
+   必报 `E-C2-5-01`。当前照字面执行 C2-5，demo 用 `+2f`。**待裁决。**
+
 
 ## 文档真源层级（冲突时以此裁决）
 
