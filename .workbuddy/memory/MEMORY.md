@@ -92,4 +92,10 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 - **乐享预签名 URL 必须整串复制**：截断 `filename%3D"..."` 之后的 `%3B%20filename%2A%3Dutf-8%27%27...` 会直接 `SignatureDoesNotMatch`（403）。与代理无关。
 - 乐享 HTML `<table>` **不能逐格替换**，必须整表删掉重建为 GFM 表；GFM 表**行数上限 10**（含表头）。
+- **`block_fetch_page(render_mode="markdown")` 下，HTML 表格标记（`</table>`/`</td>`）不可匹配** —— 那些标记不在 block 文本里。
+  但**原生表格的单元格文本可以匹配**。要改表格**结构**（增/删行）必须走 `render_mode=mdx` + `replace_blocks`。
+- **改一处会让别处的匹配产生歧义**：新文本若仍包含旧子串，同类替换会变成 `match_count=2`。
+  解法是先用 `replace_all_matches=true` 统一改，再回来清理多余尾巴。
+- **代码块里的 `|` 匹配不上**（`|` 与 `\|` 都试过）。绕法：改用不含 `|` 的锚点。
+- `update_content` 的 dry_run **遇第一条 matched=false 即中止**，后面的不再报 —— 排查时一次只探一条。
 - Git Bash 下 `python -c` 传含反引号的多行串会失败 —— 写临时 `.py` 文件再执行。

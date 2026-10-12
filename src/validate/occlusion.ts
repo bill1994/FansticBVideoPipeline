@@ -253,10 +253,11 @@ export function checkSubjectUnknown(ctx: ValidateContext): ReportItem[] {
 }
 
 /**
- * 禁配段：任何 motion 与 `noMotionRanges` 相交 → error。
+ * 禁配段：任何 motion 与 `noMotionRanges` 相交 → error —— 校验项 #15。
  *
- * 来源：SPEC §1.4（E5 裁决）。**未出现在 F2 的 14 项表**中 —— 两份清单存在缺口，
- * 本实现按 §1.4 执行，编号 `E-E5-01`（`<source>` 取决策编号，符合 §2.5 命名规则）。
+ * 来源：SPEC §1.4（E5 裁决）。
+ * 2026-10-13 正式纳入构建期清单：它的三条准入判据（输入可读 / 纯结构化判定 /
+ * 渲染前就该拦）全中，原清单成型早于 E5，编表时**纯漏收**，非设计分歧。
  */
 export function checkNoMotionRanges(ctx: ValidateContext): ReportItem[] {
   const out: ReportItem[] = [];
