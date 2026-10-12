@@ -1,0 +1,40 @@
+# ── WorkBuddy 本地会话数据（保留记忆，其余忽略）────────────────
+.workbuddy/*
+!.workbuddy/memory/
+
+# ── 临时/脚本残留 ──────────────────────────────────────────────
+.workbuddy/tmp-*.sh
+.workbuddy/inspect.py
+
+# ── Node / Remotion ───────────────────────────────────────────
+node_modules/
+.npm/
+out/
+dist/
+build/
+.remotion/
+
+# ── 媒体素材（大文件不入库；如需版本化请走 git-lfs）────────────
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.srt
+*.ass
+
+# ── 逐任务工作区（F1：jobs/<jobId>/00-input → 06-review）──────
+jobs/
+!jobs/.gitkeep
+
+# ── 系统 ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
