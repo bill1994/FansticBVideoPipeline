@@ -1,0 +1,193 @@
+---
+name: storyboard
+description: >-
+  Remotion motion-graphic overlay 管线的第 3 步「storyboard」。当感知完成、需要按词级锚点起草 storyboard.json
+  （含 motion 选型、footprint、接力关系与 routing/review 决策字段）时使用。负责生成并烘焙 storyboard。
+  不用于对齐、感知、校验或渲染。
+agent_created: true
+---
+
+# storyboard —— 起草与烘焙 storyboard.json
+
+> **管线位置**：第 3 步 / 共 5 步
+> **上游**：`01-align/`（词级时间戳）+ `02-perceive/`（安全区 / footprint 基线）—— **只许引用这两级**
+> **下游**：`03-storyboard/storyboard.json`（烘焙后，`fromFrame` 已是绝对帧）
+
+## 何时触发
+
+- `perceive` 完成（`02-perceive/` 就绪）时。
+- 重跑代价最低的一步：返修通常只重跑本阶段及其后（`validate` / `render`），所以**迭代都发生在这里**。
+
+## 铁律 1：模型只填表，不写代码
+
+只做两件事：**挑模板 + 填文字**。
+
+**禁止**写坐标、帧数、颜色、CSS。所有几何与帧号由 `footprint` 模板默认值、锚点烘焙器、模板 `paramsSchema` 决定。
+
+## 铁律 2：写锚点，不手算帧
+
+**真相层 = 帧**，但模型不碰它。模型只写**作者语法层**：
+
+```jsonc
+"_author": { "anchor": "word:37", "offset": "-8f" }
+```
+
+- `anchor` 粒度默认 **词级**（`anchorMode: word`），来自 `01-align/` 的逐词时间戳
+- `offset` 是帧偏移（手写逃生口：`abs` 绝对帧/秒）
+- **一次性烘焙**：resolver 在生成时把锚点解析成 `fromFrame` + `durationInFrames` 落盘，**锚点用完即弃**
+- **不设 guard 文本快照** —— 重剪罕见，砍掉防错位机制
+- 编辑页双显示：`帧 372｜ = word:37 −8f`
+
+烘焙后 `_author` **必须剥离**（它只在编辑期可见）。
+
+## 铁律 3：禁跨级引用
+
+storyboard 只能引用 `01-align/` 与 `02-perceive/` 的产物。
+**不得引用 `05-render/` 的成片** —— 那会形成环路，且让 storyboard 依赖下游。
+
+## 数据结构（顶层 3 字段）
+
+```jsonc
+{
+  "meta": {
+    "fps": 30,                      // 顶层固化；改 fps 必须重新烘焙
+    "anchorMode": "word",           // word | cue，默认 word
+    "alignmentConfidence": 0.83,    // 来自 01-align
+    "confirmedBy": "人工署名",
+    "confirmedAt": "ISO 时间"
+  },
+  "tracks": [ /* 见下 */ ],
+  "noMotionRanges": [ { "fromFrame": 0, "durationInFrames": 90, "reason": "片头实拍空镜" } ]
+}
+```
+
+**track**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | string | 是 | 轨标识 |
+| `layer` | integer | 是 | z 序（越大越上）。**与 track 正交** |
+| `handoffTo` | string \| null | 否 | **track 级**有向边，声明接力目标 |
+| `items` | array | 是 | 轨内 items **允许重叠**（这是特性，不是错误） |
+
+**item**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `_author` | object | 编辑期 | 锚点；**烘焙后剥离** |
+| `fromFrame` | integer | 是 | 绝对帧 |
+| `durationInFrames` | integer | 是 | 时长（帧） |
+| `motion` | string | 是 | `family/subtype@version`，如 `typography/kinetic-line@1.0` |
+| `footprint` | `[x,y,w,h]` | 是 | 归一化 0–1 矩形，**落盘时必带** |
+| `exclusive` | string | 否 | 互斥组名（如 `lower-third`）。**默认不互斥** |
+| `footprintAnimates` | boolean | 否 | `true` → 相交检测由 error 降为 warning |
+| `params` | object | 视模板 | 由模板 `paramsSchema` 决定 |
+
+**motion 命名空间**：`family/subtype@version`（如 `typography/lower-third@1.2`）。
+**版本锁定** → 升级不破坏旧 storyboard。
+
+- **family（12 类，可无限扩）**：`caption`（**必备**）/ `typography` / `data` / `annotation` / `carrier` / `brand` / `ambience` / `cinematic` / `transition` / `rhythm` / `sfx` / `custom`
+- **scope（6 值，固定枚举）**：`under-subject` / `overlay-safe` / `anchored` / `subject-transform` / `footage-transform` / `fullscreen`
+  - 载体类：`subject-transform` / `footage-transform`（作用于实拍视频本身）
+  - 叠加类：`overlay-safe` / `under-subject` / `anchored` / `fullscreen`（作用于画面之上）
+
+> scope 由模板声明，**不由模型写**。模型只挑 `family/subtype`。
+
+**接力（hand-off）**：只写在 **track 层** 的 `handoffTo`。
+**禁止写在 item 层** —— item 层会产生循环引用，且重排 item 顺序时引用全断。
+交接的视觉连续性**不硬编码**：接收方模板用自身参数 `handoffIn` 声明如何入场。
+接力**不强制首尾相接**，允许 gap（gap 常带来呼吸感）。
+
+**禁配段（`noMotionRanges`）**：模型起草时**跳过**这些区间。不需要外部素材契约，不需要 `media` 字段、alpha 通道处理、fps 对齐。
+
+## 铁律 4：调度走两道闸 + 产路地板
+
+每个 item 带 4 个决策字段：`sim_max` / `confidence` / `routing` / `review`。
+
+**闸1 路由**：`sim_max ≥ T` → `template` 产路 / `custom` 产路。决定「走哪条产路」。
+**闸2 审核强度**：按 `confidence` 只调制人工介入强度（`auto` / `alternatives` / `must_review`），**不改变产路**。
+
+两道闸串联，**闸2 不许回头改产路** —— 目的是避免同一模糊点被双重惩罚。
+
+**产路地板（review 的最终取值）**
+
+```
+闸2 输出    = f(confidence)              # 闸2 对产路一无所知
+最终 review = max(闸2输出, 产路地板(routing))
+```
+
+| routing | review 地板 | 闸2 调节能力 |
+|---------|-------------|--------------|
+| `template` | `auto` | 完全保留 |
+| `custom` | `must_review` | 失效（被地板锁死） |
+
+| routing ＼ confidence | 低 | 中 | 高 |
+|-----------------------|-----|-----|-----|
+| `template` | must_review | alternatives | auto |
+| `custom` | must_review | must_review | must_review |
+
+**动态阈值 T**
+
+```
+T = clamp( 间隙锚, 约束于 配额锚分位 )
+```
+
+| 项 | 值 |
+|----|-----|
+| 配额锚 | 期望走库比例 **70%–90%** |
+| 间隙锚 | 分数排序后的最大间隙（elbow） |
+| 硬边界 | `T_min = 0.50` / `T_max = 0.80`（是**边界**，不是取值） |
+| 安全阀 | 整批 `sim_max` 中位数 < 0.4 → **整批转 custom + 人审**，禁止降阈值硬套库 |
+| 样本少 | `N < 8` → 退化固定 `T = 0.65`；`N ≥ 8` → 用 elbow |
+
+> 「95% 走库」是方针修辞，不是阈值参数。
+
+**必须单测覆盖的 5 组用例**
+
+1. `template` × `confidence 高` → `auto`
+2. `template` × `confidence 中` → `alternatives`
+3. `template` × `confidence 低` → `must_review`
+4. `custom` × 任意 `confidence` → `must_review`
+5. `custom` × `confidence = 0.99` → 仍须 `must_review`（地板锁死验证）
+
+## 必须停条件
+
+**无常规阻断。** 但两种情况必须停下报人：
+
+| 情形 | 处置 |
+|------|------|
+| 整批 `sim_max` 中位数 < 0.4（安全阀） | **整批转 custom + 人审**，不得降阈值硬套库 |
+| 需要 `fullscreen` 类 motion | `fullscreen` 必然覆盖全画面，**一律人工确认**，无自动放行规则（载体模式生效时例外） |
+| `routing = custom` 的任一条 | 地板已把 `review` 抬到 `must_review`，**不许绕过** |
+
+## 产物（落 `03-storyboard/`）
+
+| 文件 | 来源 | 内容 |
+|------|------|------|
+| `storyboard.json` | 【文档指定】 | 烘焙后，`_author` 已剥离，`fromFrame` 为绝对帧 |
+| `bake-report.json` | 【实现期拟定，文档未点名】 | 锚点→帧的解析记录：哪些锚点用了哪个词的哪个帧 |
+
+> 文档对 `03-storyboard/` 的规定只有 `storyboard.json` 一项（F1）。`bake-report.json` 是本 Skill 为可追溯性补的建议文件，可调整。
+
+## 失败与退出码
+
+| 情形 | 处置 |
+|------|------|
+| `02-perceive/` 缺失 | **停**，退出码 `1` |
+| 参数错（未知 family / 未知 scope / 版本号非法） | 退出码 `2`，不猜 |
+| 锚点解析失败（引用了不存在的词号） | 退出码 `1`，指明是哪个 item |
+| 超时 / 中断 | 退出码 `5` / `130` |
+
+**禁止**：锚点是帧的真相来源，解析不出来时**不许**随手填一个 `fromFrame` 糊过去。
+
+## 落盘检查清单
+
+- [ ] 顶层恰好 3 个字段：`meta` / `tracks` / `noMotionRanges`
+- [ ] `meta.fps` 已固化；`anchorMode` 与 `alignmentConfidence` 与 `01-align/` 一致
+- [ ] 全部 `_author` 已剥离，全部 item 都有 `fromFrame` + `durationInFrames`
+- [ ] 每个 item 都带 `footprint`（归一化 0–1）
+- [ ] `handoffTo` 只出现在 track 层，**item 层零出现**
+- [ ] 起草未落入 `noMotionRanges` 任何区间
+- [ ] 每个 item 的 `sim_max` / `confidence` / `routing` / `review` 齐全，且 `review` 满足产路地板
+- [ ] 未引用 `05-render/` 的任何产物（禁跨级引用）
+- [ ] 未修改 `01-align/` / `02-perceive/`（不可变快照）

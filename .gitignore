@@ -1,6 +1,7 @@
-# ── WorkBuddy 本地会话数据（保留记忆，其余忽略）────────────────
+# ── WorkBuddy 本地会话数据（保留记忆与技能，其余忽略）──────────
 .workbuddy/*
 !.workbuddy/memory/
+!.workbuddy/skills/
 
 # ── 临时/脚本残留 ──────────────────────────────────────────────
 .workbuddy/tmp-*.sh
