@@ -87,9 +87,14 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ## git
 
-- 仓库已初始化（`main` 分支），提交人 FansticB。**远程未配置。**
-- 全局 git 走 PortableGit；代理 `http://127.0.0.1:13145`。
-- `.gitignore`：忽略 `.workbuddy/*`（保留 `memory/`）、媒体大文件、`jobs/`、`node_modules`、`out`。
+- 仓库：`main` 分支，**已推送到 <https://github.com/bill1994/FansticBVideoPipeline>**（**PUBLIC**）。
+- **本仓库用 noreply 身份**：仓库级 `user.email = 29155565+bill1994@users.noreply.github.com`
+  （全局仍是 gmail，**没动**）。2026-10-13 首次推送前用 `filter-branch` 把 8 个提交的作者+提交者全改过。
+- 凭证：`gh auth setup-git` → `credential.https://github.com.helper = gh auth git-credential`
+  （**不要用 GCM**，它在 wincredman 校验处会失败）。gh 走便携版 `~/.workbuddy/binaries/gh/bin/gh.exe`。
+- 代理 `http://127.0.0.1:13145`；`git push` 走它能通。
+- `.gitignore`：忽略 `.workbuddy/*`（**保留 `memory/` 与 `skills/`**）、媒体大文件、`jobs/`、`node_modules`、`out`、`.vitest-cache/`。
+- **`docs/proposals/` 与 `.workbuddy/memory/` 都会随仓库公开** —— 写这两处时按「会被公开」的标准写。
 
 ## 已知雷区
 
