@@ -46,6 +46,21 @@ const NUDGE_STEPS = [-0.2, -0.1, 0, 0.1, 0.2];
  *   ① 同预算内尝试挪动 footprint（不动时间轴、不改文案）
  *   ② 挪不动则自动切 carrier 模式（画面缩进载体框，motion 在框外播放）
  *   ③ 仍冲突才报错
+ *
+ * ── 2026-10-13 修复：tier1 曾是「假绿」────────────────────────────────
+ * 实测证明：tier1 算出的 candidate 矩形**只被拼进 detail 字符串**，从不回写
+ * `item.footprint`；调用方对 `status==='nudged'` 直接 `continue`。于是
+ * 「挪得开」的真实含义只是「我不报错了」，而非「我把东西挪走了」——
+ * 动效仍压在主体区、成片照样拍出来，而报告写着 `ok: true`。
+ *
+ * 现在 tier1 **真正回写** `item.footprint`（`SceneItem.item` 持有对象引用非拷贝，
+ * 故这是内存内改写）。关于「校验器是纯函数」：
+ * 该约束（SPEC §2.1 / context.ts 头注释）指的是**不再读磁盘、不写磁盘**，
+ * 落盘仍由 render 阶段负责，并未触碰。改内存中的场景对象不破坏阶段快照不可变性。
+ *
+ * ⚠️ tier2（carrier）**仍是空操作**：它只抑制报错，不改 motion 也不改 footprint。
+ *   这是已知缺口，见 `W-D4-01` 与2026-10-13 裁决材料 §1.5
+ *   （修 tier2 须先在登记册立一条承载字段的裁决）。
  */
 export function resolveOcclusion(
   item: SceneItem,
@@ -63,6 +78,8 @@ export function resolveOcclusion(
       const candidate = clampRect([x + dx, y + dy, w, h]);
       const r = rectOverlapArea(candidate, box) / rectArea(box);
       if (r <= budget) {
+        // 🔴 真正回写 —— 这是「挪得开」的兑现，而非仅消除报错
+        item.item.footprint = candidate;
         return {
           status: 'nudged',
           detail: `平移 footprint 至 [${candidate.map((v) => v.toFixed(2)).join(', ')}] 后遮挡率 ${(r * 100).toFixed(1)}% ≤ 预算 ${(budget * 100).toFixed(0)}%`,
@@ -99,7 +116,9 @@ export function resolveOcclusion(
 
   return {
     status: 'carrier',
-    detail: `自动切 carrier 模式：画面缩进载体框（${carrierId}），motion 改在框外播放`,
+    detail:
+      `已登记载体档 ${carrierId}，但**当前实现不施加载体变换**` +
+      `（tier2 尚未实现，见 W-D4-01）；motion 与 footprint 均未被改写`,
   };
 }
 
@@ -146,7 +165,35 @@ export function checkOcclusionBudget(ctx: ValidateContext): ReportItem[] {
       `区域 ${hit.region.id}（${hit.region.kind}）被遮挡 ${(hit.ratio * 100).toFixed(1)}%，` +
       `超预算 ${(budget * 100).toFixed(0)}%`;
 
-    if (res.status === 'nudged' || res.status === 'carrier') continue; // 退让成功 → 不报错
+    // 🔴 2026-10-13：退让成功不再静默continue，而是**留下可对账的告警**。
+    //   修复前这两个分支直接跳过，导致「校验通过」与「产物真的变了」无法对账。
+    if (res.status === 'nudged') {
+      out.push(
+        mk(
+          CODES.OCCLUSION_NUDGED,
+          'build',
+          [hit.scene.ref, hit.region.id],
+          frames,
+          `${head}；已平移消解 —— ${res.detail}`,
+          'footprint 已就地改写并重算遮挡率至预算内。改的是内存场景对象，落盘由 render 阶段负责。',
+        ),
+      );
+      continue;
+    }
+    if (res.status === 'carrier') {
+      out.push(
+        mk(
+          CODES.CARRIER_NOT_APPLIED,
+          'build',
+          [hit.scene.ref, hit.region.id],
+          frames,
+          `${head}；${res.detail}`,
+          '⚠️ 这条是已知缺口：D4 的 ② 号载体档尚未实现，冲突被抑制但画面未被真正退让。' +
+            '在 tier2 实现前，载体映射登记**不会**改变成片。',
+        ),
+      );
+      continue;
+    }
 
     if (res.status === 'no-carrier') {
       out.push(
@@ -183,8 +230,23 @@ export function checkBrollOcclusion(ctx: ValidateContext): ReportItem[] {
   for (const hit of collectHits(ctx)) {
     if (hit.region.kind !== 'broll') continue;
     const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budget);
-    if (res.status === 'nudged' || res.status === 'carrier') continue;
     const frames = [Math.max(hit.scene.start, hit.region.fromFrame), Math.min(hit.scene.end, hit.region.fromFrame + hit.region.durationInFrames)];
+    // 同上：退让成功同样要留下可对账的告警，而不是静默跳过
+    if (res.status === 'nudged' || res.status === 'carrier') {
+      out.push(
+        mk(
+          res.status === 'nudged' ? CODES.OCCLUSION_NUDGED : CODES.CARRIER_NOT_APPLIED,
+          'build',
+          [hit.scene.ref, hit.region.id],
+          frames,
+          `B-roll 主体 ${hit.region.id} 被遮挡 ${(hit.ratio * 100).toFixed(1)}% > 预算 ${(budget * 100).toFixed(0)}%；${res.detail}`,
+          res.status === 'nudged'
+            ? 'footprint 已就地改写并重算遮挡率至预算内。'
+            : '⚠️ D4 的 ② 号载体档尚未实现，冲突被抑制但画面未被真正退让。',
+        ),
+      );
+      continue;
+    }
     out.push(
       mk(
         CODES.BROLL_OCCLUSION,
