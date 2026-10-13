@@ -98,7 +98,10 @@ export function makeCtx(over: CtxOverrides = {}): ValidateContext {
     lowConfidenceRatio: 0.01,
     gatePassed: true,
     lowConfidenceWords: [],
-    thresholds: { meanConfidenceMin: 0.6, lowConfidenceRatioMax: 0.3 },
+    // M-1c：测试上下文固定为 SRT 权威 + 完全对齐
+    textSource: 'srt',
+    alignedRatio: 1,
+    thresholds: { meanConfidenceMin: 0.6, lowConfidenceRatioMax: 0.3, alignedRatioMin: 0.8 },
   };
 
   const perceive: PerceiveResult = {

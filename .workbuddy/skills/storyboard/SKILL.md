@@ -24,6 +24,59 @@ agent_created: true
 
 **禁止**写坐标、帧数、颜色、CSS。所有几何与帧号由 `footprint` 模板默认值、锚点烘焙器、模板 `paramsSchema` 决定。
 
+### 1.1 `params` 怎么填（会被逐项校验）
+
+模板声明的 `params` 契约由**两个正交字段**表达：
+
+| 字段 | 回答什么 |
+|------|---------|
+| `paramsSchema`（`Record<string,string>`） | **有哪些键** + 每个键的**值类型** |
+| `requiredParams`（`string[]`，**可省略**） | 哪些键**必填**。**省略 = 全部可选** |
+
+> 为什么必填不塞进 `paramsSchema`：它是扁平表，装不下 required。
+> 也**不要**期待 `default` —— 有自然默认值的键（如 `enter` / `subtitle` / `unit` / `boxed`）
+> 本来就**不标必填**，模型不用为默认值做无谓决策。
+
+**首批模板的必填键**
+
+| 模板 | 必填 | 可选 |
+|------|------|------|
+| `typography/kinetic-line` | `text` | `enter` |
+| `typography/lower-third` | `title` | `subtitle` |
+| `typography/tag-float` | `text` | — |
+| `data/stat-card` | `value` | `unit` |
+| `annotation/pointer-callout` | `target` | — |
+| `caption/karaoke-word` | **无必填** | `boxed` |
+
+### 1.2 两条不许越的界
+
+**① 不得给 `caption` 类模板写 `text`。**
+
+字幕文本的权威来源是 **SRT**，而渲染层直读 `item.params.text`。
+模型一旦能写 `text`，字幕就有了**第二个来源** —— 与语音对不上，
+而**时序校验只看帧区间、任何校验项都拦不住**。
+要改字幕请改 **SRT 或 `01-align/words.json`**，不是改 `params`。
+违反即 `E-P1-01`（未知键）。
+
+**② 不得自己写颜色。**
+
+`caption/karaoke-word` 原先声明的 `highlightColor` **已摘除**（P1）——
+Spec 附录 A 第 1 条硬约束明文「禁写坐标 / 帧数 / **颜色** / CSS」，
+留着它等于让模型能硬编码色值。高亮色由**渲染期按命名令牌解析**（`'brand'` / `'accent'`），
+**不经 params**。违反同样落 `E-P1-01`。
+
+**填错的后果**（三条码**全是 error，不设 warning 档**）：
+
+| code | 含义 | 触发 |
+|------|------|------|
+| `E-P1-01` | 含模板未声明的键 | 自造参数、给 caption 写 `text`、写颜色 |
+| `E-P1-02` | 缺必填键 | 该填的没填 |
+| `E-P1-03` | 值类型不符 | `scale: "1.08"` 而不是 `1.08`；`NaN` / `Infinity` 也会被拒 |
+
+**不做隐式转换** —— `"1.08"` ≠ `1.08`。校验器不替模型做决策。
+
+> 完整判定口径见 [`.workbuddy/skills/validate/SKILL.md`](validate/SKILL.md) 与 Spec §2.11。
+
 ## 铁律 2：写锚点，不手算帧
 
 **真相层 = 帧**，但模型不碰它。模型只写**作者语法层**：
@@ -84,7 +137,7 @@ storyboard 只能引用 `01-align/` 与 `02-perceive/` 的产物。
 | `footprint` | `[x,y,w,h]` | 是 | 归一化 0–1 矩形，**落盘时必带** |
 | `exclusive` | string | 否 | 互斥组名（如 `lower-third`）。**默认不互斥** |
 | `footprintAnimates` | boolean | 否 | `true` → 相交检测由 error 降为 warning |
-| `params` | object | 视模板 | 由模板 `paramsSchema` 决定 |
+| `params` | object | 视模板 | 由模板 `paramsSchema`（有哪些键 / 值类型）+ `requiredParams`（哪些必填）决定，见 §1.1 |
 
 **motion 命名空间**：`family/subtype@version`（如 `typography/lower-third@1.2`）。
 **版本锁定** → 升级不破坏旧 storyboard。
@@ -162,6 +215,7 @@ T = clamp( 间隙锚, 约束于 配额锚分位 )
 | 整批 `sim_max` 中位数 < 0.4（安全阀） | **整批转 custom + 人审**，不得降阈值硬套库 |
 | 需要 `fullscreen` 类 motion | `fullscreen` 必然覆盖全画面，**一律人工确认**，无自动放行规则（载体模式生效时例外）。**确认落点在 render 启动闸**（D3-a）：起草时照常写，但该 item 必须被 `06-review/confirmed.json` 的 `acknowledgedFullscreen` 覆盖，否则渲染起不来 |
 | `routing = custom` 的任一条 | 地板已把 `review` 抬到 `must_review`，**不许绕过** |
+| `params` 填出 `E-P1-01/02/03` 任一条 | 本阶段**无放行档** —— 校验器是只读的，不代改。回填正确的键与类型后重跑 |
 
 ## 产物（落 `03-storyboard/`）
 
@@ -191,6 +245,10 @@ T = clamp( 间隙锚, 约束于 配额锚分位 )
 - [ ] 每个 item 都带 `footprint`（归一化 0–1）
 - [ ] `handoffTo` 只出现在 track 层，**item 层零出现**
 - [ ] 起草未落入 `noMotionRanges` 任何区间
-- [ ] 每个 item 的 `sim_max` / `confidence` / `routing` / `review` 齐全，且 `review` 满足产路地板
+- [ ] 每个 item 的 `params` 键**全部**在 `paramsSchema` 内（零自造参数）
+- [ ] `requiredParams` 里的键**全部**已填
+- [ ] `params` 值类型与声明一致；数字**没有**写成字符串，没有 `NaN` / `Infinity`
+- [ ] `caption` 类 item 的 `params` **没有** `text`，也**没有**任何颜色键
+- [ ] 全部 item 都有 `sim_max` / `confidence` / `routing` / `review` 齐全，且 `review` 满足产路地板
 - [ ] 未引用 `05-render/` 的任何产物（禁跨级引用）
 - [ ] 未修改 `01-align/` / `02-perceive/`（不可变快照）

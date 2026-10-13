@@ -113,10 +113,39 @@ export interface AlignReport {
   gatePassed: boolean;
   /** 低于阈值的词序号，供人工复核。 */
   lowConfidenceWords: number[];
+
+  /**
+   * 文本权威来源 —— 来源 M-1c（2026-10-13）。
+   *
+   * 🔴 **必填**：缺它，一份 `words.json` 无法自证它是 SRT 权威还是 whisper 权威
+   * —— 而这正是 M-1 的争点本身。不落盘等于裁决没有被记录。
+   *
+   * M-1 已裁决取 `'srt'`（B2-fix：只取 SRT 文本，时间戳从音频重新推导）。
+   * 保留另两个取值是为将来若改判时**有历史可比**，而非鼓励使用。
+   */
+  textSource: 'srt' | 'whisper-asr';
+
+  /**
+   * SRT 词成功对上 whisper token 的比例 0–1 —— 来源 M-1c。
+   *
+   * 🔴 **为什么 `meanConfidence` 测不到这件事**：
+   * `meanConfidence` 衡量的是「whisper 对自己听到的词有多自信」，
+   * 而「SRT 与音频是否对得上」是另一个维度。一个 whisper 自信但
+   * 与 SRT 完全不符的场景会**直接通过门控** —— 这违反项目 P0
+   * 「未配置外部模型时直接报错退出，绝不伪造结果」的精神：
+   * 一份对不上的 words.json 比一次显式失败危险得多。
+   *
+   * 同时作为**门控项**：低于阈值 → 退出码 2，走 C2-4 已有的
+   * 「人工确认后继续」通道。
+   */
+  alignedRatio: number;
+
   /** 实际使用的阈值，便于事后追溯。 */
   thresholds: {
     meanConfidenceMin: number;
     lowConfidenceRatioMax: number;
+    /** 🔴 PLACEHOLDER（新增）：alignedRatio 的下限。须与 meanConfidenceMin 一并校准。 */
+    alignedRatioMin: number;
   };
 }
 

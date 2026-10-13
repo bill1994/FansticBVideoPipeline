@@ -38,6 +38,19 @@ export const DEFAULT_JOBS_DIR = 'jobs';
 export const ALIGN_GATE = {
   meanConfidenceMin: 0.6,
   lowConfidenceRatioMax: 0.3,
+  /**
+   * 🔴 PLACEHOLDER —— 新增（M1c，2026-10-13）。
+   *
+   * SRT 词成功对上 whisper token 的比例下限。低于此值 → 门控不过 → 退出码 2。
+   *
+   * ⚠️ **为什么必须与 `meanConfidenceMin` 一并校准、不得分开拍**：
+   * 两者度量的是不同维度 —— 前者是「whisper 对自己听到的词有多自信」，
+   * 后者是「SRT 与音频是否对得上」。分开校准容易只调一个而漏掉另一个，
+   * 留下一道看着齐全实则测不到对齐质量的门。沿用三处缺口提案 §3.6 的纪律。
+   *
+   * 取值**待实测**，与 C2-2 一并在真实素材上校准。**不要当结论用。**
+   */
+  alignedRatioMin: 0.8,
 } as const;
 
 /**

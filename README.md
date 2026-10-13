@@ -23,7 +23,7 @@
 
 ```
 00-input ──► 01-align ──► 02-perceive ──► 03-storyboard ──► 04-validate ──► 05-render ──► 06-review
-  素材       强制对齐        感知与安全区      storyboard 起草      校验（当前 15 项）       渲染出片      人工放行
+  素材       强制对齐        感知与安全区      storyboard 起草      校验（当前 16 项）       渲染出片      人工放行
              ↑ 门控                                ↑ 烘焙锚点→帧      ↑ 有 error 停
 ```
 
@@ -34,7 +34,7 @@
 | `align` | 抽 16kHz 单声道 wav → 强制对齐 → 置信度门控 | **门控不达标必须停**，降级必须阻断 |
 | `perceive` | 抽帧、主体检测、安全区与区域预算基线 | 无硬阻断（低置信走告警 + 人工兜底） |
 | `storyboard` | 按**词级锚点**起草并烘焙 `storyboard.json` | 安全阀 / fullscreen / custom 不许绕地板 |
-| `validate` | 跑构建期校验项（当前 15 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
+| `validate` | 跑构建期校验项（当前 16 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
 | `render` | C6 双栈映射 + 本地渲染 | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
 
 每阶段的详细行为契约见 [`.workbuddy/skills/`](.workbuddy/skills/) —— 那是**执行期读**的精简版，
@@ -75,14 +75,16 @@ npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 
-预期结果：`validate` 报 **0 error / 2 warning** 并写出 `examples/demo/04-validate/validate-report.json`；
+预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 16` + `summary.extra = 2`），
+并写出 `examples/demo/04-validate/validate-report.json`；
 那两条 warning 都是 `W-F6-01`（示例里 s2 镜头与其人脸区被故意标成低置信，用来演示 F6 的人工兜底通道）。
+注意 `checked` 只数清单内的 16 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
 
 其他命令：
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：N-3 五组单测 + 烘焙 + 校验（当前 15 项）
+npm test            # vitest：6 个测试文件 / 109 项（校验 40 · 遮挡分级 10 · 参数契约 17 · 烘焙 14 · 调度 19 · 对齐门控 9）
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```
 
@@ -101,7 +103,7 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 │   │   ├── schedule.ts       两道闸 + 产路地板 + 动态阈值 T
 │   │   ├── bake.ts           锚点 → 帧的一次性烘焙
 │   │   └── io.ts             job 目录 + 不可变快照守卫
-│   ├── validate/             构建期校验（当前 15 项，纯函数）
+│   ├── validate/             构建期校验（当前 16 项，纯函数）
 │   ├── templates/            模板契约（双轴 family × scope）与注册表
 │   ├── stages/               五个阶段的执行逻辑
 │   └── remotion/             Remotion 工程（C6 双栈映射）
@@ -177,6 +179,21 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
   动效在同一句话内提前进入可接受，跨到上一句才算错位（C2-5a）。
   这条边界是**修正过的** —— 原先写成「须落在目标词区间内」，那样连文档自己的示例都过不了。
 - **不手算帧。** 模型只填表不写代码：只挑模板 + 填文字，禁写坐标/帧数/颜色/CSS。
+- **`params` 按 `paramsSchema` 逐项校验（第 16 项，P1）。** 三条码全 error、不设 warning 档：
+  `E-P1-01` 未知键 / `E-P1-02` 缺必填键 / `E-P1-03` 类型不符。判定顺序固定 `01 → 02 → 03`。
+  > **为什么全 error**：现有的 warning 档（几何相交、主体未确等人补）都有正当的不拦理由，
+  > 而参数写错没有 —— 要么崩，要么静默错渲。
+  > **三个判定边界**：`'number'` 额外要求 `Number.isFinite`（`NaN` / `Infinity` 裸 `typeof` 会放行，
+  > 而它们在插值时产生 NaN 污染整条画面）；**不做隐式转换**（`scale: "1.08"` ≠ `scale: 1.08`）；
+  > **不判语义**（`stat-card` 的 `value: "999%"` 结构正确，校验器只验结构）。
+  > **不剔除非法 item** —— 校验器是纯函数且逐项独立判定，剔除会让报告随执行顺序变化并吞掉其他项的问题。
+- **必填信息不塞进 `paramsSchema`。** 它是 `Record<string,string>` 的扁平表，装不下 required；
+  必填查独立可选字段 `requiredParams`（**省略 = 全部可选**）。
+  刻意不把值类型改成 `{type, required?, default?}` —— `default` 是**渲染期**的事，
+  塞进校验层属职责混淆。
+- **字幕文本与颜色都不经 params。** `caption/karaoke-word` 故意不声明 `text`（它来自 SRT）
+  也不声明颜色（已摘除原 `highlightColor`）—— 留着任何一个都等于让模型能硬写文本或色值，
+  违反「禁写坐标/帧数/颜色/CSS」这条硬约束。高亮色由渲染期按**命名令牌**（`'brand'` / `'accent'`）解析。
 - **禁用 `<Series>`。** 它的语义是「依次播放」，**结构上无法表达重叠**，与硬约束 3 直接冲突。
 - **禁用显式 `z-index`。** z 序由 `(layer 升序, trackIndex 升序)` + DOM 嵌套决定。
   `transform` 会创建新的层叠上下文，「设了 999 却失效」极难排查。
@@ -200,6 +217,7 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 | 项 | 当前值 | 状态 |
 |----|--------|------|
 | 对齐门控阈值 | 均值 < `0.60` 或低置信词 > `30%` → 阻断 | 文档初值，**待实测校准** |
+| 对齐门控阈值 `alignedRatioMin` | `0.80` | 🔴 **占位值**：M-1c 新增。**须与 `meanConfidenceMin` 一并校准，不得分开拍** |
 | 门控置信度分档 | `high ≥ 0.80` / `mid ≥ 0.50` | **占位值**：真源只给了组合矩阵，未给分界数值 |
 | 每 cue 的 item 数阈值 | `3` | **占位值**：真源只写「超阈值」，未给数值 |
 | 走库比例 | 70%–90%（配额锚） | 文档值 |
@@ -228,8 +246,7 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 2. **E5 的「motion 与禁配段相交 → error」漏收。**
    → 并入清单，成为**第 15 项**（`E-E5-01`）。它的三条准入判据与其余各项完全同质，
    原清单成型早于 E5，属**纯漏收**而非设计分歧。清单同时改为**不带计数的命名**，
-   免得再被数字钉死。
-3. **`offset: "-8f"` 这个规范示例会违反 C2-5 的时序校验。**
+   免得再被数字钉死。3. **`offset: "-8f"` 这个规范示例会违反 C2-5 的时序校验。**
    → 裁决 **C2-5a**：**改 C2-5 的区间下界** —— 由「词起点」改为「**锚定词所在 cue 的起点**」。
    负偏移＝抢拍，**合法**；跨过 cue 起点才算错位。
    决定性理由：禁负偏移会把抢拍逼回 `abs:` 手写帧号 → 写死帧号后失去「跟着词走」的能力 →
@@ -238,6 +255,30 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 
 **判据（清单准入规则）**：某个规则该不该进清单，看三条 —— 输入在本阶段可读 / 纯结构化判定 /
 渲染前就该阻断。全中才进；否则另找落点并写明。**例外只应该有 D3 这一条。**
+
+### 第四处缺口：`paramsSchema` 无人校验 → 校验项 #16（P1）
+
+写首批模板清单时暴露的第二处同类缺口：**`paramsSchema` 只被定义与注册，校验器侧零引用。**
+模型填了模板未声明的键、或漏填必填键，构建期一声不吭。
+
+> **为什么它比前三处更危险**：前三处是「判定规则答不上来」，这一处是「根本没有判定」。
+> 最坏的具体后果：`caption/karaoke-word` 故意不把 `text` 放进 `paramsSchema`（字幕文本来自 SRT），
+> 而渲染层直读 `item.params.text` —— 模型一旦硬塞 `text`，字幕文本就有了第二个来源，
+> 与语音对不上，而**时序校验只看帧区间、任何校验项都拦不住**。
+
+已按 **P1** 裁决落地（详见上文硬规则一节）：进清单成为**第 16 项**，三条码全 error；
+契约扩 `requiredParams`；`karaoke-word` 摘除 `highlightColor`。详见
+[`docs/templates/2026-10-13-模板库首批清单.md`](docs/templates/2026-10-13-模板库首批清单.md) §2.2 与 §6。
+
+### 另两条已落登记册的裁决：align 的文本权威（M-1 / M-1c）
+
+M-1 已裁决取方案 **(b)** —— whisper 出时间、把词序列文本对齐回 SRT，**保住 SRT 权威**。
+M-1c 同步给 `AlignReport` 补两个**必填**字段：`textSource`（可审计）与 `alignedRatio`
+（SRT 词对上 token 的比例，**同时是门控项**，阈值 `alignedRatioMin` 🔴 PLACEHOLDER 待实测）。
+
+> **为什么非加不可**：`meanConfidence` 衡量的是「whisper 对自己听到的词有多自信」，
+> 它**测不到「SRT 与音频是否对得上」**。一个 whisper 自信但与 SRT 完全不符的场景会
+> 直接通过门控 —— 这违反项目 P0「绝不伪造结果」。
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "name": "remotion-overlay-pipeline",
   "version": "0.2.0",
-  "description": "在已粗剪的实拍视频上叠加 motion-graphic overlay 的分阶段管线：强制对齐 → 感知 → storyboard 起草 → 14 项构建期校验 → Remotion 渲染。",
+  "description": "在已粗剪的实拍视频上叠加 motion-graphic overlay 的分阶段管线：强制对齐 → 感知 → storyboard 起草 → 16 项构建期校验 → Remotion 渲染。",
   "private": true,
   "type": "module",
   "license": "MIT",

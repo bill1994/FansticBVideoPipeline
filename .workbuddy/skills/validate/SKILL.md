@@ -1,13 +1,13 @@
 ---
 name: validate
 description: >-
-  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑构建期校验项（当前 15 项）
+  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑构建期校验项（当前 16 项）
   并产出 validate-report.json 时使用。负责构建期校验（纯 JSON→JSON）与渲染期兜底。
   不用于对齐、感知、storyboard 起草或渲染。
 agent_created: true
 ---
 
-# validate —— 构建期校验与阻断门控（当前 15 项）
+# validate —— 构建期校验与阻断门控（当前 16 项）
 
 > **管线位置**：第 4 步 / 共 5 步
 > **上游**：`03-storyboard/storyboard.json` + `01-align/` + `02-perceive/`
@@ -24,7 +24,7 @@ agent_created: true
 
 | 阶段 | 可判条件 | 覆盖 |
 |------|----------|------|
-| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **全部校验项（当前 15 项）** |
+| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **全部校验项（当前 16 项）** |
 | **渲染期兜底** | 需实际渲染才暴露 | 字体未加载、Canvas 未挂载（`delayRender` 超时）、GPU 上下文创建失败 |
 
 构建期之所以能判全：校验器读的全是**结构化数据**（footprint / minVisibleInFrames / 各区域预算占用 / 主体框 / noMotionRanges），不需要渲染。
@@ -55,7 +55,18 @@ agent_created: true
 - 有任何 `level: "error"` → **阻断**，退出码 `1`
 - 只有 `warning` → **放行**，warning 不阻断
 
-## 校验项全表（当前 15 项）
+**第 16 项（参数契约）触发时必须停 —— 这三条没有「放行」这一档**
+
+| 情形 | 为什么必须停，而不是降级放行 |
+|------|--------------------------|
+| `E-P1-01` 模型给 caption/karaoke-word 塞了 `text` | **最危险的一类**：字幕文本的权威来源是 SRT，而渲染层直读 `item.params.text`。模型一旦能写 `text`，字幕就有了**第二个来源** —— 与语音对不上，而**时序校验只看帧区间、任何校验项都拦不住**。修法是**改 SRT 或 `words.json`，不是改 `params`** |
+| `E-P1-02` 缺必填键 | 该键没有自然默认值，渲染期只能填一个占位值 → 静默错渲。返修是补键，不是绕过 |
+| `E-P1-03` 类型不符（含 `NaN` / `Infinity`） | 非有限数值在插值时产生 NaN，**污染整条画面**，且成片不报错。必须回填正确类型 |
+
+> **不要试图「就地修一下让它过」** —— 本阶段是**只读**的校验器，不改 `03-storyboard/`。
+> 正确回路是：报出 →人工改 `03-storyboard/` → **重跑本阶段**。
+
+## 校验项全表（当前 16 项）
 
 **时间轴类（9 项）**
 
@@ -82,7 +93,13 @@ agent_created: true
 | 14 | B-roll 主体遮挡 > 30% 预算 | error | D2 | `E-D2-02` | — |
 | **15** | **禁配段相交**：任何 motion 与 `noMotionRanges` 相交 | error | **E5** | **`E-E5-01`** | — |
 
-**不在 15 项内、但同样会出现在报告里**
+**参数契约类（1 项）**
+
+| # | 校验项 | 判定 | 来源 | error | warning |
+|---|--------|------|------|-------|---------|
+| **16** | **`params` 按 `paramsSchema` + `requiredParams` 校验**（三条码，见下） | error | **P1** | **`E-P1-01/02/03`** | **—（不设 warning 档）** |
+
+**不在 16 项内、但同样会出现在报告里**
 
 | 项 | 判定 | 来源 | code |
 |----|------|------|------|
@@ -91,7 +108,7 @@ agent_created: true
 
 > 第 5 项**无错误码** —— 它不校验、直接放行，不产 report 条目。
 > 第 10 项最危险：`item` 结束帧超出 `<Composition>` 时长时 Remotion **静默截断，不打日志**，成片少一截而全链路无报错。**不可省略**。
-> **`summary.checked` 只数那 15 项**，不含下面两条警告 —— 它们记在 `summary.extra`。别把 `checked` 读成「全跑完了」。
+> **`summary.checked` 只数那 16 项**，不含下面两条警告 —— 它们记在 `summary.extra`。别把 `checked` 读成「全跑完了」。
 
 ## 关键判定细则
 
@@ -127,6 +144,30 @@ agent_created: true
 
 **第 13 项三级退让**：冲突 → ① 同预算内尝试挪 `footprint`（不动时间轴、不改文案）→ ② 挪不动则自动切 `carrier` 模式 → ③ 仍冲突才报错。
 
+**第 16 项参数契约：三条码与判定边界**
+
+| code | check | title |
+|------|-------|-------|
+| `E-P1-01` | `params-unknown-key` | params 含模板未声明的键 |
+| `E-P1-02` | `params-missing-required` | params 缺必填键 |
+| `E-P1-03` | `params-type-mismatch` | params 值类型与声明不符 |
+
+**判定顺序固定 `01 → 02 → 03`** —— 未知键最能指出模型对模板的理解偏差，先报它，
+同一 item 的其他问题才不会被埋掉。
+
+四条必须照抄的边界：
+
+1. **`'number'` 额外要求 `Number.isFinite`** —— `NaN` / `Infinity` 的 `typeof` 也是 `'number'`，
+   裸 `typeof` 会放行，而它们在插值时产生 NaN，**污染整条画面**。
+2. **不做隐式转换** —— `scale: "1.08"` ≠ `scale: 1.08`。把字符串悄悄转成数字等于替模型做决策。
+3. **不判语义** —— `stat-card` 的 `value: "999%"` 数值可疑但结构正确，本项只验结构。
+4. **不剔除非法 item** —— 本阶段是纯函数且逐项独立判定；剔除会让报告随执行顺序变化，
+   并吞掉其他项的真实问题。
+
+> **为什么三条全 error、不设 warning 档**：`W-C4-01`（几何相交）、`W-F6-01`（等人补）
+> 都有正当的不拦理由 —— 前者视觉上可能没问题，后者只是提示。
+> 参数写错没有这类理由：**要么崩，要么静默错渲。**
+
 ## 报告契约（`04-validate/validate-report.json`）
 
 > `validate-report.json` 文件名由 F1 指定；下面的字段结构来自 **Spec §2.9**（Spec 自定，进度文档与登记册均未定义），可随实现调整，但**必须能表达「项级错误码 + 级别 + 定位 + 可复现排序」四件事**。
@@ -135,7 +176,7 @@ agent_created: true
 {
   "jobId": "2026-10-12-demo",
   "ok": false,                       // 无 error 才为 true（warning 不影响）
-  "summary": { "error": 2, "warning": 3, "checked": 15, "extra": ["W-D3-01", "W-F6-01"] },
+  "summary": { "error": 2, "warning": 3, "checked": 16, "extra": ["W-D3-01", "W-F6-01"] },
   "items": [
     {
       "code": "E-C4-01",
@@ -153,7 +194,7 @@ agent_created: true
 ```
 
 渲染期兜底用同结构，`stage: "render"`，`code` 前缀 `E-RT-*` / `W-RT-*`。
-`summary.extra` 列出**不在 15 项内**但已执行的规则码（`W-D3-01` / `W-F6-01`）—— `checked` 与 `extra` 相加才是本次执行的全貌。
+`summary.extra` 列出**不在 16 项内**但已执行的规则码（`W-D3-01` / `W-F6-01`）—— `checked` 与 `extra` 相加才是本次执行的全貌。
 
 ## 两套码不要混用
 
@@ -196,13 +237,16 @@ agent_created: true
 
 ## 落盘检查清单
 
-- [ ] 15 项**全部**已跑（`summary.checked == 15`），无早退短路
+- [ ] 16 项**全部**已跑（`summary.checked == 16`），无早退短路
 - [ ] `items` 已按 `level` → `code` 排序，输出可逐字节复现
 - [ ] 有 error 时 `ok=false` 且已阻断（退出码 `1`）
 - [ ] 安全区判定优先级高于 exclusive 组判定
 - [ ] 第 5 项（主从冲突）未产出任何 report 条目
 - [ ] 第 10 项（尾部截断）**没有**被跳过
 - [ ] 第 15 项（禁配段相交）**没有**被跳过
+- [ ] 第 16 项（参数契约）**没有**被跳过，`E-P1-01/02/03` 逐项跑过
+- [ ] 每个 item 的 `params` 键都对照过 `paramsSchema`；必填键对照过 `requiredParams`
+- [ ] 非有限数值（`NaN` / `Infinity`）未被 `'number'` 声明放行
 - [ ] `summary.extra` 已列出 `W-D3-01` / `W-F6-01`，未被误当成 `checked` 的一部分
 - [ ] 未做任何语义判断 / LLM 调用
 - [ ] 未修改 `03-storyboard/` 或任何上游产物（校验器只读）
