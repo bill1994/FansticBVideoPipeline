@@ -167,6 +167,30 @@ export interface Cue {
   text: string;
 }
 
+/**
+ * SRT 解析出的单条 cue —— M-1（方案 b）的输入。
+ *
+ * ⚠️ **时间戳的地位**：SRT 的时间戳在本项目**不参与任何下游判定**
+ * （B2-fix：素材是已粗剪拼接的，SRT 时间轴可能与视频整体偏移），
+ * 时间一律由音频重新推导。此处保留帧值仅为人工对账方便，
+ * `srtFromSec` / `srtToSec` 同理。
+ *
+ * 真正进入流水线的是 **`text`** —— 它是「文本权威」（M-1）。
+ *
+ * 来源：`src/core/srt.ts`（实现期拟定，文档只规定「输入含 SRT」未点名格式）。
+ */
+export interface SrtCue {
+  /** 剥离非台词内容后的序号（**连续重编号**，不沿用 SRT 原序号）。 */
+  index: number;
+  fromFrame: number;
+  toFrame: number;
+  /** 已剥离说话人标签 / 音效标注等非台词内容。 */
+  text: string;
+  /** 原始秒数，仅供人工对账。 */
+  srtFromSec: number;
+  srtToSec: number;
+}
+
 export interface AlignWords {
   fps: number;
   words: WordTimestamp[];
