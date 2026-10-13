@@ -1,11 +1,19 @@
 /**
- * 首批模板种子清单。
+ * 首批模板清单。
  *
- * ⚠️ 【实现期拟定，文档未点名】
- *    进度文档只规定「模板库首批清单」是**实现期第一件事**（§7 待补清单第 6 项），
- *    **未给出具体清单**。下面是可与管线跑通的最小种子集，不是文档结论。
+ * ✅ 清单与契约值已定：`docs/templates/2026-10-13-模板库首批清单.md`
+ *    （首批 10 个，逐个模板的`layer` / `occludesSubject` / `footprint` /
+ *    `minVisibleInFrames` 推导依据，以及 7 条扩补纪律均在文档中）
  *
- * 契约字段含义见 ./types.ts；双轴 family × scope 的枚举值是文档明示的。
+ * 真源：SPEC §3（双轴框架 + §3.5 首批清单指向）。
+ *
+ * 三个容易踩的点（文档 §2.2 有详述，此处只留提醒）：
+ * - `scope` 与 `occludesSubject` 是**两个独立维度** ——
+ *   `ambience/noise-grain` 是 fullscreen 但 `occludesSubject: false`。
+ * - `caption/karaoke-word` 的 `paramsSchema` **不含 `text`** ——
+ *   字幕文本来自 SRT，不是模型自由填写。
+ * - 依赖 perceive 主体框的两个模板标 `experimental`，
+ *   因 perceive 模型尚未接入（`PERCEIVER_CMD` 未配置时退出码 2）。
  *
  * 版本已锁：`@1.0`。升级走 `@1.1` 新增，**不改旧 storyboard**。
  */
