@@ -81,6 +81,20 @@ export interface TemplateDeclaration {
   occludesSubject: boolean;
   /** 参数契约。模型只填表不写代码。 */
   paramsSchema: Record<string, string>;
+  /**
+   * 必填参数键（P1）。
+   *
+   * **省略 = 全部可选。** `paramsSchema` 只表达「有哪些键」与「值类型」，
+   * 不承担必填语义 —— 它是 `Record<string, string>` 的扁平表，装不下 required。
+   *
+   * 为什么不把值改成对象 `{ type, required?, default? }`：
+   * - `default` 是**渲染期**的事，塞进校验层属职责混淆；
+   * - 10 个已声明模板会全部迁移，diff 远大于收益。
+   *
+   * 因此拆成两个正交字段：键存在性查 `paramsSchema`，
+   * 是否必填查本字段。校验项 #16 需要这三个事实：存在 / 必填 / 类型。
+   */
+  requiredParams?: string[];
   status: TemplateStatus;
   /** 默认占位矩形；item 可覆盖。 */
   footprint: Footprint;

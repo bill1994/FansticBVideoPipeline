@@ -39,12 +39,21 @@ export function makeWords(n: number, startFrame = 100): WordTimestamp[] {
   return words;
 }
 
+/**
+ * 默认 motion 是 `typography/kinetic-line@1.0`（`requiredParams: ['text']`），
+ * 故默认补一个 `params.text` —— 否则校验项 #16 会让每一条未显式指定 params 的
+ * 用例都报 `E-P1-02`，把「测别的项」与「必须填 params」两件事耦死。
+ *
+ * 需要测 params 契约本身的用例请显式传 `params`（见 `params-schema.test.ts`），
+ * 或用 `params: {}` / 不传来覆盖缺省路径。
+ */
 export function makeItem(over: Partial<StoryboardItem> = {}): StoryboardItem {
   return {
     fromFrame: 100,
     durationInFrames: 60,
     motion: 'typography/kinetic-line@1.0',
     footprint: [0.05, 0.72, 0.3, 0.16],
+    params: { text: 't' },
     ...over,
   };
 }

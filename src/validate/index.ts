@@ -2,7 +2,7 @@
  * 构建期校验器 —— 纯函数，逐项独立判定。
  *
  * 真源：SPEC §2（来源 F2）。两阶段分层：
- *  - **构建期**（本文件）：纯 JSON→JSON，不渲染，覆盖全部校验项（当前 15 项）
+ *  - **构建期**（本文件）：纯 JSON→JSON，不渲染，覆盖全部校验项（当前 16 项）
  *  - **渲染期兜底**：字体未加载 / Canvas 未挂载 / GPU 上下文失败，
  *    只能在真实渲染时暴露，由 stages/render.ts 产出 `stage: "render"` 的条目
  *
@@ -27,18 +27,21 @@ import {
   checkOcclusionBudget,
   checkSubjectUnknown,
 } from './occlusion.ts';
+import { checkParams } from './params.ts';
 
 /**
- * 文档校验项序号。**当前 15 项**（时间轴类 9 + 工程与遮挡类 6）。
+ * 文档校验项序号。**当前 16 项**（时间轴类 9 + 工程与遮挡类 6 + 参数契约类 1）。
  * 第 5 项（主从冲突）不产条目，但**确实执行**。
  * 第 15 项（禁配段相交，E5）于 2026-10-13 增补 —— 原清单成型早于 E5，编表时漏收。
+ * 第 16 项（paramsSchema 校验，P1）于 2026-10-13 增补—— 此前 `paramsSchema`
+ * 只被定义与注册、校验器侧零引用。
  *
  * ⚠️ 这是**活清单**：增补须先改 `docs/decisions/OPEN-DECISIONS.md`，不得只在这里加。
  */
-export const DOCUMENTED_CHECK_ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] as const;
+export const DOCUMENTED_CHECK_ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
 
 /**
- * 不在 15 项内、但同样会执行并产条目的规则 —— 记入 `summary.extra`。
+ * 不在 16 项内、但同样会执行并产条目的规则 —— 记入 `summary.extra`。
  *
  * 二者都是**刻意**不进清单的，理由同一条：三条准入判据没全中。
  * - `W-D3-01`：确认记录产在 `06-review`，构建期读不到（D3-a）
@@ -67,6 +70,9 @@ export function runValidation(ctx: ValidateContext): ValidateReport {
     ...checkTailTruncation(ctx), // #10
     ...checkOcclusionBudget(ctx), // #12 / #13
     ...checkBrollOcclusion(ctx), // #14
+
+    // 参数契约类 1 项
+    ...checkParams(ctx), // #16（P1：paramsSchema 校验）
 
     // 起草原生约束
     ...checkNoMotionRanges(ctx), // E-E5-01（SPEC §1.4）

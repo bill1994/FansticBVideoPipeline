@@ -1,5 +1,5 @@
 /**
- * 构建期校验项（当前 15 项）+ 起草原生约束。
+ * 构建期校验项（当前 16 项）+ 起草原生约束。
  * 每条用例都对应 SPEC §2.2 / §2.3 的一行，或一份真源里的明文规定。
  */
 
@@ -23,11 +23,11 @@ beforeEach(() => {
 });
 
 describe('基线', () => {
-  it('空 storyboard → ok，且 15 项全跑', () => {
+  it('空 storyboard → ok，且 16 项全跑', () => {
     const r = runValidation(makeCtx());
     expect(r.ok).toBe(true);
-    expect(r.summary.checked).toBe(15);
-    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(15);
+    expect(r.summary.checked).toBe(16);
+    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(16);
     expect(r.summary.extra).toEqual(['W-D3-01', 'W-F6-01']);
     expect(r.items).toEqual([]);
   });
@@ -358,7 +358,9 @@ describe('D3 fullscreen 需人工确认 W-D3-01', () => {
   it('存在 fullscreen motion → warning，且不进遮挡预算', () => {
     const r = runValidation(
       makeCtx({
-        tracks: [makeTrack('fs', 100, [makeItem({ motion: FULLSCREEN, fromFrame: 111, durationInFrames: 40, footprint: [0, 0, 1, 1] })])],
+        // `params: {}` 显式覆盖 makeItem 的默认 —— whip-pan 未声明 text，
+        // 用默认值会把无关的 E-P1-01 带进来
+        tracks: [makeTrack('fs', 100, [makeItem({ motion: FULLSCREEN, fromFrame: 111, durationInFrames: 40, footprint: [0, 0, 1, 1], params: {} })])],
         regions: [{ id: 'face-1', kind: 'face', shotId: 's1', fromFrame: 100, durationInFrames: 200, box: [0, 0, 1, 1] }],
       }),
     );

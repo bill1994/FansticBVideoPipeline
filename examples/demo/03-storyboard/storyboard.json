@@ -180,8 +180,7 @@
           "fromFrame": 78,
           "motion": "caption/karaoke-word@1.0",
           "params": {
-            "boxed": false,
-            "highlightColor": "#ffd166"
+            "boxed": false
           }
         },
         {
@@ -201,8 +200,7 @@
           "fromFrame": 712,
           "motion": "caption/karaoke-word@1.0",
           "params": {
-            "boxed": true,
-            "highlightColor": "#ffd166"
+            "boxed": true
           }
         }
       ],

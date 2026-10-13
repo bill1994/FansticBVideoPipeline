@@ -90,6 +90,23 @@ export const CODES = {
    */
   NO_MOTION_RANGE: E('E-E5-01', 'no-motion-range-overlap', 'E5', 15, 'motion 与禁配段相交'),
 
+  // ── 参数契约（第 16 项 · 来源 P1）──────────────────────────────
+  /**
+   * `item.params` 按 `paramsSchema` 校验 —— 校验项 #16。
+   *
+   * 来源 P1（2026-10-13）：`paramsSchema` 此前只被定义与注册，**校验器侧零引用**
+   * —— 模型填了模板未声明的键、或漏填必填键，构建期一声不吭。
+   *
+   * 三条码**全部 error，不设 warning 档**。理由：现有 warning 档
+   * （`W-C4-01` 几何相交但视觉上可能没问题、`W-F6-01` 等人补）
+   * **都有正当的不拦理由**，而参数写错没有 —— 要么崩要么静默错渲。
+   *
+   * 判定口径见 `validate/params.ts`。
+   */
+  PARAMS_UNKNOWN_KEY: E('E-P1-01', 'params-unknown-key', 'P1', 16, 'params 含模板未声明的键'),
+  PARAMS_MISSING_REQUIRED: E('E-P1-02', 'params-missing-required', 'P1', 16, 'params 缺必填键'),
+  PARAMS_TYPE_MISMATCH: E('E-P1-03', 'params-type-mismatch', 'P1', 16, 'params 值类型与声明不符'),
+
   // ── 兜底告警 ─────────────────────────────────────────────────
   /**
    * shot 主体未确。来源 SPEC §5.5 / F6：感知标了 `lowConfidence` 时出此告警，

@@ -31,7 +31,16 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     layer: 90,
     occludesSubject: false,
     status: 'core',
-    paramsSchema: { highlightColor: 'string', boxed: 'boolean' },
+    // 🔴 刻意**不含 `text`**（P1）：字幕文本来自 SRT，不是模型自由填写。
+    //    模型若也能写 text，就会出现「字幕与语音对不上」，而时序校验只看帧区间、
+    //    任何校验项都拦不住。
+    // 🔴 刻意**不含 `highlightColor`**：Spec 附录 A 第 1 条硬约束明文
+    //    「禁写坐标 / 帧数 / **颜色** / CSS」。留着它等于让模型能硬编码色值。
+    //    高亮色由渲染期按命名令牌（'brand' | 'accent'）解析，不经 params。
+    paramsSchema: { boxed: 'boolean' },
+    // `boxed` **不标必填**：它有天然默认值（无框），强制模型写 `boxed:false`
+    // 是纯噪音，违反「不让模型为默认值做无谓决策」的立法意图。
+    // ⚠️ 本模板因此**没有任何必填参数** —— 字幕的一切都来自 SRT。
     footprint: [0.1, 0.86, 0.8, 0.1],
     minVisibleInFrames: 12,
   },
@@ -47,6 +56,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     occludesSubject: false,
     status: 'core',
     paramsSchema: { text: 'string', enter: 'string' },
+    requiredParams: ['text'], // enter 有天然默认值，可选
     footprint: [0, 0.72, 0.42, 0.18],
     minVisibleInFrames: 30,
     handoffIn: 'from-left',
@@ -61,6 +71,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     occludesSubject: false,
     status: 'core',
     paramsSchema: { title: 'string', subtitle: 'string' },
+    requiredParams: ['title'], // subtitle 可选
     footprint: [0.05, 0.78, 0.5, 0.14],
     minVisibleInFrames: 45,
   },
@@ -74,6 +85,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     occludesSubject: false,
     status: 'core',
     paramsSchema: { text: 'string' },
+    requiredParams: ['text'],
     footprint: [0.5, 0.1, 0.3, 0.2],
     minVisibleInFrames: 36,
     handoffIn: 'fade-up',
@@ -90,6 +102,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     occludesSubject: false,
     status: 'core',
     paramsSchema: { value: 'string', unit: 'string' },
+    requiredParams: ['value'], // unit 可选
     footprint: [0.62, 0.12, 0.32, 0.24],
     minVisibleInFrames: 45,
   },
@@ -105,6 +118,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     occludesSubject: false,
     status: 'experimental',
     paramsSchema: { target: 'string' },
+    requiredParams: ['target'], // 无 target 则标注无指向对象，语义上必填
     footprint: [0.3, 0.3, 0.2, 0.2],
     minVisibleInFrames: 24,
   },
