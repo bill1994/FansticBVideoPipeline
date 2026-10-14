@@ -38,10 +38,36 @@ import fs from 'node:fs';
 import type { Language } from '@remotion/install-whisper-cpp';
 import { ConfigError } from '../core/exit-code.ts';
 import { log } from '../core/log.ts';
+import { normalizeToken } from '../core/zh-normalize.ts';
 import type { WhisperToken, WhisperTranscription } from './whisper-types.ts';
 
 /** whisper.cpp 版本锚定 —— 1.5.5 是首个支持 `t_dtw`（逐 token 时间戳）的版本。 */
 export const WHISPER_CPP_VERSION = '1.5.5';
+
+/**
+ * 🔴 `t_dtw` 的单位：**10ms 帧**，不是毫秒。
+ *
+ * 2026-10-14 真实素材实测（`TestResources/kukini.mp4` 前 30s + 中文 SRT）：
+ * · `t_dtw` 值域 `[36, 2996]`，而音频长 30000ms ⇒ 最大值恰为 1/10
+ * · `|t_dtw×10 − timestamps.from|`误差：中位 **180ms**、p90 380ms
+ * · 而当毫秒直接用：`|t_dtw − timestamps.from|` 中位 **1462ms**、max 2696ms
+ *
+ * ⚠️ 这个错误极隐蔽：`startMs` 与 `endMs` 量纲不一致，但两者都「看起来像毫秒」，
+ * 且下游时序校验比对的是 `fromFrame` 与目标词区间 —— **同源错误会互相抵消，
+ * 校验全绿而结果全错**。这与 2026-10-13 记录的「静默假绿」同类。
+ *
+ * ⚠️ 只有 `t_dtw` 需要换算；`timestamps.to` 本身就是毫秒字符串，直接用。
+ */
+export const DTW_FRAME_MS = 10;
+
+/**
+ * 词条结束时间的下界（毫秒）。
+ *
+ * 🔴 坑4（2026-10-14 真实素材实测）：`timestamps.to` 与 `t_dtw` 是两套独立估计，
+ * 会出现 `endMs < startMs`（实测 119 个 token 中 56 个，占 47%，最大负值 −360ms）。
+ * 夹取时用它。取 40ms = 30fps 下约 1.2 帧，够短，不掩盖真实时长。
+ */
+const MIN_DURATION_MS = 40;
 
 /** whisper.cpp 支持的模型名。刻意窄化，让编译器替我们守住取值域。 */
 export type WhisperModelName =
@@ -175,23 +201,45 @@ export async function transcribeWhisper(
 
   const words: WhisperWord[] = [];
   let droppedNoTime = 0;
+  let clampedNegative = 0;
+  let normalizedChars = 0;
 
   for (const t of all) {
-    const text = (t.text ?? '').trim();
+    const raw = (t.text ?? '').trim();
     // 结构性标记（[_BEG_] 等）与纯空白不是口播内容
-    if (text === '' || STRUCTURAL.test(text)) continue;
+    if (raw === '' || STRUCTURAL.test(raw)) continue;
+    // 🔴 坑5（2026-10-14 实测）：small/base 输出**繁体中文字形**（令/整/雙…），
+    // 而 SRT 台本是简体。若不归一，第二步 DP 会在这些字上全部错位，
+    // alignedRatio 趋近 0，M-1c 门控就会把「编码不一致」误报成「数据质量差」。
+    // normalizeToken 保证 **1 字符 ↔ 1 字符**，不改变长度 ⇒ 不破坏 index 对位。
+    const text = normalizeToken(raw);
+    if (text !== raw) normalizedChars += 1;
     // 🔴 坑1：t_dtw === -1 = 无对齐时间。必须过滤，不能当 0 用。
-    const start = t.t_dtw;
-    if (typeof start !== 'number' || start < 0) {
+    // 🔴 坑3（2026-10-14 真实素材实测）：t_dtw 单位是 10ms 帧，须乘 DTW_FRAME_MS。
+    const rawStart = t.t_dtw;
+    if (typeof rawStart !== 'number' || rawStart < 0) {
       droppedNoTime += 1;
       continue;
+    }
+    const start = rawStart * DTW_FRAME_MS;
+    // 🔴 坑4（2026-10-14 实测）：`timestamps.to` 与 `t_dtw` 是**两套独立估计**，
+    // 前者是 token 级边界、后者是 DTW 帧对齐点，精度不同 ⇒ 会出现 endMs < startMs。
+    // 实测 119 个 token 中有 56 个（47%）如此，最大负值 −360ms。
+    // 不能把负时长带进下游：烘焙器会算出负的 durationInFrames。
+    //
+    // 处置：以 DTW 起点为准（它才是我们信任的那个，见 DTW_FRAME_MS 的说明），
+    // 结束时间取 max(上游值, start + 保守下界)。**记入告警**，不静默吞掉。
+    const upstreamEnd = parseTimestamp(t.timestamps?.to);
+    let end = upstreamEnd ?? start + 200;
+    if (end < start) {
+      end = start + MIN_DURATION_MS;
+      clampedNegative += 1;
     }
     words.push({
       index: words.length,
       word: text,
       startMs: start,
-      // 结束时间用 timestamps.to 解析失败时退回 start + 一个保守窗
-      endMs: parseTimestamp(t.timestamps?.to) ?? start + 200,
+      endMs: end,
       probability: typeof t.p === 'number' ? t.p : 0,
     });
   }
@@ -205,6 +253,31 @@ export async function transcribeWhisper(
         `  可能原因：音频无人声 / 音调纯 / 采样率不对 / 模型不匹配。\n` +
         `  注意：**不要**用 p（解码概率）来判断可信度 —— 纯音调实测里噪声 token\n` +
         `  的 p 高达 0.9996。真正的把关是 M-1c 的 alignedRatio（第二步）。`,
+    );
+  }
+
+  // 🔴 坑5 可见化：归一化改了多少 token 要说出来。
+  // 实测比例很高（中文内容下通常 20%~50%），因为 whisper 中文输出默认繁体字形。
+  // 若某次突然降到 0，说明模型/参数变了（例如换了已做简体后处理的模型），
+  // 那时 `normalizeToken` 的映射表应重新评估，而不是当作「本来就不需要」。
+  if (normalizedChars > 0) {
+    const pct = ((normalizedChars / words.length) * 100).toFixed(0);
+    log.info(
+      `已对 ${normalizedChars}/${words.length} 个 token（${pct}%）做繁简/全角归一。\n` +
+        `  原因：whisper 中文输出为繁体字形，SRT 台本为简体，不归一会导致第二步 DP 全部错位。`,
+    );
+  }
+
+  // 🔴 不静默：负时长被夹取过就要说出来。
+  // 实测比例高达 47%，若某次突然变成 0 或100%，说明 whisper 版本变了，
+  // 两套时间戳的精度关系已改变，须重新评估。
+  if (clampedNegative > 0) {
+    const pct = ((clampedNegative / words.length) * 100).toFixed(0);
+    log.warn(
+      `${clampedNegative}/${words.length} 个 token（${pct}%）的 timestamps.to 早于 DTW 起点，` +
+        `已按 start + ${MIN_DURATION_MS}ms夹取。\n` +
+        `  原因：timestamps.to 是 token 级边界、t_dtw 是 DTW 帧对齐点，两套独立估计精度不同。\n` +
+        `  影响：仅影响单token 的 durationInFrames 精度，不影响起点位置。`,
     );
   }
 
