@@ -16,6 +16,7 @@ import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { AlignReport, AlignWords, Cue, SourceManifest, WordTimestamp } from '../core/types.ts';
+import { runBuiltinAlign } from './builtin-align.ts';
 
 /** 低置信词判定：低于整体均值的一半与固定下限的较小者，取保守侧。 */
 const LOW_CONFIDENCE_ABS = 0.5;
@@ -182,7 +183,28 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
   extractAudio(videoPath, wavPath);
 
   log.stage('align', '强制对齐（只取 SRT 文本，时间从音频重新推导）');
-  const aligned = runExternalAligner(wavPath, srtPath, path.join(alignDir, 'aligner-raw.json'), source.fps);
+  /**
+   * 后端选择：
+   *   - 配了 `ALIGNER_CMD` → 用外部对齐器（保持既有契约与向后兼容）
+   *   - 没配 → 用**内置对齐器**（`builtin-align.ts`）
+   *
+   * 🔴 为什么要有内置后端：此前只有 `ALIGNER_CMD` 一条路，而**外部脚本
+   *    一直没人写** ⇒ `alignedRatio` 永远是 `null`、M-1c 的门控形同虚设。
+   *    内置后端用项目里已有的零件（whisper.cpp + SRT + text-align）把它补上，
+   *    让 `alignedRatio` 第一次成为**真实测量值**。
+   */
+  const useBuiltin = !process.env.ALIGNER_CMD;
+  let aligned: ExternalAligned;
+  if (useBuiltin) {
+    const builtin = runBuiltinAlign(wavPath, srtPath, alignDir, source.fps, {
+      model: process.env.WHISPER_MODEL,
+      language: 'zh',
+      durationInFrames: source.durationInFrames,
+    });
+    aligned = builtin;
+  } else {
+    aligned = runExternalAligner(wavPath, srtPath, path.join(alignDir, 'aligner-raw.json'), source.fps);
+  }
 
   const g = evaluateGate(aligned.words, aligned.alignedRatio);
   const report: AlignReport = {
@@ -205,6 +227,10 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
       '对齐器未回传 alignedRatio（当前 ALIGNER_CMD 契约未含此项）。' +
         'M-1c 要求它作门控项，实现文本对齐后此项才有意义。' +
         '本次不参与门控，但报告里会如实记为 0 —— 不伪造已测过的值。',
+    );
+  } else if (useBuiltin) {
+    log.info(
+      `内置对齐器：alignedRatio = ${g.alignedRatio.toFixed(3)}（M-1c 门控项，已真实测量）。`,
     );
   }
 
