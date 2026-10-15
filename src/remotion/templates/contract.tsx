@@ -32,6 +32,17 @@ export interface TemplateProps {
   durationInFrames: number;
   item: StoryboardItem;
   caption: CaptionData;
+  /**
+   * **载体类专属**：被包裹的实拍视频（或更内层的载体结构）。
+   *
+   * 叠加类组件收到的一律是 `undefined`；只有 `subject-transform` /
+   * `footage-transform` 的组件会由 `Overlay` 传入 —— 它们的职责是
+   * 「改变视频的呈现」，而不是「在视频上盖一层」（C6 双栈的语义分界）。
+   *
+   * 组件应把 children 放进自己的变换容器**原样透传**；
+   * **不要** clone / 改 props / 假设它是什么 —— 它不是「内容」，是**下一层**。
+   */
+  children?: ReactNode;
 }
 
 export type TemplateComponent = FC<TemplateProps>;

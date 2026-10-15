@@ -4,6 +4,7 @@ import { MotionItem } from './MotionItem.tsx';
 import type { Storyboard, StoryboardTrack } from '../core/types.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { isCarrierScope, getScopeOf } from './scope.ts';
+import { CarrierTrack } from './carrier.tsx';
 
 /**
  * 渲染 props —— 由 `05-render/render-props.json` 经 `--props` 注入。
@@ -77,6 +78,9 @@ const TrackSequence: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ t
  *
  * 若把载体类塞进叠加栈会出现**语义倒置** —— 它成了「盖在视频上的一层」，
  * 而正确行为是「改变视频的呈现」。
+ *
+ * 每层用 `CarrierTrack` 做**分段包裹**（item 段包裹 / 间隙段透传），
+ * 见 `carrier.tsx` 的文件头：为什么必须分段、以及重叠的降级语义。
  */
 const CarrierChain: FC<{ carriers: StoryboardTrack[]; caption: CaptionData; children: ReactNode }> = ({
   carriers,
@@ -86,8 +90,9 @@ const CarrierChain: FC<{ carriers: StoryboardTrack[]; caption: CaptionData; chil
   return carriers.reduce<ReactNode>((inner, track) => {
     return (
       <AbsoluteFill data-carrier={track.id}>
-        {inner}
-        <TrackSequence track={track} caption={caption} />
+        <CarrierTrack track={track} caption={caption}>
+          {inner}
+        </CarrierTrack>
       </AbsoluteFill>
     );
   }, children);

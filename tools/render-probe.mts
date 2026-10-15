@@ -35,6 +35,8 @@ const PARAMS: Record<string, Record<string, unknown>> = {
   'typography/lower-third@1.0': { title: '张小澄', subtitle: '动效设计师' },
   'typography/tag-float@1.0': { text: '透气' },
   'data/stat-card@1.0': { value: '42.5', unit: '码' },
+  'cinematic/punch-in@1.0': { scale: 1.08 },
+  'ambience/noise-grain@1.0': { opacity: 0.06 },
 };
 
 function itemOf(id: string): StoryboardItem {

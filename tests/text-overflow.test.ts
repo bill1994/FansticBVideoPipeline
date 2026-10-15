@@ -202,7 +202,7 @@ describe('#17 · warning 不阻断 + 编入清单', () => {
 });
 
 describe('#17 · 单一真源：字号只在契约里', () => {
-  it('4 个有文字的模板都声明了 textMetrics', () => {
+  it('所有带文字参数的模板都声明了 textMetrics（含 D-A 新增）', () => {
     const withText = BUILTIN_TEMPLATES.filter((t) => t.paramsSchema && ('text' in t.paramsSchema || 'title' in t.paramsSchema || 'value' in t.paramsSchema));
     for (const t of withText) {
       expect(t.textMetrics, `${t.id} 有文本参数但未声明 textMetrics —— 校验器会跳过它`).toBeDefined();
@@ -218,6 +218,7 @@ describe('#17 · 单一真源：字号只在契约里', () => {
       ['lower-third.tsx', 26],
       ['tag-float.tsx', 24],
       ['stat-card.tsx', 44],
+      ['center-emphasis.tsx', 72],
     ];
     for (const [file, expectSize] of checks) {
       const src = fs.readFileSync(`src/remotion/templates/${file}`, 'utf8');
@@ -228,5 +229,6 @@ describe('#17 · 单一真源：字号只在契约里', () => {
     expect(byId.get('typography/lower-third@1.0')?.textMetrics?.fontSizePx).toBe(26);
     expect(byId.get('typography/tag-float@1.0')?.textMetrics?.fontSizePx).toBe(24);
     expect(byId.get('data/stat-card@1.0')?.textMetrics?.fontSizePx).toBe(44);
+    expect(byId.get('typography/center-emphasis@1.0')?.textMetrics?.fontSizePx).toBe(72);
   });
 });

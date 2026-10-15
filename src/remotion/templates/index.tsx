@@ -12,8 +12,11 @@
  *    而不是伪装成已实现。诚实留空优于占位冒充。
  * 2. **启动期自检**：声明了但没实现的模板，在`assertRenderMapValid()`
  *    里被列成一张清单 —— 加模板忘了写实现，会立刻在自检里暴露。
- * 3. **本表只认已实现的第一批 5 个**（D1 第一轮，均为 `overlay-safe`）。
- *    其余 5 个的落地时点见优化计划书 §4.6「第1/2/3/4/5 批」。
+ * 3. **本表只收有真实实现的模板**（D1 第一轮 5 个 `overlay-safe`；
+ *    批次 2 加 `cinematic/punch-in`（背景链）/ `ambience/noise-grain`（fullscreen）；
+ *    D-A 加 `typography/center-emphasis`（首个遮挡型叠加）——
+ *    未实现的一律不进本表，退回 `Placeholder`）。
+ *    其余 3 个的落地时点见优化计划书 §4.6「第1/2/3/4/5 批」。
  */
 
 import type { FC } from 'react';
@@ -24,6 +27,9 @@ import { KineticLine } from './kinetic-line.tsx';
 import { LowerThird } from './lower-third.tsx';
 import { TagFloat } from './tag-float.tsx';
 import { StatCard } from './stat-card.tsx';
+import { PunchIn } from './punch-in.tsx';
+import { NoiseGrain } from './noise-grain.tsx';
+import { CenterEmphasis } from './center-emphasis.tsx';
 
 /**
  * 占位组件 —— 声明存在但实现尚未落地时使用。
@@ -77,6 +83,13 @@ const IMPLEMENTED: Record<string, TemplateComponent> = {
   'typography/lower-third@1.0': LowerThird,
   'typography/tag-float@1.0': TagFloat,
   'data/stat-card@1.0': StatCard,
+  // ── 批次 2（不依赖 perceive / D4）────────────────────────────
+  // punch-in 是首个背景链实现：它**包裹视频**（children 透传），
+  // 机制见 src/remotion/carrier.tsx；noise-grain 是首个 fullscreen 实现。
+  'cinematic/punch-in@1.0': PunchIn,
+  'ambience/noise-grain@1.0': NoiseGrain,
+  // ── D-A（2026-10-16）：首个会遮挡主体的叠加模板 ───────────────
+  'typography/center-emphasis@1.0': CenterEmphasis,
 };
 
 /** 取组件；未实现则返回 `Placeholder`。**永不抛错**。 */

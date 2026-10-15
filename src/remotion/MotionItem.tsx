@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
 import type { StoryboardItem } from '../core/types.ts';
 import { getTemplate } from '../templates/registry.ts';
@@ -28,7 +28,12 @@ export const MotionItem: FC<{
   itemIndex: number;
   item: StoryboardItem;
   caption?: CaptionData;
-}> = ({ trackId, itemIndex, item, caption }) => {
+  /**
+   * 载体类专属：被包裹的内层（实拍视频 / 更内层载体结构）。
+   * 叠加类不传 —— 组件拿到的 children 恒为 `undefined`（见 contract.tsx）。
+   */
+  children?: ReactNode;
+}> = ({ trackId, itemIndex, item, caption, children }) => {
   const frame = useCurrentFrame();
   const tpl = getTemplate(item.motion);
   const Component = getTemplateComponent(item.motion);
@@ -53,7 +58,9 @@ export const MotionItem: FC<{
         durationInFrames={item.durationInFrames}
         item={item}
         caption={cap}
-      />
+      >
+        {children}
+      </Component>
     </div>
   );
 };

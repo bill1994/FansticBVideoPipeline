@@ -15,6 +15,10 @@
  * - 依赖 perceive 主体框的两个模板标 `experimental`，
  *   因 perceive 模型尚未接入（`PERCEIVER_CMD` 未配置时退出码 2）。
  *
+ * ⚠️ 2026-10-16：D-A 新增第 11 个成员（`typography/center-emphasis`）——
+ *    它是首批清单（10 个）之外的新增，依据为
+ *    `docs/proposals/2026-10-15-DA与DB裁决材料.md`（A1 方案）。
+ *
  * 版本已锁：`@1.0`。升级走 `@1.1` 新增，**不改旧 storyboard**。
  */
 
@@ -115,6 +119,30 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     //   理由同`kinetic-line` 那处：零消费 + 语义与入场方式重复 + 不在
     //   `paramsSchema` 内故模型无法填写。本模板的入场方式由
     //   `templates/tag-float.tsx` 固定为「上浮 +24px」，无需声明式表达。
+  },
+  {
+    // ── D-A（2026-10-16 落地）：首批里**唯一** `occludesSubject: true` 的叠加模板 ──
+    // 「居中大字强调」：一行大字压在画面中部（主体所在区），是口播视频里
+    // 「压在人身上的大字」这一高频手法的具象。它让 D2 的遮挡判定链路
+    // **第一次能在真实素材上被触发**（此前 10/10 模板无一能进入判定）。
+    // · `layer: 70`：高于其余 overlay-safe（40–60）——它就是"压"在最上面的；
+    // · `footprint` 落在中部：与主体区重合，遮挡判定名副其实，
+    //   而不是「声明 true 但默认摆位不遮挡」的语义矛盾（见 D-A 裁决材料 §1.3）。
+    id: 'typography/center-emphasis@1.0',
+    family: 'typography',
+    subtype: 'center-emphasis',
+    version: '1.0',
+    scope: 'overlay-safe',
+    layer: 70,
+    occludesSubject: true,
+    status: 'core',
+    paramsSchema: { text: 'string' },
+    requiredParams: ['text'],
+    footprint: [0.15, 0.38, 0.7, 0.22],
+    minVisibleInFrames: 30,
+    // D-B：fontSize 与组件 `center-emphasis.tsx` 的 72 一致；
+    // paddingPx = 左右 32×2 + 左侧强调竖条 6
+    textMetrics: { fontSizePx: 72, paddingPx: 70 },
   },
 
   // ── data ────────────────────────────────────────────────────
