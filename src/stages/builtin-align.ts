@@ -37,7 +37,7 @@ import { log } from '../core/log.ts';
 import { parseSrt } from '../core/srt.ts';
 import type { AlignWords, WordTimestamp, Cue } from '../core/types.ts';
 import { composeWords, type WhisperSegment } from './text-align.ts';
-import { WHISPER_CPP_VERSION, DTW_FRAME_MS } from './whisper-adapter.ts';
+import { WHISPER_CPP_VERSION, DTW_FRAME_MS, resolveWhisperCppRoot } from './whisper-adapter.ts';
 
 export interface BuiltinAlignResult extends AlignWords {
   /** SRT cue 成功对上的比例（M-1c 门控项）。**内置对齐器保证有值。** */
@@ -48,14 +48,15 @@ export interface BuiltinAlignResult extends AlignWords {
   matchQuality: Array<{ cueIndex: number; segment: number | null; similarity: number }>;
 }
 
-/** whisper.cpp 可执行文件路径（与 `whisper-adapter.ts` 保持一致）。 */
+/** whisper.cpp 可执行文件路径（根目录解析与 `whisper-adapter.ts` 共用同一函数）。 */
 function whisperBin(): string {
-  const root = process.env.WHISPER_CPP_PATH ?? 'G:/VideoPipeline/whisper.cpp';
+  const root = resolveWhisperCppRoot();
   const bin = path.join(root, process.platform === 'win32' ? 'main.exe' : 'main');
   if (!fs.existsSync(bin)) {
     throw new ConfigError(
       `找不到 whisper.cpp 可执行文件：${bin}\n` +
-        `  设置 WHISPER_CPP_PATH 指向 whisper.cpp 目录，或先安装（见 setup-whisper.mts）。`,
+        `  默认查找「仓库根 / whisper.cpp」；可用 WHISPER_CPP_PATH 覆盖。\n` +
+        `  或先安装：node tools/setup-whisper.mts。`,
     );
   }
   return bin;
@@ -63,7 +64,7 @@ function whisperBin(): string {
 
 /** 模型文件路径。 */
 function modelPath(model: string): string {
-  const root = process.env.WHISPER_CPP_PATH ?? 'G:/VideoPipeline/whisper.cpp';
+  const root = resolveWhisperCppRoot();
   const p = path.join(root, `ggml-${model}.bin`);
   if (!fs.existsSync(p)) {
     throw new ConfigError(

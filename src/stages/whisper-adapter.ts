@@ -35,6 +35,7 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { Language } from '@remotion/install-whisper-cpp';
 import { ConfigError } from '../core/exit-code.ts';
 import { log } from '../core/log.ts';
@@ -134,12 +135,34 @@ export interface WhisperResult {
   droppedNoTime: number;
 }
 
+/**
+ * whisper.cpp 目录的解析 —— **换机可移植是硬要求**（D7）。
+ *
+ * 优先级：`WHISPER_CPP_PATH` 环境变量 → **仓库根 / whisper.cpp**。
+ *
+ * 🔴 为什么默认值不能是「开发机上的盘符绝对路径」（旧实现正是如此）：
+ *    用户会换电脑使用（优化计划书 C2 / 问题 8）—— 绝对路径换机即崩，
+ *    且崩法只是一句「找不到可执行文件」，看不出是路径被写死了。
+ *    仓库根由**本文件位置**推导（`src/stages/` 上溯两级），
+ *    不依赖 `process.cwd()`（从任意 cwd 调用结果一致）。
+ *
+ * ⚠️ 推导依据是「本文件位于 `src/stages/` 第 2 层」—— 若未来调整本文件的
+ *    目录层级，必须同步修改 `../../` 的级数。
+ */
+export function resolveWhisperCppRoot(): string {
+  const env = process.env.WHISPER_CPP_PATH;
+  if (env !== undefined && env.trim() !== '') return env;
+  return fileURLToPath(new URL('../../whisper.cpp', import.meta.url));
+}
+
+/** 解析目录并检查存在（`transcribeWhisper` 用；内置对齐器用 `resolveWhisperCppRoot` + 各自的文件级检查）。 */
 function resolveWhisperPath(): string {
-  const p = path.join(process.cwd(), 'whisper.cpp');
+  const p = resolveWhisperCppRoot();
   if (!fs.existsSync(p)) {
     throw new ConfigError(
       `找不到 whisper.cpp 目录：${p}\n` +
-        `  装它：node tools/setup-whisper.mts\n` +
+        `  装它：node tools/setup-whisper.mts（装到仓库根 whisper.cpp/）\n` +
+        `  或设置 WHISPER_CPP_PATH 指向已有目录。\n` +
         `  Windows 走预编译二进制，不需要 cmake / Python。`,
     );
   }
