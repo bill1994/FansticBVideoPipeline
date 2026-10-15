@@ -7,6 +7,7 @@ build/
 .remotion/
 *.tsbuildinfo
 .vitest-cache/
+vitest.config.ts.timestamp-*.mjs
 
 # ── 逐任务工作区（F1：jobs/<jobId>/00-input → 06-review）──────
 # 阶段目录是不可变快照，属逐次运行的产物，不进版本库。

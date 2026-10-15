@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 249项全过（13 文件）
+npm test               # 应 268 项全过（15 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
@@ -41,7 +41,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | `src/core/` | 类型契约、调度、烘焙、IO | `bake.ts`（锚点→帧）、`types.ts` |
 | `src/validate/` | **17 项**构建期校验（纯函数） | `text-metrics.ts`（#17，最新） |
 | `src/templates/` | 10 个模板的**声明**（非实现） | `builtin.ts` |
-| `src/remotion/` | 渲染层 | `templates/`（5 个真实实现）、`tokens.ts` |
+| `src/remotion/` | 渲染层 | `templates/`（8 个真实实现）、`tokens.ts`、`carrier.tsx`（背景链分段包裹） |
 | `.workbuddy/skills/` | 五阶段执行期行为契约 | `perceive/SKILL.md` 等 |
 
 ---
@@ -51,7 +51,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ### 坑1 · 契约层与实现层是两套东西，别混
 
 `src/templates/builtin.ts` 里 10 个模板的**声明**全在位，
-但 `src/remotion/templates/` 里**只有 5 个有真实实现**。
+但 `src/remotion/templates/` 里**目前 8 个有真实实现**（其余 3 个待后续批次）。
 未实现的会落占位块（黄色斜纹 + `data-template-missing="1"`）。
 
 ⚠️ **别把「声明齐全」误读为「实现齐全」** —— 这正是 2026-10-15
@@ -109,27 +109,29 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | 第二轮打磨 | 缓动曲线（expo-out / cubic-in）+ 参数手感表 |
 | 校验项 #17 | 文本溢出（warning 档） |
 
-### ⏳ 待裁决（**别自行实施，等人拍板**）
+### ✅ 已裁决（2026-10-16 前全部落定；实施状态见右列）
 
-| 编号 | 议题 | 倾向 | 风险 |
+| 编号 | 议题 | 裁决 | 实施 |
 |---|---|---|---|
-| **D-A** | 是否新增「会遮挡主体的叠加模板」 | A1（居中大字） | 低 |
-| **D-B2** | 逐模板文本度量表 | C（批量真渲实测） | 低 |
+| **D-A** | 新增「会遮挡主体的叠加模板」 | A1（居中大字） | ✅ 已实现：`typography/center-emphasis@1.0`（首批唯一遮挡型） |
+| **D-B2** | 逐模板文本度量表 | C（批量真渲实测） | ⏳ 待跑（真渲环境就绪后） |
+| **M-2** | perceive 运行时 | (b) 全 Node；模型起步 RTMO-S | ⏳ 随 perceive 接入实施 |
+| **M-4** | VLM 替代检测 | 不接受（保留测量） | — |
 
-⚠️ **D-A 的背景**：实测当前 **10 个模板无一能触发遮挡判定**
-（声明 `occludesSubject: true` 的 3 个全是载体类/fullscreen，被 scope 规则排除）。
-⇒ D2 机制在真实素材上跑不起来。完整材料见
+⚠️ **D-A 的背景**：此前 **10 个模板无一能触发遮挡判定**（声明 `occludesSubject: true` 的 3 个全是载体类/fullscreen，被 scope 规则排除）。
+`center-emphasis` 落地后该依赖解除（测试夹具保留用于无关链路）。完整材料见
 `docs/proposals/2026-10-15-DA与DB裁决材料.md`。
 
 ⚠️ **D-B2 的背景**：#17 用通用系数估算，对 `stat-card`（粗体数字）
 与 `tag-float`（圆角容器）**严重低估**。详见登记册「实施记录 + D-B2」。
 
 ### ⬜ 其他待办
-- 批次 2 模板：`ambience/noise-grain` + `cinematic/punch-in`（**不依赖任何外部条件**）
+- ~~批次 2 模板~~：✅ **已实现**（2026-10-15）：`cinematic/punch-in`（首个背景链实现，
+  包裹视频的机制见 `src/remotion/carrier.tsx`）+ `ambience/noise-grain`（首个 fullscreen 实现）
 - **perceive 接入**：🔴 详见 `docs/proposals/`（方案正在讨论中，
   关键分歧是「几何测量需确定性」vs「语义判断可交给大模型」）
-- D7 环境可移植：🔴 **whisper 路径有硬编码默认值** `G:/VideoPipeline/whisper.cpp`，
-  换机前必修
+- ~~D7 环境可移植~~：✅ **已修**（2026-10-15）：whisper 目录改「仓库根相对解析」
+  （`resolveWhisperCppRoot()`，`WHISPER_CPP_PATH` 可覆盖）；`src/` 零盘符路径有单测兜底
 
 ---
 
