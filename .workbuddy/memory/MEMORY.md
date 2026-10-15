@@ -3,8 +3,8 @@
 ## 项目身份
 
 - **项目**：Remotion 视频动效工作流（在实拍粗剪视频上叠 motion-graphic overlay）。
-- **根目录**：`C:\Users\63088\WorkBuddy\video pipeline`
-  ⚠️ **路径含空格** —— 所有 shell 命令必须加引号，脚本里也用绝对路径 + 引号。
+- **根目录**：`G:\WorkbuddyProject\VideoPipeline`（2026-10-15 从 `C:\Users\63088\WorkBuddy\video pipeline` 迁入；新路径**无空格**，命令仍建议绝对路径 + 引号）。
+  ⚠️ **旧路径 C 盘已废弃** —— 只余空目录壳（0 文件，待 WorkBuddy 重启后清理），脚本/文档勿再引用。
 - **目标产物**：一个可运行的完整 Remotion 项目（自动起草 → 人工审 → 渲染导出）。
 - **形态**：Node/TypeScript 工程（Node ≥ 22.19，ESM，tsx 直跑 TS）。MIT。
 
@@ -13,7 +13,7 @@
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
 npm run typecheck        # tsc --noEmit
-npm test                 # vitest（69 项）
+npm test                 # vitest（249 项 / 13 文件）
 npm run studio           # Remotion Studio
 npm run render:video     # 已内置 --gl=angle
 ```
@@ -24,38 +24,50 @@ npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/d
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
-预期：0 error / 2 warning（都是 W-F6-01）。
+预期：0 error / 2 warning（**均为 `W-F6-01`**，demo 故意标低置信以演示 F6 人工兜底；checked = 17）。
 
 ## 代码结构
 
 | 路径 | 职责 |
 |------|------|
-| `src/core/` | 类型契约、错误码、报告、**调度**（两道闸+地板+动态T）、**烘焙**（锚点→帧）、IO |
-| `src/validate/` | 14 项构建期校验（纯函数） |
-| `src/templates/` | 模板契约（双轴 family × scope）与注册表 |
-| `src/stages/` | 五阶段执行逻辑 |
-| `src/remotion/` | C6 双栈映射（背景链串联 / 叠加栈并列） |
+| `src/core/` | 类型契约、错误码、报告、**调度**（两道闸+地板+动态T）、**烘焙**（锚点→帧）、IO、SRT 解析与繁简归一 |
+| `src/validate/` | **17 项**构建期校验（纯函数；#17 文本溢出为 warning 档） |
+| `src/templates/` | 模板契约（双轴 family × scope）与注册表（10 个模板声明） |
+| `src/stages/` | 五阶段执行逻辑（含内置对齐器：whisper-adapter / text-align / builtin-align） |
+| `src/remotion/` | C6 双栈映射 + 7 个模板真实实现（`templates/`）+ 令牌层 / 字幕通道 / **载体链分段包裹**（`carrier.tsx`） |
+| `tools/` | 一次性探针脚本（render-probe / setup-whisper / slice-srt / probe-* 等） |
 | `.workbuddy/skills/` | 五阶段 Skill（执行期行为契约） |
 
-- **`align` / `perceive` 不内置模型**，走 `ALIGNER_CMD` / `PERCEIVER_CMD` 环境变量契约；
-  未配置**直接退出码 2**，绝不伪造结果。
+- **`align` 双后端**（2026-10-14 起）：配 `ALIGNER_CMD` → 外部对齐器；未配置 → **内置对齐器**
+  （whisper.cpp 出时间 + SRT 文本权威 + text-align 合成，`alignedRatio` 首次成为真实测量值）。
+  默认查找「**仓库根 / whisper.cpp**」（**D7 已修**：`resolveWhisperCppRoot()`，不依赖 cwd；`WHISPER_CPP_PATH` 可覆盖）——
+  本机未装时按提示跑 `tools/setup-whisper.mts`；whisper 缺失时退出码 2。
+- **`perceive` 仍不内置**（模型接入方案讨论中），走 `PERCEIVER_CMD` 契约；未配置**直接退出码 2**，绝不伪造结果。
 - **`03-storyboard/draft.json` 是「模型产出」的等价物** —— 仓库不调模型。
 
 ## 数值占位（🔴 勿当结论）
 
 | 项 | 值 | 状态 |
 |----|----|------|
-| 对齐门控 | 均值 0.60 / 低置信词 30% | 文档初值，待实测 |
+| 对齐门控 | 均值 0.60 / 低置信词 30% | 文档初值，**待实测**（登记册 C2-2 仍 OPEN） |
+| 对齐门控 `alignedRatioMin` | 0.80 | 🔴 **占位值**（M-1c 新增）；**须与均值一并校准，不得分开拍** |
 | 闸2 confidence 分档 | high 0.80 / mid 0.50 | **占位值**（真源只给组合矩阵） |
 | 每 cue item 数 | 3 | **占位值**（真源只写「超阈值」） |
-| `CARRIER_FALLBACK` 映射 | 空 | 默认不可用 → 报 `E-D4-01`；填表才启用自动载体降级 |
+| `CARRIER_FALLBACK` 映射 | 空 | 默认不可用 → 报 `E-D4-01`；**填表也只抑制报错（出 `W-D4-01`），成片不会真正退让**（10-13 更正；修 tier2 须先立登记册裁决） |
 
-## 文档缺口（实现期发现，**未擅自改文档**）
+## 文档缺口与待裁决
 
-1. D3 fullscreen 人工确认、E5 禁配段相交 —— **都不在 F2 的 14 项表内**；
-   已分别编为 `W-D3-01` / `E-E5-01` 并计入 `summary.extra`。
-2. **`offset:"-8f"` 与 C2-5 时序校验冲突**：负偏移必然把 `fromFrame` 推到词起点之前 →
-   必报 `E-C2-5-01`。当前照字面执行 C2-5，demo 用 `+2f`。**待裁决。**
+**已裁决并回写（2026-10-13）**：
+1. D3 fullscreen 人工确认 → 裁决 **D3-a**：落在 render 启动闸，`validate` 只出 `W-D3-01` 预告（在 extra）。
+   E5 禁配段相交 → **并入清单为第 15 项**（`E-E5-01`；不再计入 extra）。
+2. **`offset:"-8f"` 时序冲突** → 裁决 **C2-5a**：C2-5 区间下界由「词起点」改为
+   「**锚定词所在 cue 的起点**」——负偏移＝抢拍、**合法**（demo 已改回负偏移，作为回归证据）。
+
+**⏳ 当前活跃待裁决（2026-10-15 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
+- **D-A**：是否新增「会遮挡主体的叠加模板」（当前 10 个模板 0 个能触发遮挡判定）—— 倾向 A1（居中大字，最小验证）
+- **D-B2**：✅ 已拍板（10-15）：选 C（批量真渲实测）—— 实施与登记册回写待做
+- **perceive 接入**：方案讨论中（关键分歧：几何测量需确定性 vs 语义判断可交大模型）
+- **M-4**：✅ 已拍板（10-15）：不接受「用 VLM 替代检测」的降级（#12/#14 保留测量）
 
 
 ## 文档真源层级（冲突时以此裁决）
@@ -69,6 +81,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | 5 | `docs/proposals/` | **待裁决议题 + 方案对比 + 落地计划**（未裁决前不含结论）|
 
 - **待裁决项命名**：用带前缀的编号（已有 `M-1`~`M-4` 用于模型选型），**裁决后必须回写登记册**。
+- 仓库根目录另有：`PROGRESS.md`（项目进度与真实数字）、`CONTRIBUTING.md`（接手开发 3 分钟指南；其口径：真源优先级 `OPEN-DECISIONS` > `PROGRESS.md` > 其他）。
 
 - KB 文档：`entry_id = cc6a8c8fa38e4fa68d59e4141d747c71`，`space_id = 57d1ad38cf8f4617ba18729f7661972d`。
 - 乐享是 v2 MCP：`company_domain = https://lexiangla.com` 是顶级域 → 访问链接必须带 `?company_from=<company.code>`。
@@ -80,6 +93,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 - 设计结论未落到字段级细节时，Spec 里标 `🟡TBD`，**不得凭常识填**；先去登记册查证，查不到就保持开放。
 - **Skill 放 `.workbuddy/skills/<name>/SKILL.md`**（项目级），已通过 `!.workbuddy/skills/` 入库。5 个 = align / perceive / storyboard / validate / render，按管线阶段切，**不做巨型 skill**。
 - Skill 是**自包含**的（不指向 Spec）：§10.2 明确说 Skill 要精简到只保留「必须遵守」的部分 —— 塞整份 Spec 会挤掉素材本身的信息。代价是局部重复，属有意为之。
+- **新增字段 / 令牌 / 配置后，立刻问「谁读它」** —— 2026-10-15 一天撞见三例同款病（`occludesSubject` / `handoffIn` / `DUR.exit`）；「定义了」不等于「被用了」。
 - 文档只规定目录里**有哪些数据**、不点名文件名。自拟的文件名一律标【实现期拟定，文档未点名】，**别把实现建议伪装成文档结论**。
 - 分支代号：A 素材与前提 / B 感知与对齐 / C 时间轴模型 / D 构图与遮挡 / E 渲染架构 / F 工程化与闭环。**六分支已于 2026-10-12 全部封口。**
 - 时间坐标：**帧是真相**（`fromFrame` + `durationInFrames`）；模型只写锚点 `{anchor:"word:37", offset:"-8f"}`，由烘焙器解析成帧。
@@ -88,11 +102,15 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ## git
 
 - 仓库：`main` 分支，**已推送到 <https://github.com/bill1994/FansticBVideoPipeline>**（**PUBLIC**）。
+- **远端由两个工作区并行使用**：本机（`G:\WorkbuddyProject\VideoPipeline`）与另一环境（`G:\VideoPipeline`，2026-10-14 从 E 盘迁入）。
+  两边都会写 `.workbuddy/memory/` 的日期日志 → **拉取时先检查有没有同名日志冲突、需合并**（先例：10-12 / 10-13 / 10-15 均已合入同一文件）；
+  ⚠️ **`MEMORY.md` 只有本机在维护**（最后更新于 10-13，另一环境 10-14/15 未改过）——长期记忆的校准靠本机自己。
+  2026-10-15 本机已 pull 对齐至 `697d9de`（远端那台当日做了大量开发：5 模板实现、对齐器、校验项 17 等）。
 - **本仓库用 noreply 身份**：仓库级 `user.email = 29155565+bill1994@users.noreply.github.com`
   （全局仍是 gmail，**没动**）。2026-10-13 首次推送前用 `filter-branch` 把 8 个提交的作者+提交者全改过。
 - 凭证：`gh auth setup-git` → `credential.https://github.com.helper = gh auth git-credential`
   （**不要用 GCM**，它在 wincredman 校验处会失败）。gh 走便携版 `~/.workbuddy/binaries/gh/bin/gh.exe`。
-- 代理 `http://127.0.0.1:13145`；`git push` 走它能通。
+- 代理 `http://127.0.0.1:13145`；`git push` 走它能通（2026-10-15 实测 `git fetch` / `git pull` 亦通）。
 - `.gitignore`：忽略 `.workbuddy/*`（**保留 `memory/` 与 `skills/`**）、媒体大文件、`jobs/`、`node_modules`、`out`、`.vitest-cache/`。
 - **`docs/proposals/` 与 `.workbuddy/memory/` 都会随仓库公开** —— 写这两处时按「会被公开」的标准写。
 
@@ -107,3 +125,5 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 - **代码块里的 `|` 匹配不上**（`|` 与 `\|` 都试过）。绕法：改用不含 `|` 的锚点。
 - `update_content` 的 dry_run **遇第一条 matched=false 即中止**，后面的不再报 —— 排查时一次只探一条。
 - Git Bash 下 `python -c` 传含反引号的多行串会失败 —— 写临时 `.py` 文件再执行。
+- **git 输出里的中文路径**：默认 `core.quotepath` 会转成八进制转义（如 `"docs/changelog/2026-10-15-D1\346\250\241..."`，脚本读取直接 ENOENT）。
+  一次性覆盖：`GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=false git …`（勿写进仓库配置）。
