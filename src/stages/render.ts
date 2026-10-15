@@ -22,6 +22,7 @@ import type { ValidateReport } from '../core/report.ts';
 import type { SourceManifest, Storyboard } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
 import { isCarrierScope } from '../templates/types.ts';
+import { toCaptionData } from '../remotion/caption.ts';
 
 export interface RenderOptions {
   jobId: string;
@@ -150,6 +151,27 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     `双栈分离：背景链 ${stacks.background.length} 项（串联） / 叠加栈 ${stacks.overlay.length} 项（并列）`,
   );
 
+  /**
+   * 字幕数据通道 —— `01-align/words.json`。
+   *
+   * 🔴 这是 `caption/karaoke-word` 的**唯一**文本来源：该模板刻意不声明
+   *    `text` 参数（P1：字幕文本来自 SRT，模型若也能写就会出现「字幕与语音
+   *    对不上」，而时序校验只看帧区间、任何校验项都拦不住）。
+   *
+   * 因此这里**不读就不给**：文件缺失时 `caption` 字段整个省略，
+   * 模板侧降级为空序列。绝不用 storyboard 里的文字凑 ——
+   * 那正是 P1 要防的第二个来源。
+   */
+  const wordsFile = path.join(base, STAGES.align, 'words.json');
+  const hasWords = exists(wordsFile);
+  if (!hasWords) {
+    log.warn(
+      `01-align/words.json 不存在 —— 字幕类 motion 将无文本可显示。` +
+        `align 未跑或门控未通过时会走到这里。`,
+    );
+  }
+  const caption = hasWords ? toCaptionData(readJson<unknown>(wordsFile)) : undefined;
+
   fs.mkdirSync(outDir, { recursive: true });
   const propsFile = path.join(outDir, 'render-props.json');
   const videoAbs = path.join(base, STAGES.input, source.video);
@@ -163,6 +185,7 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     hasVideo: fs.existsSync(videoAbs),
     storyboard,
     stacks,
+    ...(caption ? { caption } : {}),
   });
 
   if (opts.dryRun) {

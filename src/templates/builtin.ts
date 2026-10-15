@@ -59,7 +59,25 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     requiredParams: ['text'], // enter 有天然默认值，可选
     footprint: [0, 0.72, 0.42, 0.18],
     minVisibleInFrames: 30,
-    handoffIn: 'from-left',
+    // D-B：fontSize 与组件 `kinetic-line.tsx` 的 54 一致；
+    // paddingPx = paddingLeft 16 + borderLeft 4（左侧竖条也占宽）
+    textMetrics: { fontSizePx: 54, paddingPx: 20 },
+    // 🔴 原`handoffIn: 'from-left'` 已删除（2026-10-15，问题 9 审计）。
+    //
+    //   删除理由（三条，缺一不可）：
+    //   1. **零消费**：全仓检索（src/ tests/ tools/）确认无任何代码读它。
+    //   2. **与 `enter` 语义重复**：本模板的 `enter: 'from-left'` 说的是同一件事
+    //      （从左侧入场），且 `enter` 在 `paramsSchema` 里 —— 模型**能填**、
+    //      渲染期**真消费**（4 个预设 + 单测覆盖）。两份并存必有一份是死的，
+    //      而死的恰好是 `handoffIn`。
+    //   3. **它连模型都填不了**：`handoffIn` 不在 `paramsSchema` 中，
+    //      模型按契约只能填 `enter`；而校验项 #16 只校验 `params`，
+    //      碰不到模板声明本身 ⇒ 这个字段从设计上就是只读的、无人可写的。
+    //
+    // 保留 `enter` 作为**唯一**的入场方式。若将来接力确需区分
+    // 「常规入场」与「接力承接入场」，应**扩展 `enter` 的取值枚举**
+    // （如 `enter: 'handoff-from-left'`），而不是平行加一个字段。
+    // 见 docs/changelog/2026-10-15-契约字段审计.md。
   },
   {
     id: 'typography/lower-third@1.0',
@@ -74,6 +92,9 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     requiredParams: ['title'], // subtitle 可选
     footprint: [0.05, 0.78, 0.5, 0.14],
     minVisibleInFrames: 45,
+    // D-B：按**主文本 title** 判定（副标题 17px 更小，不是最宽的那行）
+    // paddingPx = 左右 26 + 20（见 lower-third.tsx 的 padding 与 borderLeft）
+    textMetrics: { fontSizePx: 26, paddingPx: 50 },
   },
   {
     id: 'typography/tag-float@1.0',
@@ -88,7 +109,12 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     requiredParams: ['text'],
     footprint: [0.5, 0.1, 0.3, 0.2],
     minVisibleInFrames: 36,
-    handoffIn: 'fade-up',
+    // D-B：fontSize 与组件一致；paddingPx = 左右 20×2
+    textMetrics: { fontSizePx: 24, paddingPx: 40 },
+    // 🔴 原 `handoffIn: 'fade-up'` 已删除（2026-10-15，问题 9 审计）。
+    //   理由同`kinetic-line` 那处：零消费 + 语义与入场方式重复 + 不在
+    //   `paramsSchema` 内故模型无法填写。本模板的入场方式由
+    //   `templates/tag-float.tsx` 固定为「上浮 +24px」，无需声明式表达。
   },
 
   // ── data ────────────────────────────────────────────────────
@@ -105,6 +131,9 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     requiredParams: ['value'], // unit 可选
     footprint: [0.62, 0.12, 0.32, 0.24],
     minVisibleInFrames: 45,
+    // D-B：按 **value** 判定（44px，unit 15px 更小）
+    // paddingPx = 左右 24×2
+    textMetrics: { fontSizePx: 44, paddingPx: 48 },
   },
 
   // ── annotation ──────────────────────────────────────────────

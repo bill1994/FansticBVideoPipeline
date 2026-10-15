@@ -6,7 +6,7 @@
  */
 
 import type { SceneItem, ValidateContext } from '../src/validate/context.ts';
-import { getTemplate } from '../src/templates/registry.ts';
+import { getTemplate, registerTemplate } from '../src/templates/registry.ts';
 import type {
   AlignReport,
   AlignWords,
@@ -56,6 +56,62 @@ export function makeItem(over: Partial<StoryboardItem> = {}): StoryboardItem {
     params: { text: 't' },
     ...over,
   };
+}
+
+/**
+ * 🔴 造一个「声明遮挡主体」的 item —— 遮挡类测试用。
+ *
+ * ── 为什么要专门造，而不是直接用 makeItem() ──────────────────────
+ * 2026-10-15 补`occludesSubject` 消费时发现：默认 motion
+ * `typography/kinetic-line@1.0` 声明 `occludesSubject: false`，
+ * 于是它**压根不会进入遮挡判定**（`collectHits` 按该字段过滤）。
+ *
+ * 而首批 10 个模板里，声明 `true` 的 3 个（`carrier/split-frame` /
+ * `cinematic/punch-in` / `transition/whip-pan`）**全部是载体类或 fullscreen**，
+ * 又被 `collectHits` 的前两条规则排除
+ * ⇒ **当前模板集下没有任何模板能真正触发遮挡判定**（实测 0/10）。
+ *
+ * 所以遮挡链路测试需要一个"够格"的 motion。这里用 `registerTemplate`
+ * 临时注册一个**声明遮挡主体的 overlay-safe 模板**：
+ * · 它是 `overlay-safe` ⇒ 通过 scope 过滤
+ * · 它 `occludesSubject: true` ⇒ 通过遮挡意图过滤
+ * · `minVisibleInFrames` 给足，避免被校验项#6 抢先报错
+ *
+ * ⚠️ **这是测试夹具，不是产品模板**。它不在 `builtin.ts` 里，
+ *    也**不应**被加进去 —— 真正该补的是一个"会遮挡主体的叠加模板"
+ *    （如压在人身上的大字），那是**产品决策**，已登记为待裁决
+ *    （见 `docs/decisions/OPEN-DECISIONS.md` 待裁决D-A）。
+ *
+ * 🔴 用它驱动测试的前提必须显式声明，否则测试会「测别的项」与
+ *    「必须用遮挡型模板」两件事耦死 —— 那正是 2026-10-13
+ *    tier1 假绿能潜伏那么久的同款病。
+ */
+let occluderSeq = 0;
+
+/** 一个专供测试的「遮挡型叠加模板」。仅注册一次，重复调用返回同一 id。 */
+export const OCCLUDER_MOTION = 'test/occluding-overlay@1.0';
+
+export function makeOccludingItem(over: Partial<StoryboardItem> = {}): StoryboardItem {
+  if (occluderSeq === 0) {
+    registerTemplate({
+      id: OCCLUDER_MOTION,
+      family: 'custom',
+      subtype: 'occluding-overlay',
+      version: '1.0',
+      scope: 'overlay-safe',
+      layer: 60,
+      occludesSubject: true, // ← 唯一关键点：让它进入遮挡判定
+      status: 'custom',
+      // ⚠️ 空paramsSchema：夹具不承载任何参数。故下面 `params: {}` 必须是空对象 ——
+      //    沿用 makeItem() 的默认 `{ text: 't' }` 会触发校验项 #16 的 E-P1-01
+      //    （参数含未声明键），那是与遮挡测试无关的噪音报错。
+      paramsSchema: {},
+      footprint: [0.05, 0.72, 0.3, 0.16],
+      minVisibleInFrames: 1,
+    });
+    occluderSeq += 1;
+  }
+  return makeItem({ motion: OCCLUDER_MOTION, params: {}, ...over });
 }
 
 export function makeTrack(id: string, layer: number, items: StoryboardItem[], handoffTo?: string): StoryboardTrack {

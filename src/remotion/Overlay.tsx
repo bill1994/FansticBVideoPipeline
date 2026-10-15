@@ -2,6 +2,7 @@ import type { FC, ReactNode } from 'react';
 import { AbsoluteFill, OffthreadVideo, Sequence } from 'remotion';
 import { MotionItem } from './MotionItem.tsx';
 import type { Storyboard, StoryboardTrack } from '../core/types.ts';
+import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { isCarrierScope, getScopeOf } from './scope.ts';
 
 /**
@@ -20,10 +21,20 @@ export type RenderProps = {
   hasVideo: boolean;
   storyboard: Storyboard;
   stacks: { background: string[]; overlay: string[] };
+  /**
+   * 字幕数据（词级时间戳 + cue），来自 `01-align/words.json`。
+   *
+   * 🔴 这是 `caption/karaoke-word` 的**唯一**文本来源 ——
+   *    该模板刻意不声明 `text` 参数（P1：字幕文本来自 SRT，不是模型自由填写）。
+   *    缺它 ⇒ 字幕模板无文本可显示，这是数据缺口的诚实表现，不是 bug。
+   *
+   * ⚠️ 可选：`align` 未跑或 `words.json` 不存在时缺失，模板降级为空序列。
+   */
+  caption?: CaptionData;
 };
 
 /** 单个 track 的渲染片段（不含定位）。 */
-const TrackBody: FC<{ track: StoryboardTrack }> = ({ track }) => {
+const TrackBody: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track, caption }) => {
   const start = Math.min(...track.items.map((i) => i.fromFrame));
   return (
     <>
@@ -33,7 +44,7 @@ const TrackBody: FC<{ track: StoryboardTrack }> = ({ track }) => {
           from={item.fromFrame - start}
           durationInFrames={item.durationInFrames}
         >
-          <MotionItem trackId={track.id} itemIndex={idx} item={item} />
+          <MotionItem trackId={track.id} itemIndex={idx} item={item} caption={caption} />
         </Sequence>
       ))}
     </>
@@ -49,13 +60,13 @@ const TrackBody: FC<{ track: StoryboardTrack }> = ({ track }) => {
  * ⚠️ **禁用 `<Series>`**：它语义是「依次播放」，内部自动把后一个的起点算作
  *    前一个的终点，**结构上无法表达重叠**，与硬约束 3 直接冲突。
  */
-const TrackSequence: FC<{ track: StoryboardTrack }> = ({ track }) => {
+const TrackSequence: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track, caption }) => {
   if (track.items.length === 0) return null;
   const start = Math.min(...track.items.map((i) => i.fromFrame));
   const end = Math.max(...track.items.map((i) => i.fromFrame + i.durationInFrames));
   return (
     <Sequence from={start} durationInFrames={end - start}>
-      <TrackBody track={track} />
+      <TrackBody track={track} caption={caption} />
     </Sequence>
   );
 };
@@ -67,15 +78,16 @@ const TrackSequence: FC<{ track: StoryboardTrack }> = ({ track }) => {
  * 若把载体类塞进叠加栈会出现**语义倒置** —— 它成了「盖在视频上的一层」，
  * 而正确行为是「改变视频的呈现」。
  */
-const CarrierChain: FC<{ carriers: StoryboardTrack[]; children: ReactNode }> = ({
+const CarrierChain: FC<{ carriers: StoryboardTrack[]; caption: CaptionData; children: ReactNode }> = ({
   carriers,
+  caption,
   children,
 }) => {
   return carriers.reduce<ReactNode>((inner, track) => {
     return (
       <AbsoluteFill data-carrier={track.id}>
         {inner}
-        <TrackSequence track={track} />
+        <TrackSequence track={track} caption={caption} />
       </AbsoluteFill>
     );
   }, children);
@@ -85,7 +97,9 @@ export const Overlay: FC<RenderProps> = ({
   storyboard,
   video,
   hasVideo,
+  caption,
 }) => {
+  const cap = caption ?? EMPTY_CAPTION;
   const carriers: StoryboardTrack[] = [];
   const overlays: { track: StoryboardTrack; trackIndex: number }[] = [];
 
@@ -109,7 +123,7 @@ export const Overlay: FC<RenderProps> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       {/* 背景链：载体类，串联 */}
-      <CarrierChain carriers={carriers}>
+      <CarrierChain carriers={carriers} caption={cap}>
         {hasVideo && video ? (
           <AbsoluteFill>
             <OffthreadVideo src={video} />
@@ -134,7 +148,7 @@ export const Overlay: FC<RenderProps> = ({
       {/* 叠加栈：其余四类，并列 */}
       {overlays.map(({ track }) => (
         <AbsoluteFill key={track.id}>
-          <TrackSequence track={track} />
+          <TrackSequence track={track} caption={cap} />
         </AbsoluteFill>
       ))}
     </AbsoluteFill>

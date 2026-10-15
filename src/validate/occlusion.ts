@@ -142,6 +142,27 @@ function collectHits(ctx: ValidateContext): Hit[] {
       // 只有叠加类才遮挡画面；载体类改变的是视频本身的呈现（D 分支的解法，不是遮挡）
       if (!isOverlayScope(s.tpl.scope)) continue;
       if (s.tpl.scope === 'fullscreen') continue; // 归 D3 人工确认，不进预算
+
+      // 🔴 2026-10-15 补上 `occludesSubject` 的消费（问题 9 / 计划书 D1 步骤 1.6）。
+      //
+      //   此前该字段**零消费** —— 登记册明写「D 的判定结果会以 `occludesSubject`
+      //   参与本章的 error 判定」，而实现直接 `occlusionRatio()` 求交，
+      //   谁也没读它。后果：模板声明「我遮挡主体」与「我不遮挡主体」对判定毫无区别。
+      //
+      //   **为什么不能从 scope 推导**（实测，见下表）：`fullscreen` 下
+      //   `transition/whip-pan` 是 true 而 `ambience/noise-grain` 是 false
+      //   —— 同 scope 不同值 ⇒ 该字段承载的是**独立信息**，删掉即丢信息。
+      //
+      //   | scope | 声明值 |
+      //   |---|---|
+      //   | subject-transform / footage-transform | true |
+      //   | overlay-safe / anchored | false |
+      //   | fullscreen | **true 与 false 并存** ← 不可推导
+      //
+      //   判定放在**进预算之前**（而非之后降级）：声明不遮挡主体的模板
+      //   本就不该消耗遮挡额度，让它进 `hits` 等于先制造冲突再假装无事发生。
+      if (!s.tpl.occludesSubject) continue;
+
       if (!framesOverlap(s.start, s.end, region.fromFrame, region.fromFrame + region.durationInFrames)) {
         continue;
       }

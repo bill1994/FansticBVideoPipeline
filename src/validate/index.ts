@@ -28,6 +28,7 @@ import {
   checkSubjectUnknown,
 } from './occlusion.ts';
 import { checkParams } from './params.ts';
+import { checkTextOverflow } from './text-metrics.ts';
 
 /**
  * 文档校验项序号。**当前 16 项**（时间轴类 9 + 工程与遮挡类 6 + 参数契约类 1）。
@@ -38,7 +39,9 @@ import { checkParams } from './params.ts';
  *
  * ⚠️ 这是**活清单**：增补须先改 `docs/decisions/OPEN-DECISIONS.md`，不得只在这里加。
  */
-export const DOCUMENTED_CHECK_ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
+export const DOCUMENTED_CHECK_ITEMS = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+] as const;
 
 /**
  * 不在 16 项内、但同样会执行并产条目的规则 —— 记入 `summary.extra`。
@@ -73,6 +76,7 @@ export function runValidation(ctx: ValidateContext): ValidateReport {
 
     // 参数契约类 1 项
     ...checkParams(ctx), // #16（P1：paramsSchema 校验）
+    ...checkTextOverflow(ctx), // #17（D-B：文本溢出 footprint，warning 档）
 
     // 起草原生约束
     ...checkNoMotionRanges(ctx), // E-E5-01（SPEC §1.4）

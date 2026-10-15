@@ -1,17 +1,23 @@
 import type { FC } from 'react';
-import { interpolate, useCurrentFrame } from 'remotion';
+import { useCurrentFrame } from 'remotion';
 import type { StoryboardItem } from '../core/types.ts';
 import { getTemplate } from '../templates/registry.ts';
+import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
+import { getTemplateComponent } from './templates/index.tsx';
 
 /**
- * motion item 的渲染壳。
+ * motion item 的渲染壳 —— 负责「定位 + 时间换算 + 分发」，**不负责画什么**。
  *
- * ⚠️ 这里渲染的是**结构占位块**，不是真正的动效实现 —— 模板库的首批实现
- *    属实现期任务（见 docs/spec 附录）。占位块的作用是让「双栈分离 / z 序 /
- *    时间映射」这三件最容易出错的事**在没有任何真实模板时也能被肉眼验证**。
+ * ⚠️ 本文件此前自述「渲染的是结构占位块，不是真正的动效实现」。
+ *    那句话描述的是**病**（10 个模板渲染结果逐像素相同），
+ *    D1 第一轮起已修：真正的实现在 `templates/<name>.tsx`，
+ *    由 `getTemplateComponent()` 按 `motion id` 分发。
+ *    本壳退回到它该干的活 —— 这是**职责收敛**，不是留个壳偷懒。
  *
  * 确定性红线（E2）：动画的推进权必须属于 frame。
- *   · 只读 `useCurrentFrame()`
+ *   · **整个渲染树只有本组件一处调 `useCurrentFrame()`**
+ *   · 子组件只收 `frame` prop（见 templates/contract.tsx），
+ *     这样每个模板都是 `frame → JSX` 的纯函数，可直接单测
  *   · 禁 `Date.now()` / `performance.now()`
  *   · 禁 `Math.random()`（要用伪随机请走 mulberry32，seed 从 item index 派生）
  *   · 禁 CSS animation / transition
@@ -21,18 +27,12 @@ export const MotionItem: FC<{
   trackId: string;
   itemIndex: number;
   item: StoryboardItem;
-}> = ({ trackId, itemIndex, item }) => {
+  caption?: CaptionData;
+}> = ({ trackId, itemIndex, item, caption }) => {
   const frame = useCurrentFrame();
   const tpl = getTemplate(item.motion);
-
-  const [x, y, w, h] = item.footprint;
-  const local = normalizeFrame(frame, item.durationInFrames);
-  const opacity = interpolate(local, [0, 0.1, 0.9, 1], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const label = item.params && typeof item.params.text === 'string' ? item.params.text : tpl.subtype;
+  const Component = getTemplateComponent(item.motion);
+  const cap = caption ?? EMPTY_CAPTION;
 
   return (
     <div
@@ -42,28 +42,18 @@ export const MotionItem: FC<{
       data-scope={tpl.scope}
       style={{
         position: 'absolute',
-        left: `${x * 100}%`,
-        top: `${y * 100}%`,
-        width: `${w * 100}%`,
-        height: `${h * 100}%`,
-        opacity,
-        border: '2px solid rgba(255,255,255,0.55)',
-        background: 'rgba(20,24,28,0.45)',
-        color: '#fff',
-        fontFamily: 'monospace',
-        fontSize: 20,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
-        padding: 6,
-        boxSizing: 'border-box',
+        left: `${item.footprint[0] * 100}%`,
+        top: `${item.footprint[1] * 100}%`,
+        width: `${item.footprint[2] * 100}%`,
+        height: `${item.footprint[3] * 100}%`,
       }}
     >
-      <span>
-        {item.motion}
-        {label ? `\n${label}` : ''}
-      </span>
+      <Component
+        frame={frame}
+        durationInFrames={item.durationInFrames}
+        item={item}
+        caption={cap}
+      />
     </div>
   );
 };

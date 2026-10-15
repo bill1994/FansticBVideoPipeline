@@ -7,12 +7,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CARRIER_FALLBACK, setCarrierFallback } from '../src/core/config.ts';
 import { runValidation, DOCUMENTED_CHECK_ITEMS, EXTRA_CHECKS } from '../src/validate/index.ts';
 import type { BakeRecord } from '../src/core/types.ts';
-import { makeCtx, makeItem, makeTrack, makeWords, type CtxOverrides } from './_ctx.ts';
+import { makeCtx, makeItem, makeOccludingItem, makeTrack, makeWords, OCCLUDER_MOTION, type CtxOverrides } from './_ctx.ts';
 
-const OVERLAY = 'typography/kinetic-line@1.0'; // overlay-safe, minVisible 30
 const STAT = 'data/stat-card@1.0'; // overlay-safe, minVisible 45
 const CARRIER = 'carrier/split-frame@1.0'; // subject-transform
 const FULLSCREEN = 'transition/whip-pan@1.0'; // fullscreen
+// 注：原先此处有 `const OVERLAY = 'typography/kinetic-line@1.0'`，
+// 2026-10-15 起遮挡类测试改用 `makeOccludingItem()`（见 _ctx.ts），
+// 该常量已无消费方故删除 —— 不留"定义了没人用"的死符号（同问题 9）。
 
 function codesOf(over: CtxOverrides = {}): string[] {
   return runValidation(makeCtx(over)).items.map((i) => i.code);
@@ -23,11 +25,12 @@ beforeEach(() => {
 });
 
 describe('基线', () => {
-  it('空 storyboard → ok，且 16 项全跑', () => {
+  it('空 storyboard → ok，且 17 项全跑', () => {
     const r = runValidation(makeCtx());
     expect(r.ok).toBe(true);
-    expect(r.summary.checked).toBe(16);
-    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(16);
+    // 17 = 原 16 项 + #17（文本溢出，D-B 裁决 2026-10-15 增补）
+    expect(r.summary.checked).toBe(17);
+    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(17);
     expect(r.summary.extra).toEqual(['W-D3-01', 'W-F6-01']);
     expect(r.items).toEqual([]);
   });
@@ -309,6 +312,16 @@ describe('#10 composition 尾部截断 E-C6-01', () => {
   });
 });
 
+/**
+ * 🔴 遮挡类测试必须用「声明遮挡主体」的 motion（2026-10-15）。
+ *
+ * `collectHits` 按 `occludesSubject` 过滤，而默认 motion
+ * `kinetic-line` 声明 `false` ⇒ 它压根不会进入遮挡判定。
+ * 首批 10 个模板里声明 `true` 的 3 个全是载体类/fullscreen，
+ * 又被 scope 规则排除 ⇒ 实测 **0/10 能触发遮挡判定**。
+ * 故此处用测试夹具 `makeOccludingItem`（overlay-safe + occludesSubject:true）。
+ * 详见 `_ctx.ts` 的说明与登记册待裁决 D-A。
+ */
 describe('#12 / #13 遮挡预算与三级退让', () => {
   const faceRegion = (box: [number, number, number, number]) => [
     { id: 'face-1', kind: 'face' as const, shotId: 's1', fromFrame: 100, durationInFrames: 200, box },
@@ -316,39 +329,51 @@ describe('#12 / #13 遮挡预算与三级退让', () => {
 
   it('#13 挪不动且无载体映射 → E-D4-01（三级退让无法启动）', () => {
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.2, 0.2, 0.6, 0.6] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.2, 0.2, 0.6, 0.6] })])],
       regions: faceRegion([0.2, 0.2, 0.6, 0.6]),
     })).toContain('E-D4-01');
   });
 
   it('退让成功（挪开 footprint 完全避开 0% 预算的人脸区）→ 不报错', () => {
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.4, 0.4, 0.2, 0.2] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.4, 0.4, 0.2, 0.2] })])],
       regions: faceRegion([0.4, 0.4, 0.2, 0.2]),
     })).not.toContain('E-D4-01');
   });
 
   it('人脸预算为 0：只要还有重叠就退让不成功 → E-D4-01', () => {
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.02, 0.02, 0.3, 0.3] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.02, 0.02, 0.3, 0.3] })])],
       regions: faceRegion([0.02, 0.02, 0.3, 0.3]),
     })).toContain('E-D4-01');
   });
 
   it('#12 已登记载体但区域几乎占满画面 → E-D2-01（退路不够）', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    // 🔴 载体映射按 **motion id** 索引，motion 换成遮挡夹具后这里也必须跟着换，
+    //    否则登记的是另一个 motion，退让查不到载体档 → 误报 E-D4-01。
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
       regions: faceRegion([0, 0, 1, 1]),
     })).toContain('E-D2-01');
+  });
+
+  it('🔴 声明 occludesSubject:false 的 motion 不进遮挡判定（字段确实被消费）', () => {
+    // 这条是 2026-10-15 补消费的正向证据：同样的几何，改用默认 motion
+    // （kinetic-line，声明 false）就**不报** E-D4-01。
+    // 若此用例将来挂了，说明 collectHits 又退回不读该字段。
+    expect(codesOf({
+      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0.2, 0.2, 0.6, 0.6] })])],
+      regions: faceRegion([0.2, 0.2, 0.6, 0.6]),
+    })).not.toContain('E-D4-01');
   });
 });
 
 describe('#14 B-roll 主体遮挡 E-D2-02', () => {
   it('超过 30% 预算且无退路 → E-D2-02', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
       regions: [{ id: 'broll-1', kind: 'broll', shotId: 's1', fromFrame: 100, durationInFrames: 200, box: [0, 0, 1, 1] }],
     })).toContain('E-D2-02');
   });

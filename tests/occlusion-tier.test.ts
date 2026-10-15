@@ -26,9 +26,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CARRIER_FALLBACK, setCarrierFallback } from '../src/core/config.ts';
 import { runValidation } from '../src/validate/index.ts';
 import type { StoryboardItem } from '../src/core/types.ts';
-import { makeCtx, makeItem, makeTrack } from './_ctx.ts';
+import { makeCtx, makeItem, makeOccludingItem, makeTrack, OCCLUDER_MOTION } from './_ctx.ts';
 
-const OVERLAY = 'typography/kinetic-line@1.0'; // overlay-safe, minVisible 30
 const CARRIER = 'carrier/split-frame@1.0'; // subject-transform
 
 /** 原遮挡 25% > handheld 预算 20%，平移一格即消解。 */
@@ -56,7 +55,7 @@ beforeEach(() => {
 
 describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
   it('T1 平移成功 → footprint 真的被改写（不再等于原值）', () => {
-    const item: StoryboardItem = makeItem({
+    const item: StoryboardItem = makeOccludingItem({
       fromFrame: 111,
       durationInFrames: 60,
       footprint: [...FP_NUDGEABLE],
@@ -78,7 +77,7 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
-          makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
+          makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
         ]),
       ],
       regions: handheldRegion(REGION),
@@ -97,7 +96,7 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
-          makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
+          makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
         ]),
       ],
       regions: handheldRegion(REGION),
@@ -112,7 +111,7 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
       runCtx({
         tracks: [
           makeTrack('a', 60, [
-            makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
+            makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
           ]),
         ],
         regions: handheldRegion(REGION),
@@ -129,7 +128,7 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
     // [0.5,0.5,0.3,0.3] × [0.5,0.5,0.4,0.4] → 原遮挡 56.3% > 30%，平移至[0.3,...] 后 6.2%
     const bigFp: [number, number, number, number] = [0.5, 0.5, 0.3, 0.3];
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...bigFp] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...bigFp] })])],
       regions: brollRegion(REGION),
     });
     runValidation(ctx);
@@ -143,9 +142,9 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
   const BIG_BOX: [number, number, number, number] = [0.2, 0.2, 0.6, 0.6];
 
   it('T3 登记载体后：冲突被抑制，但 motion 与 footprint 均未被改写（已知缺口）', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
       regions: faceRegion(BIG_BOX),
     });
     const report = runValidation(ctx);
@@ -157,13 +156,13 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
     expect(codes).toContain('W-D4-01');
     // 且数据确实没变 —— 这是当前实现的真实状态，如实断言
     expect(ctx.scene[0]?.item.footprint).toEqual(BIG_FP);
-    expect(ctx.scene[0]?.item.motion).toBe(OVERLAY);
+    expect(ctx.scene[0]?.item.motion).toBe(OCCLUDER_MOTION);
   });
 
   it('T3b W-D4-01 的消息必须点明「未实际施加」', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
       regions: faceRegion(BIG_BOX),
     });
     const item = runValidation(ctx).items.find((i) => i.code === 'W-D4-01');
@@ -173,18 +172,18 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
 
   it('T5 未登记载体时 E-D4-01 仍可达（防止未来误删此码）', () => {
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
       regions: faceRegion(BIG_BOX),
     });
     expect(runValidation(ctx).items.map((i) => i.code)).toContain('E-D4-01');
   });
 
   it('T2 tier1 顺序优先于 tier2（两者都可行时应选平移）', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
-          makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
+          makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
         ]),
       ],
       regions: handheldRegion(REGION),
@@ -194,13 +193,13 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
     expect(codes).toContain('W-D2-01');
     expect(codes).not.toContain('W-D4-01');
     // 且 motion 不该被改成 carrier
-    expect(ctx.scene[0]?.item.motion).toBe(OVERLAY);
+    expect(ctx.scene[0]?.item.motion).toBe(OCCLUDER_MOTION);
   });
 
   it('T4 tier2 也失败（区域占满画面）→ E-D2-01 仍然报错', () => {
-    setCarrierFallback(OVERLAY, CARRIER);
+    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
       regions: faceRegion([0, 0, 1, 1]),
     });
     expect(runValidation(ctx).items.map((i) => i.code)).toContain('E-D2-01');

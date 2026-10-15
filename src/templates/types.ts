@@ -100,8 +100,52 @@ export interface TemplateDeclaration {
   footprint: Footprint;
   /** 该 motion 的最小可见时长。校验项 #6 用。 */
   minVisibleInFrames: number;
-  /** 模板参数：如何承接入场（接力时由接收方声明，不硬编码）。 */
-  handoffIn?: string;
+  /**
+   * 文本度量 —— **校验项 #17（溢出判定）的唯一真源**。来源：D-B 裁决 2026-10-15。
+   *
+   * 🔴 **为什么必须进契约，而不是让校验器自己写一份字号表**：
+   *    字号原本硬编码在组件的 `style` 里（如 `kinetic-line.tsx` 的 `fontSize: 54`），
+   *    校验器在 `src/validate/` 下拿不到。若在校验器里另写
+   *    `{ 'kinetic-line@1.0': 54 }`，则**改组件字号时校验器不会跟着变**
+   *    ⇒ 溢出判定静默失准、报告照样全绿。
+   *    这与本日 `DUR.exit` 事故**同款病**（定义了没人用 / 静默漂移），
+   *    故此次先把真源收进契约，再让组件从契约读。
+   *
+   * ⚠️ 省略 = **该模板无可测文本**（如 `caption/karaoke-word` 刻意不收 `text`、
+   *    载体类 / fullscreen 类不画文字）⇒ 校验项 #17 跳过，不误报。
+   */
+  textMetrics?: TextMetrics;
+}
+
+/**
+ * 文本度量 —— 供构建期估算文本渲染宽度。
+ *
+ * ⚠️ **这是「渲染期事实」而非「模型可填参数」**：
+ *    它不进 `paramsSchema`，模型**不能也不该**填（P1：模型只填表，
+ *    不写实现细节；字号是设计决策，由模板作者定）。
+ *
+ * ⚠️ `charWidthEm` 是**估算系数**不是精确度量 —— 真实字宽随字体、
+ *    字重、平台而变。故判定须留余量（`slackRatio`），见 D-B 裁决。
+ */
+export interface TextMetrics {
+  /** 主文本字号（px）。对应画面 1920×1080。 */
+  fontSizePx: number;
+  /**
+   * 字符宽度估算系数（em 倍数）。
+   * 🔴 **本项目素材为纯中文口播**（双语字幕对齐已明确不做），
+   *    故默认值按 CJK 全角 1.0em 给。
+   */
+  charWidthEm?: number;
+  /**
+   * 容器内边距合计（px）。会让「框内可用宽」变小，
+   * 漏算它 ⇒ **系统性低估溢出** ⇒ 漏报。
+   */
+  paddingPx?: number;
+  /**
+   * 阈值余量（相对比例）。判定式：`估算宽 ≤ 可用宽 × (1 + slackRatio)`。
+   * D-B 裁决取 **0.15** —— 字体实际度量可能略宽于估算，留一档防误伤。
+   */
+  slackRatio?: number;
 }
 
 /** 解析 `family/subtype@version`。 */

@@ -107,6 +107,30 @@ export const CODES = {
   PARAMS_MISSING_REQUIRED: E('E-P1-02', 'params-missing-required', 'P1', 16, 'params 缺必填键'),
   PARAMS_TYPE_MISMATCH: E('E-P1-03', 'params-type-mismatch', 'P1', 16, 'params 值类型与声明不符'),
 
+  /**
+   * `params.text` 类文本会溢出 `footprint` —— 校验项 **#17**（D-B 裁决 2026-10-15）。
+   *
+   * 来源：真渲实测 16 中文字 / `123456789` 时 4 个模板全部溢出，
+   * `data/stat-card` 甚至溢出画面边界；而此前 16 项校验全是结构判定，
+   * **完全看不出来**，报告照样 `ok: true`。
+   *
+   * 🔴 **本码是 warning 而非 error** —— 理由有两条，缺一不可：
+   * 1. 判定基于**字符宽度估算**，不是字体度量。本项目的素材为纯中文口播，
+   *    故按 CJK 1.0em / 拉丁 0.5em 估算；真实字宽随字体、字重、平台而变。
+   * 2. 因此它是**可能误报合法创作**的判定。把它当 error 用，
+   *    估算误差就会直接阻断用户的合法起草 ——
+   *    这正是计划书风险登记 R6「审美断言设计过度 ⇒ 误伤」的具体化，
+   *    也是 `DENSITY.maxItemsPerCue`（未校准的占位值当 error 用）踩过的坑。
+   *
+   * ⇒ **实测校准后可升 error。** 当前阶段的作用是「让人看见」，
+   * 不是「拦住人」。
+   *
+   * ⚠️ 字号与内边距读`TemplateDeclaration.textMetrics`（唯一真源），
+   *    禁止在校验器内另写字号表 —— 否则改组件字号会让判定静默失准
+   *    （同 `DUR.exit` 事故）。
+   */
+  TEXT_OVERFLOW: W('W-DB-01', 'text-overflow-footprint', 'D-B', 17, '文本估算宽超出 footprint'),
+
   // ── 兜底告警 ─────────────────────────────────────────────────
   /**
    * shot 主体未确。来源 SPEC §5.5 / F6：感知标了 `lowConfidence` 时出此告警，
