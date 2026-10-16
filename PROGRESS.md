@@ -217,9 +217,12 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 已解除"完全无产出"，但：
 - **剩余 3 个**：`carrier/split-frame`（D4 tier2 的退让载体，须先立登记册裁决）、
-  `annotation/pointer-callout`（依赖 perceive 主体框）、
-  `transition/whip-pan`（fullscreen，需 06-review 的 `acknowledgedFullscreen` 流程就绪）。
-  即优化计划书 §4.6 的第 3/4/5 批 —— **不卡代码，卡外部条件**。
+  `annotation/pointer-callout`（依赖 perceive 主体框）、`transition/whip-pan`（fullscreen）。
+  即优化计划书 §4.6 的第 3/4/5 批。
+  ⚠️ **2026-10-16 更正计划书 §4.6 的一处时点判断**：计划书把第 5 批写作「等 06-review 流程就绪」，
+  但 `renderGate()` 里的 fullscreen 人工确认闸（D3-a：读 `06-review/confirmed.json` 的
+  `acknowledgedFullscreen`，未确认即拒绝启动）**已完整实装** ⇒
+  `whip-pan` 的前置条件**事实上已满足**，它只是「排在最后」，不再被任何外部条件阻塞。
 - **两轮打磨均已落地**：D1 第一轮（5 个）+ 第二轮（缓动曲线、时值配比、进出场质感、参数手感表），
   批次 2 与 D-A 于 2026-10-15～16 补齐至 8 个，真渲已抽帧确认形态两两可辨。
 - **`DUR` 动画配比仍是 PLACEHOLDER**：文档只规定 `minVisibleInFrames`，未规定配比。
