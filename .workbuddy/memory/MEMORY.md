@@ -66,10 +66,14 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 2. **`offset:"-8f"` 时序冲突** → 裁决 **C2-5a**：C2-5 区间下界由「词起点」改为
    「**锚定词所在 cue 的起点**」——负偏移＝抢拍、**合法**（demo 已改回负偏移，作为回归证据）。
 
-**⏳ 进行中（2026-10-16）**：
-- **perceive 检测后端深度研究**（Node 环境·人脸/人体/手部选型）——Phase 1 中断待续；
-  任务卡与已有材料发现见 `.workbuddy/memory/2026-10-16.md`（含 **YuNet-ONNX 待验证点**、
-  四候选全景：YuNet / onnxruntime-node+RTMO 系 / MediaPipe Tasks Vision / Python sidecar）
+**✅ 已完成（2026-10-16 晚）：perceive 检测后端深度研究**（专家团 5 阶段全流程，团队已解散）
+- 最终报告：`docs/reviews/2026-10-16-perceive检测后端选型与工程集成-研究报告.md`（431 行 / 62 来源）；
+  过程材料（含五章终稿全文）：`docs/reviews/2026-10-16-perceive后端选型-研究过程记录.md`
+- 核心结论：YuNet（MIT）主选人脸 + union bbox 安全区 + fail-closed；RTMO/RTMPose（Apache-2.0）按需；
+  手持物 = 姿态手腕点 + RTMDet 组合（shot 级累积）；MediaPipe Node 不可行；
+  **RTMDet 有唯一一例 JS 移植参照（单项目待核）**；许可全链 MIT/Apache 可商用
+- **下一步 = 按报告施工接入 perceive**（§5.4 两项验证：YuNet Node 端实测 / 预处理依赖取舍；
+  §5.5 三项校准：人脸与手持物阈值 / fail-closed 覆盖率下限）
 
 **⏳ 当前活跃待裁决（2026-10-16 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
 - **D-A**：✅ 已裁决（10-16）→ 选 A1，`typography/center-emphasis@1.0` **已实装**（首个遮挡型叠加模板）
