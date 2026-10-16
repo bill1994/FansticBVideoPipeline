@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 268 项全过（15 文件）
+npm test               # 应 269 项全过（15 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
@@ -40,7 +40,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 |---|---|---|
 | `src/core/` | 类型契约、调度、烘焙、IO | `bake.ts`（锚点→帧）、`types.ts` |
 | `src/validate/` | **17 项**构建期校验（纯函数） | `text-metrics.ts`（#17，最新） |
-| `src/templates/` | 10 个模板的**声明**（非实现） | `builtin.ts` |
+| `src/templates/` | 11 个模板的**声明**（非实现） | `builtin.ts` |
 | `src/remotion/` | 渲染层 | `templates/`（8 个真实实现）、`tokens.ts`、`carrier.tsx`（背景链分段包裹） |
 | `.workbuddy/skills/` | 五阶段执行期行为契约 | `perceive/SKILL.md` 等 |
 
@@ -50,7 +50,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ### 坑1 · 契约层与实现层是两套东西，别混
 
-`src/templates/builtin.ts` 里 10 个模板的**声明**全在位，
+`src/templates/builtin.ts` 里 11 个模板的**声明**全在位，
 但 `src/remotion/templates/` 里**目前 8 个有真实实现**（其余 3 个待后续批次）。
 未实现的会落占位块（黄色斜纹 + `data-template-missing="1"`）。
 
