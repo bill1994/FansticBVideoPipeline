@@ -59,3 +59,6 @@ yarn-error.log*
 # whisper.cpp 二进制与模型（M-1 第一步，体积大且可重新下载）
 # 见 tools/setup-whisper.mts
 whisper.cpp/
+
+# perceive 模型（可重新下载，不入库；见报告 §5.4 施工计划）
+perceive-models/

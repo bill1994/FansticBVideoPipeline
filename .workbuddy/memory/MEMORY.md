@@ -74,6 +74,9 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
   **RTMDet 有唯一一例 JS 移植参照（单项目待核）**；许可全链 MIT/Apache 可商用
 - **下一步 = 按报告施工接入 perceive**（§5.4 两项验证：YuNet Node 端实测 / 预处理依赖取舍；
   §5.5 三项校准：人脸与手持物阈值 / fail-closed 覆盖率下限）
+- **报告 v1.1（10-16 深夜修正）**：AGPL 义务**仅在分发/服务化触发（自用不触发）**——YOLO 系改列
+  "**自用场景备选**"；依据 FSF 原文 + Ultralytics FAQ（其厂商主张更严，注意区分"法律要求 vs 厂商主张"）；
+  施工侧：onnxruntime-node 安装（npm 走代理 SSL 失败 → **用 npmmirror**）、模型落 `perceive-models/`（不入库）
 
 **⏳ 当前活跃待裁决（2026-10-16 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
 - **D-A**：✅ 已裁决（10-16）→ 选 A1，`typography/center-emphasis@1.0` **已实装**（首个遮挡型叠加模板）
