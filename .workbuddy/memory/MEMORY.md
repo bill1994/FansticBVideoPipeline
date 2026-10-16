@@ -13,7 +13,7 @@
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
 npm run typecheck        # tsc --noEmit
-npm test                 # vitest（249 项 / 13 文件）
+npm test                 # vitest（269 项 / 15 文件）
 npm run studio           # Remotion Studio
 npm run render:video     # 已内置 --gl=angle
 ```
@@ -26,15 +26,18 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 预期：0 error / 2 warning（**均为 `W-F6-01`**，demo 故意标低置信以演示 F6 人工兜底；checked = 17）。
 
+⚠️ **但这只在「不重跑 storyboard」时成立** —— 见下方「已知雷区」的 demo 夹具坑：
+`draft.json` 带 `highlightColor`，重跑 `storyboard` 后 validate 会报 2 个 `E-P1-01` 阻断。
+
 ## 代码结构
 
 | 路径 | 职责 |
 |------|------|
 | `src/core/` | 类型契约、错误码、报告、**调度**（两道闸+地板+动态T）、**烘焙**（锚点→帧）、IO、SRT 解析与繁简归一 |
 | `src/validate/` | **17 项**构建期校验（纯函数；#17 文本溢出为 warning 档） |
-| `src/templates/` | 模板契约（双轴 family × scope）与注册表（10 个模板声明） |
+| `src/templates/` | 模板契约（双轴 family × scope）与注册表（**11 个模板声明**，含 D-A 新增 `typography/center-emphasis`） |
 | `src/stages/` | 五阶段执行逻辑（含内置对齐器：whisper-adapter / text-align / builtin-align） |
-| `src/remotion/` | C6 双栈映射 + 7 个模板真实实现（`templates/`）+ 令牌层 / 字幕通道 / **载体链分段包裹**（`carrier.tsx`） |
+| `src/remotion/` | C6 双栈映射 + **8 个**模板真实实现（`templates/`）+ 令牌层 / 字幕通道 / **载体链分段包裹**（`carrier.tsx`） |
 | `tools/` | 一次性探针脚本（render-probe / setup-whisper / slice-srt / probe-* 等） |
 | `.workbuddy/skills/` | 五阶段 Skill（执行期行为契约） |
 
@@ -68,11 +71,13 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
   任务卡与已有材料发现见 `.workbuddy/memory/2026-10-16.md`（含 **YuNet-ONNX 待验证点**、
   四候选全景：YuNet / onnxruntime-node+RTMO 系 / MediaPipe Tasks Vision / Python sidecar）
 
-**⏳ 当前活跃待裁决（2026-10-15 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
-- **D-A**：是否新增「会遮挡主体的叠加模板」（当前 10 个模板 0 个能触发遮挡判定）—— 倾向 A1（居中大字，最小验证）
-- **D-B2**：✅ 已拍板（10-15）：选 C（批量真渲实测）—— 实施与登记册回写待做
-- **perceive 接入**：方案讨论中（关键分歧：几何测量需确定性 vs 语义判断可交大模型）
+**⏳ 当前活跃待裁决（2026-10-16 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
+- **D-A**：✅ 已裁决（10-16）→ 选 A1，`typography/center-emphasis@1.0` **已实装**（首个遮挡型叠加模板）
+- **D-B2**：✅ 已拍板（10-15）：选 C（批量真渲实测）—— **实施待做**，前置阻塞：本机**缺图像量测管线**
+  （自带 ffmpeg 无 `eq`、无 PIL）⇒ 需先定量测方案
+- **M-2**：✅ 已定案 —— **全 Node（`onnxruntime-node`）+ RTMO-S 起步**（Apache-2.0；YOLO26n-pose 为 AGPL 注意边界）
 - **M-4**：✅ 已拍板（10-15）：不接受「用 VLM 替代检测」的降级（#12/#14 保留测量）
+- **D4 tier2 载体退让**：仍 OPEN，**须先立登记册裁决**（承载字段 + 键粒度 + 新载体模板）⇒ 阻塞第 3 批 `carrier/split-frame`
 
 
 ## 文档真源层级（冲突时以此裁决）
@@ -114,13 +119,34 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 - **本仓库用 noreply 身份**：仓库级 `user.email = 29155565+bill1994@users.noreply.github.com`
   （全局仍是 gmail，**没动**）。2026-10-13 首次推送前用 `filter-branch` 把 8 个提交的作者+提交者全改过。
 - 凭证：`gh auth setup-git` → `credential.https://github.com.helper = gh auth git-credential`
-  （**不要用 GCM**，它在 wincredman 校验处会失败）。gh 走便携版 `~/.workbuddy/binaries/gh/bin/gh.exe`。
-- 代理 `http://127.0.0.1:13145`；`git push` 走它能通（2026-10-15 实测 `git fetch` / `git pull` 亦通）。
+  （**不要用 GCM**，它在 wincredman 校验处会失败）。
+  ⚠️ **两台机的 gh 路径不同**：`G:\WorkbuddyProject\VideoPipeline` 那台在
+  `~/.workbuddy/binaries/gh/bin/gh.exe`；**本工作区（`G:\VideoPipeline`，2026-10-16 实测）在
+  `C:\Program Files\GitHub CLI\gh.exe`**，便携版已不存在。
+- 代理：**本工作区（2026-10-16 起）走环境变量 `HTTP_PROXY`/`HTTPS_PROXY = http://127.0.0.1:4436`**，
+  旧的 `13145` 端口已不再监听。`git fetch` 偶发 `CONNECT tunnel failed, response 502`，**重试即通**（瞬时，别改配置）。
+- **双工作区并行提交会产生「同内容不同 hash」的重复提交**（2026-10-16 实测：本地 `f81706d` 与远端 `697d9de`
+  内容逐字节相同）。处理：先建 `backup/pre-pull-<date>` 分支，确认 `git diff <本地> <远端>` 为空后 `reset --hard origin/main`。
 - `.gitignore`：忽略 `.workbuddy/*`（**保留 `memory/` 与 `skills/`**）、媒体大文件、`jobs/`、`node_modules`、`out`、`.vitest-cache/`。
 - **`docs/proposals/` 与 `.workbuddy/memory/` 都会随仓库公开** —— 写这两处时按「会被公开」的标准写。
 
 ## 已知雷区
 
+- 🔴 **demo 夹具坑（2026-10-16 发现并修复）**：`examples/demo/03-storyboard/draft.json` 里两条
+  `caption/karaoke-word` 曾带 `highlightColor: "#ffd166"`，而模板声明按 P1 硬约束**刻意不含该键**。
+  当时已提交的 `storyboard.json` 里这两个键是**手工删掉的**（错层修复）⇒ 直接 `validate` 是 0 error，
+  但**照 PROGRESS §八 的顺序先 `storyboard` 再 `validate` 会重新烘焙出该键 → 2 × `E-P1-01` 阻断**。
+  已修：删 `draft.json` 的该键（draft 才是模型产物等价物），重烘焙后 storyboard.json **逐字节相同**，
+  validate 回到 0 error / 2 warning。demo README 已补两条纪律（不写颜色键 / 不手改下游快照）。
+  **教训：幂等产物出现"直接跑是绿的、按文档重跑就红"，说明某处被手改了 —— 先查 draft 与快照是否同源。**
+- 🔴 **缺 `02-perceive` 产物时 `validate` 直接拒绝启动**（实测，非静默放过）——
+  阶段目录是不可变快照，"缺即为前置未跑"。叠加 `perceive` 阶段未配置即退出码 2
+  ⇒ **真实素材在 `01-align` 之后无路可走**，这是当前唯一硬阻断点（perceive 为第一优先的依据）。
+- **文档数字漂移（2026-10-16 已统一）**：此前 `PROGRESS.md` §三/§四 写「16 项校验」「218 项单测」，
+  §七 写「268 项」，README/SPEC 亦停在 16 项；实际 = **17 项 / 269 项 / 15 文件 / 11 声明 / 8 实现**。
+  ⚠️ 残留的「16 项」只应出现在 **2026-10-12 时间戳章节**（历史记录，按「只追加」纪律不动）。
+  引用数字前先跑 `npm test` 核一遍。
+- **改文档计数时区分两种引用**：「**当前** 16 项」是活计数（要改）；「**第 16 项**」是条目身份（不能改）。
 - **乐享预签名 URL 必须整串复制**：截断 `filename%3D"..."` 之后的 `%3B%20filename%2A%3Dutf-8%27%27...` 会直接 `SignatureDoesNotMatch`（403）。与代理无关。
 - 乐享 HTML `<table>` **不能逐格替换**，必须整表删掉重建为 GFM 表；GFM 表**行数上限 10**（含表头）。
 - **`block_fetch_page(render_mode="markdown")` 下，HTML 表格标记（`</table>`/`</td>`）不可匹配** —— 那些标记不在 block 文本里。
