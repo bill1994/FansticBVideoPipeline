@@ -74,9 +74,13 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
   **RTMDet 有唯一一例 JS 移植参照（单项目待核）**；许可全链 MIT/Apache 可商用
 - **下一步 = 按报告施工接入 perceive**（§5.4 两项验证：YuNet Node 端实测 / 预处理依赖取舍；
   §5.5 三项校准：人脸与手持物阈值 / fail-closed 覆盖率下限）
-- **报告 v1.1（10-16 深夜修正）**：AGPL 义务**仅在分发/服务化触发（自用不触发）**——YOLO 系改列
-  "**自用场景备选**"；依据 FSF 原文 + Ultralytics FAQ（其厂商主张更严，注意区分"法律要求 vs 厂商主张"）；
-  施工侧：onnxruntime-node 安装（npm 走代理 SSL 失败 → **用 npmmirror**）、模型落 `perceive-models/`（不入库）
+- **报告 v1.1（10-16 深夜修正）**：AGPL 义务**仅在分发/服务化触发（自用不触发）**——YOLO 系改列"自用场景备选"；
+  依据 FSF 原文 + Ultralytics FAQ（厂商主张更严，区分"法律要求 vs 厂商主张"）
+- **施工进展（10-16 深夜）**：**阶段 A 全通过** —— YuNet × onnxruntime-node 端到端实测（`tools/probe-yunet.mts`），
+  与 OpenCV 参照**逐框对齐 <0.5px**（亚像素级）。🔴 环境铁律：**OpenSSL 客户端（node/python）对清华源 TLS 不稳定
+  （record layer failure）→ 用阿里源；npm 大包走「curl 下 tgz → npm cache add → 离线装」**；
+  参照 venv：`~/.workbuddy/binaries/python/envs/default`（cv2 5.0.0 + ort 1.31.0 + numpy 2.5.4）；
+  模型落 `perceive-models/`（不入库）；HF 同名模型是变体（官方 sha256 `ebafce4e…`）
 
 **⏳ 当前活跃待裁决（2026-10-16 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
 - **D-A**：✅ 已裁决（10-16）→ 选 A1，`typography/center-emphasis@1.0` **已实装**（首个遮挡型叠加模板）
