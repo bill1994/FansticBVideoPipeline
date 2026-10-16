@@ -63,6 +63,11 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 2. **`offset:"-8f"` 时序冲突** → 裁决 **C2-5a**：C2-5 区间下界由「词起点」改为
    「**锚定词所在 cue 的起点**」——负偏移＝抢拍、**合法**（demo 已改回负偏移，作为回归证据）。
 
+**⏳ 进行中（2026-10-16）**：
+- **perceive 检测后端深度研究**（Node 环境·人脸/人体/手部选型）——Phase 1 中断待续；
+  任务卡与已有材料发现见 `.workbuddy/memory/2026-10-16.md`（含 **YuNet-ONNX 待验证点**、
+  四候选全景：YuNet / onnxruntime-node+RTMO 系 / MediaPipe Tasks Vision / Python sidecar）
+
 **⏳ 当前活跃待裁决（2026-10-15 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
 - **D-A**：是否新增「会遮挡主体的叠加模板」（当前 10 个模板 0 个能触发遮挡判定）—— 倾向 A1（居中大字，最小验证）
 - **D-B2**：✅ 已拍板（10-15）：选 C（批量真渲实测）—— 实施与登记册回写待做
