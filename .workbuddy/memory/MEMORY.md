@@ -123,8 +123,15 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
   ⚠️ **两台机的 gh 路径不同**：`G:\WorkbuddyProject\VideoPipeline` 那台在
   `~/.workbuddy/binaries/gh/bin/gh.exe`；**本工作区（`G:\VideoPipeline`，2026-10-16 实测）在
   `C:\Program Files\GitHub CLI\gh.exe`**，便携版已不存在。
-- 代理：**本工作区（2026-10-16 起）走环境变量 `HTTP_PROXY`/`HTTPS_PROXY = http://127.0.0.1:4436`**，
-  旧的 `13145` 端口已不再监听。`git fetch` 偶发 `CONNECT tunnel failed, response 502`，**重试即通**（瞬时，别改配置）。
+- 代理：**走环境变量 `HTTP_PROXY` / `HTTPS_PROXY`，不要写死端口** ——
+  WorkBuddy 宿主**每个会话会换端口**（2026-10-16 实测：上午是 `4436` → 下午变 `11542`，
+  同日的 `CODEBUDDY_SERVICE_PROXY_URL` 也从 `8113` 变 `1965`）。
+  🔴 **教训**：曾用 `git -c http.proxy=http://127.0.0.1:4436 push` 把 git 指向已失效的端口，
+  连续 5 次 `Failed to connect … over proxy`；而当时 curl 走环境变量是通的 ——
+  **两边"用的不是同一个代理"，不要用 curl 通来推断 git 通**。
+  ⇒ 直接 `git push` / `git fetch`（不加 `-c http.proxy`），让环境变量生效。
+  当前端口可用 `env | grep -i proxy` 查；`(exec 3<>/dev/tcp/127.0.0.1/<port>)` 可验连通性。
+  偶发 `CONNECT tunnel failed, response 502` 或 `Could not connect`，**重试即通**（瞬时）。
 - **双工作区并行提交会产生「同内容不同 hash」的重复提交**（2026-10-16 实测：本地 `f81706d` 与远端 `697d9de`
   内容逐字节相同）。处理：先建 `backup/pre-pull-<date>` 分支，确认 `git diff <本地> <远端>` 为空后 `reset --hard origin/main`。
 - `.gitignore`：忽略 `.workbuddy/*`（**保留 `memory/` 与 `skills/`**）、媒体大文件、`jobs/`、`node_modules`、`out`、`.vitest-cache/`。
