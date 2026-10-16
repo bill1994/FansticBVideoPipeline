@@ -121,8 +121,8 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 - 凭证：`gh auth setup-git` → `credential.https://github.com.helper = gh auth git-credential`
   （**不要用 GCM**，它在 wincredman 校验处会失败）。
   ⚠️ **两台机的 gh 路径不同**：`G:\WorkbuddyProject\VideoPipeline` 那台在
-  `~/.workbuddy/binaries/gh/bin/gh.exe`；**本工作区（`G:\VideoPipeline`，2026-10-16 实测）在
-  `C:\Program Files\GitHub CLI\gh.exe`**，便携版已不存在。
+  `~/.workbuddy/binaries/gh/bin/gh.exe`（**2026-10-16 晚实测仍在位**）；`G:\VideoPipeline` 那台
+  （2026-10-16 实测）在 `C:\Program Files\GitHub CLI\gh.exe`，那边便携版已不存在。
 - 代理：**走环境变量 `HTTP_PROXY` / `HTTPS_PROXY`，不要写死端口** ——
   WorkBuddy 宿主**每个会话会换端口**（2026-10-16 实测：上午是 `4436` → 下午变 `11542`，
   同日的 `CODEBUDDY_SERVICE_PROXY_URL` 也从 `8113` 变 `1965`）。
