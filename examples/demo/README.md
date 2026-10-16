@@ -31,7 +31,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ## 预期结果
 
 ```
-✅ 校验通过（checked=15 项 + 2 条起草原生约束, warning=2）
+✅ 校验通过（checked=17 项 + 2 条起草原生约束, warning=2）
    ! W-F6-01 [face-s2] 区域 face-s2（face）为低置信检测结果
    ! W-F6-01 [s2] shot s2 的主体归属为低置信，安全区未确
 ```
@@ -57,3 +57,15 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 `03-storyboard/draft.json` 是唯一需要手改的文件。
 改完重跑 `storyboard` → `validate`，两者都是幂等的（同输入同输出，可直接 diff）。
+
+### 🔴 两条纪律（都踩过）
+
+1. **不许给 `draft.json` 里的 motion 写颜色键**（如 `highlightColor`）。
+   `caption/karaoke-word` 的 `paramsSchema` 按 P1 硬约束**刻意只声明 `boxed`** ——
+   颜色由渲染期按命名令牌（`'brand'` / `'accent'`）解析，不经 `params`。
+   写了就会被校验项 #16 判 `E-P1-01`（未声明键）**阻断**。
+2. **要改下游产物，改 `draft.json` 再重跑，别手改 `storyboard.json`。**
+   `draft.json` 才是「模型产出」的等价物；`storyboard.json` 是烘焙快照。
+   手改快照会让第 1 条的错误被掩盖 —— `validate` 直接跑是绿的，
+   一旦按上面「怎么跑」重跑 `storyboard` 就立刻复现阻断，文档与实测自相矛盾。
+   （本仓库 2026-10-16 修过一次这个错层修复。）

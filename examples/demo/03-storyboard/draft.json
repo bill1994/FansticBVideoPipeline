@@ -161,7 +161,6 @@
           "sim_max": 0.9,
           "confidence": 0.93,
           "params": {
-            "highlightColor": "#ffd166",
             "boxed": false
           }
         },
@@ -180,7 +179,6 @@
           "sim_max": 0.88,
           "confidence": 0.9,
           "params": {
-            "highlightColor": "#ffd166",
             "boxed": true
           }
         }
