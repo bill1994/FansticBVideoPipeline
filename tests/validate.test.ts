@@ -3,11 +3,10 @@
  * 每条用例都对应 SPEC §2.2 / §2.3 的一行，或一份真源里的明文规定。
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
-import { CARRIER_FALLBACK, setCarrierFallback } from '../src/core/config.ts';
+import { describe, expect, it } from 'vitest';
 import { runValidation, DOCUMENTED_CHECK_ITEMS, EXTRA_CHECKS } from '../src/validate/index.ts';
 import type { BakeRecord } from '../src/core/types.ts';
-import { makeCtx, makeItem, makeOccludingItem, makeTrack, makeWords, OCCLUDER_MOTION, type CtxOverrides } from './_ctx.ts';
+import { carrierOf, makeCtx, makeItem, makeOccludingItem, makeTrack, makeWords, type CtxOverrides } from './_ctx.ts';
 
 const STAT = 'data/stat-card@1.0'; // overlay-safe, minVisible 45
 const CARRIER = 'carrier/split-frame@1.0'; // subject-transform
@@ -19,10 +18,6 @@ const FULLSCREEN = 'transition/whip-pan@1.0'; // fullscreen
 function codesOf(over: CtxOverrides = {}): string[] {
   return runValidation(makeCtx(over)).items.map((i) => i.code);
 }
-
-beforeEach(() => {
-  for (const k of Object.keys(CARRIER_FALLBACK)) delete CARRIER_FALLBACK[k];
-});
 
 describe('基线', () => {
   it('空 storyboard → ok，且 17 项全跑', () => {
@@ -349,12 +344,19 @@ describe('#12 / #13 遮挡预算与三级退让', () => {
     })).toContain('E-D4-01');
   });
 
-  it('#12 已登记载体但区域几乎占满画面 → E-D2-01（退路不够）', () => {
-    // 🔴 载体映射按 **motion id** 索引，motion 换成遮挡夹具后这里也必须跟着换，
-    //    否则登记的是另一个 motion，退让查不到载体档 → 误报 E-D4-01。
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
+  it('#12 已声明载体但区域几乎占满画面 → E-D2-01（退路不够）', () => {
+    // 🔴 载体档**逐 item 声明**（D4-t2）：声明在 item 上，不再有按 motion 索引的全局表。
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [0, 0, 1, 1],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
       regions: faceRegion([0, 0, 1, 1]),
     })).toContain('E-D2-01');
   });
@@ -372,9 +374,17 @@ describe('#12 / #13 遮挡预算与三级退让', () => {
 
 describe('#14 B-roll 主体遮挡 E-D2-02', () => {
   it('超过 30% 预算且无退路 → E-D2-02', () => {
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     expect(codesOf({
-      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [0, 0, 1, 1],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
       regions: [{ id: 'broll-1', kind: 'broll', shotId: 's1', fromFrame: 100, durationInFrames: 200, box: [0, 0, 1, 1] }],
     })).toContain('E-D2-02');
   });

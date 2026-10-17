@@ -22,13 +22,10 @@
  *     原遮挡 25.0% > 预算 20% → 触发；平移至 `[0.3,0.3,0.2,0.2]` 后 0.0% → 退让成功。
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
-import { CARRIER_FALLBACK, setCarrierFallback } from '../src/core/config.ts';
+import { describe, expect, it } from 'vitest';
 import { runValidation } from '../src/validate/index.ts';
 import type { StoryboardItem } from '../src/core/types.ts';
-import { makeCtx, makeItem, makeOccludingItem, makeTrack, OCCLUDER_MOTION } from './_ctx.ts';
-
-const CARRIER = 'carrier/split-frame@1.0'; // subject-transform
+import { carrierOf, makeCtx, makeItem, makeOccludingItem, makeTrack, OCCLUDER_MOTION } from './_ctx.ts';
 
 /** 原遮挡 25% > handheld 预算 20%，平移一格即消解。 */
 const FP_NUDGEABLE: [number, number, number, number] = [0.5, 0.5, 0.2, 0.2];
@@ -48,10 +45,6 @@ const brollRegion = (box: [number, number, number, number]) => [
 function runCtx(over: Parameters<typeof makeCtx>[0] = {}) {
   return makeCtx(over);
 }
-
-beforeEach(() => {
-  for (const k of Object.keys(CARRIER_FALLBACK)) delete CARRIER_FALLBACK[k];
-});
 
 describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
   it('T1 平移成功 → footprint 真的被改写（不再等于原值）', () => {
@@ -136,15 +129,23 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
   });
 });
 
-describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', () => {
+describe('#13 tier2 载体档 —— 目前不施加变换，必须诚实告警', () => {
   /** face 预算 0% + footprint 与区域完全重合 ⇒ 平移网格内无解，必落到 tier2。 */
   const BIG_FP: [number, number, number, number] = [0.2, 0.2, 0.6, 0.6];
   const BIG_BOX: [number, number, number, number] = [0.2, 0.2, 0.6, 0.6];
 
-  it('T3 登记载体后：冲突被抑制，但 motion 与 footprint 均未被改写（已知缺口）', () => {
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
+  it('T3 声明 item.carrier 后：冲突被抑制，但 motion 与 footprint 均未被改写（已知缺口）', () => {
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [...BIG_FP],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
       regions: faceRegion(BIG_BOX),
     });
     const report = runValidation(ctx);
@@ -160,9 +161,17 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
   });
 
   it('T3b W-D4-01 的消息必须点明「未实际施加」', () => {
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [...BIG_FP],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
       regions: faceRegion(BIG_BOX),
     });
     const item = runValidation(ctx).items.find((i) => i.code === 'W-D4-01');
@@ -170,7 +179,7 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
     expect(item?.hint).toMatch(/尚未实现|不会.*改变成片/);
   });
 
-  it('T5 未登记载体时 E-D4-01 仍可达（防止未来误删此码）', () => {
+  it('T5 未声明 item.carrier 时 E-D4-01 仍可达（防止未来误删此码）', () => {
     const ctx = runCtx({
       tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...BIG_FP] })])],
       regions: faceRegion(BIG_BOX),
@@ -179,11 +188,15 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
   });
 
   it('T2 tier1 顺序优先于 tier2（两者都可行时应选平移）', () => {
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
-          makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [...FP_NUDGEABLE] }),
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [...FP_NUDGEABLE],
+            carrier: carrierOf(),
+          }),
         ]),
       ],
       regions: handheldRegion(REGION),
@@ -197,9 +210,17 @@ describe('#13 tier2 载体档 —— 当前是空操作，必须诚实告警', (
   });
 
   it('T4 tier2 也失败（区域占满画面）→ E-D2-01 仍然报错', () => {
-    setCarrierFallback(OCCLUDER_MOTION, CARRIER);
     const ctx = runCtx({
-      tracks: [makeTrack('a', 60, [makeOccludingItem({ fromFrame: 111, durationInFrames: 60, footprint: [0, 0, 1, 1] })])],
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [0, 0, 1, 1],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
       regions: faceRegion([0, 0, 1, 1]),
     });
     expect(runValidation(ctx).items.map((i) => i.code)).toContain('E-D2-01');

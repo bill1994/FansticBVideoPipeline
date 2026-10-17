@@ -8,15 +8,21 @@
 import { CODES } from '../core/errors.ts';
 import type { ReportItem } from '../core/report.ts';
 import { ConfigError } from '../core/exit-code.ts';
-import { getTemplate } from '../templates/registry.ts';
-import { isMasterSlavePair } from '../templates/types.ts';
+import { getTemplate, hasTemplate } from '../templates/registry.ts';
+import { CARRIER_SCOPES, isCarrierScope, isMasterSlavePair } from '../templates/types.ts';
 import type { ValidateContext } from './context.ts';
 import { framesOverlap, rectOverlapArea } from './context.ts';
 import { mk } from './item.ts';
 
 /**
- * 结构前置检查：`handoffTo` 必须指向存在的 track。
- * 这是结构错误（应抛 ConfigError → 退出码 2），不是校验项，不产 report 条目。
+ * 结构前置检查（**结构错误 → ConfigError → 退出码 2**，不产 report 条目）：
+ *   1. `handoffTo` 必须指向存在的 track
+ *   2. track id 不得重复
+ *   3. `item.carrier`（D4-t2）必须是**已注册且属载体类**的模板引用
+ *
+ * 为什么载体引用也归这里而不是新开一条校验项：它与 `handoffTo` 同属**悬空引用** ——
+ * 是配置写错了，不是「内容没做好」。若降级成 report 条目，读者会把「模板 id 打错」
+ * 误读成「这条 motion 位置不合适」，返修方向从一开始就是错的。
  */
 export function assertStructuralIntegrity(ctx: ValidateContext): void {
   const ids = new Set(ctx.storyboard.tracks.map((t) => t.id));
@@ -30,6 +36,40 @@ export function assertStructuralIntegrity(ctx: ValidateContext): void {
   const trackIds = ctx.storyboard.tracks.map((t) => t.id);
   if (new Set(trackIds).size !== trackIds.length) {
     throw new ConfigError(`track id 重复：${trackIds.join(', ')}`);
+  }
+
+  // ── 载体引用（D4-t2 / Q1）────────────────────────────────────────
+  // 三条判定，缺一不可：
+  //   ① 已注册 —— 未注册则渲染期拿不到 scope / paramsSchema，语义无从谈起
+  //   ② 属载体类 scope —— 退让语义是「把**视频**缩进载体、overlay 在框外」；
+  //      指向 overlay 模板等于让一条 overlay 去包住视频，是语义倒置
+  //   ③ `params` 是普通对象 —— `null` / 数组会让渲染期的键访问静默失效
+  for (const t of ctx.storyboard.tracks) {
+    for (const [idx, item] of t.items.entries()) {
+      const carrier = item.carrier;
+      if (carrier === undefined) continue;
+      const ref = `${t.id}/${String(idx).padStart(3, '0')}`;
+
+      if (typeof carrier.template !== 'string' || carrier.template === '') {
+        throw new ConfigError(`item ${ref} 的 carrier.template 必须是非空字符串`);
+      }
+      if (!hasTemplate(carrier.template)) {
+        throw new ConfigError(
+          `item ${ref} 的 carrier.template 指向未注册的模板 "${carrier.template}"`,
+        );
+      }
+      const decl = getTemplate(carrier.template);
+      if (!isCarrierScope(decl.scope)) {
+        throw new ConfigError(
+          `item ${ref} 的 carrier.template "${carrier.template}" 的 scope 是 "${decl.scope}"，` +
+            `不是载体类（${CARRIER_SCOPES.join(' / ')}）—— 载体退让只能指向背景链模板`,
+        );
+      }
+      const p: unknown = carrier.params;
+      if (p === null || typeof p !== 'object' || Array.isArray(p)) {
+        throw new ConfigError(`item ${ref} 的 carrier.params 必须是对象`);
+      }
+    }
   }
 }
 

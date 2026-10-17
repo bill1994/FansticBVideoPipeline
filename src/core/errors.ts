@@ -45,7 +45,16 @@ export const CODES = {
   FOOTPRINT_ANIMATES_ERR: E('E-C3-03', 'footprint-animates', 'C3', 11, 'footprintAnimates 降级（相交）'),
   FOOTPRINT_ANIMATES_WARN: W('W-C3-02', 'footprint-animates', 'C3', 11, 'footprintAnimates 降级（相交）'),
   OCCLUSION_BUDGET: E('E-D2-01', 'occlusion-budget', 'D2', 12, '遮挡分级预算超预算'),
-  CARRIER_FALLBACK: E('E-D4-01', 'carrier-fallback', 'D4', 13, '载体三级退让后仍冲突'),
+  /**
+   * 载体档「无路可走」—— 校验项 #13 的终止态。
+   *
+   * 🔴 键名曾叫 `CARRIER_FALLBACK`，与已废除的全局表 `config.CARRIER_FALLBACK` 同名。
+   *    D4-t2（2026-10-17）废除那张表后，此码的触发条件随之收紧为
+   *    **「该 item 未声明 `carrier`」**（原意：载体映射未登记）。
+   *    保留旧键名会让下一个人误以为全局表还在 —— 故改名，**错误码字符串 `E-D4-01` 不变**
+   *    （登记册已按该码记录，��名会破坏可追溯性）。
+   */
+  CARRIER_NO_ROUTE: E('E-D4-01', 'carrier-fallback', 'D4', 13, '载体三级退让后仍冲突'),
   BROLL_OCCLUSION: E('E-D2-02', 'broll-occlusion', 'D2', 14, 'B-roll 主体遮挡 > 30%'),
 
   /**

@@ -43,7 +43,7 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **17 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**318 项全过**（19 文件：validate 41 / template-render 31 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / params 17 / yunet 17 / shot-detect 14 / bake 14 / region-derive 12 / occlusion 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
+- **单测**：**328 项全过**（20 文件：validate 41 / template-render 31 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / params 17 / yunet 17 / carrier-contract 10 / shot-detect 14 / bake 14 / region-derive 12 / occlusion 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -233,12 +233,13 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 `occlusion.ts` 的两级退让原本都只抑制报错、不改数据（已修 tier1）。
 tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告警。
 
-三个阻塞点：
-- `StoryboardItem` 无处承载「已切载体、画面要缩进哪个框」
-- `CARRIER_FALLBACK` 按 motion 索引，**放不下逐 item 几何**
-- `split-frame` 表达不了「把这条 motion 挪出这张人脸」
+原三个阻塞点：
+- ✅ `StoryboardItem` 无处承载「已切载体、画面要缩进哪个框」—— **2026-10-17 P1 已解决**：新增 `carrier?: { template, params }`
+- ✅ `CARRIER_FALLBACK` 按 motion 索引，**放不下逐 item 几何**—— **已废除**（裁决 Q2：逐 item 显式声明，废全局表）
+- ⬚ `split-frame` 表达不了「把这条 motion 挪出这张人脸」—— **仍未解决**（P2 实现模板 + P3 接线 + P4 重立 `W-D2-02`）
 
-**修复须先在登记册立一条承载字段的裁决。**
+**修复须先在登记册立一条承载字段的裁决** —— ✅ 已立（`D4-t2`，2026-10-17）。
+⚠️ P1 只立契约 + 加引用合法性结构检查，**tier2 仍不施加任何变换**（声明了也照出 `W-D4-01`）。
 
 ### 3. ⚠️ 占位数值：**7 个从未实测**（2026-10-17 由 4 增到 7）
 
@@ -335,7 +336,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 4 | ~~契约字段审计~~ | `occludesSubject` 补实现 / `handoffIn` 删除（问题 9） | ✅ 2026-10-15 |
 | 5 | ~~接入 perceive（face 通道）~~ | 内置后端上线：镜头切分（ffmpeg `scdet`，阈值 10 实测无漏检/无过检）+ YuNet 人脸检测 → shot 级并集 → `safeArea`（主体 bbox 上部 60%）。未配 `PERCEIVER_CMD` 不再退出码 2。真实素材实测 15 shot / 12 有主体 | ✅ 2026-10-17 |
 | 5b | ~~补 `handheld` / `broll` 两通道~~ | **handheld**：人脸框外扩成「上半身＋手部」区域，**不做物体检测** —— 主讲解物品是鞋子而 COCO 80 类无 shoe，且用户判断「只要上半身不被遮挡」即够；**broll**：仅无脸镜头用经典显著性（零模型），框不到即退让；有脸 shot 不产 broll（实测会框到背景噪声）。⚠️ `HANDHELD_EXPANSION` 与显著性 `targetAreaRatio` 均为占位值 | ✅ 2026-10-17 |
-| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工待做：P1 改契约 → P2 实现 `split-frame.tsx` → P3 tier2 接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 裁决完成，待施工 |
+| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 已完成**（契约 + 结构校验，10 项新测）→ P2 实现 `split-frame.tsx` → P3 tier2 接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 施工中（1/4） |
 
 > ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
 > 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
@@ -378,18 +379,22 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      17 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        318 项全过（19 文件）           ← … → 300 → 312 → 318（批次 2 / D7 / D-A / 感知接入；+7 于当日增补后又撤回）
+单测        328 项全过（20 文件）           ← … → 318 → 328（D4-t2 的 P1：+10 契约/结构校验测）
+契约字段    occludesSubject 已补实现；handoffIn 已删除；`item.carrier` 已立契约（D4-t2 P1）← 前两者此前零消费
 登记册      44 条表格行含 RESOLVED（`grep '^|.*RESOLVED'` 可复算；+D4-t2；D2-2 为 REVERTED）；OPEN：C2-2（待实测）/ C2-3（倾向不做）
 模板        11 个声明 / 8 个实现            ← 0 → 5 → 7 → 8（批次 2 + D-A；剩余 3 个分批，见 §4.6）
 遮挡判定    首个遮挡型模板 center-emphasis 落地  ← 此前 10/10 模板 0 触发（D-A）
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
 背景链      首个载体实现 punch-in（包裹视频）  ← 机制：src/remotion/carrier.tsx（分段包裹）
 字幕通道    words.json 已接入 props         ← 此前渲染期无人读它
-契约字段    occludesSubject 已补实现；handoffIn 已删除  ← 此前两个都零消费
 占位数值    7 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio / HANDHELD_EXPANSION / targetAreaRatio / MIN_VISIBLE_RATIO）← 详见 §四 3
-手感表docs/templates/2026-10-15-参数手感表.md（已建）
-测试文件    19 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
+手感表      docs/templates/2026-10-15-参数手感表.md（已建）
+测试文件    20 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
 ```
+
+> ⚠️ **D4-t2 的 P1 没有新增校验项**：`item.carrier` 的引用合法性属**结构错误**
+> （`ConfigError` → 退出码 2，与 `handoffTo` 指向不存在 track 同类），**不占 17 项名额**。
+> 加校验项须先改登记册，而本次改的是契约不是清单。
 
 ### 已知环境问题（非项目 bug）
 

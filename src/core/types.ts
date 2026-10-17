@@ -39,6 +39,32 @@ export interface ScheduleDecision {
   review: ReviewLevel;
 }
 
+/**
+ * 载体引用 —— D4 三级退让 ② 号档（「自动切 carrier 模式」）的**逐 item 声明**。
+ *
+ * 来源：`D4-t2` 裁决（2026-10-17）。三个问题一并定：
+ * - **Q1 承载字段**：挂在 `StoryboardItem` 上，而不是塞 `params`（那是模型填的参数表）、
+ *   也不是让 validate 插新 item（会污染产物且难以追溯）。
+ * - **Q2 键粒度**：**逐 item 显式声明，废除全局 `motion → carrier` 映射表**
+ *   —— 全局表「一处配置污染全片」，且载体几何本就逐 item。
+ * - **Q3 模板语义**：`carrier/split-frame` 走 cover 裁切分屏 + **主体锚定窗口**，
+ *   裁切窗口由校验期算好后写入 `params.window`（归一化），渲染期直接消费。
+ *
+ * ⚠️ **谁读它**（新增字段必答的问题）：
+ *   1. `validate/geometry.ts` 的 `assertStructuralIntegrity` —— 校验引用合法性（结构错误）；
+ *   2. `validate/occlusion.ts` 的 `resolveOcclusion` —— 作为 tier2 的**触发依据**
+ *      （未声明即「退路不存在」→ `E-D4-01`）。
+ *
+ * 🔴 **P1 阶段只立契约**：tier2 仍不施加变换，声明了也照出 `W-D4-01` 诚实告警；
+ *    真正改写画面在 P3（`resolveOcclusion` 写入）与 P2（`split-frame.tsx`）之后。
+ */
+export interface CarrierRef {
+  /** `family/subtype@version`，必须是**已注册且属载体类 scope**的模板（由结构检查强制）。 */
+  template: string;
+  /** 载体参数。`window`（归一化裁切窗）由校验期算出，其余键语义见该载体模板声明。 */
+  params: Record<string, unknown>;
+}
+
 export interface StoryboardItem {
   /** 编辑期可见，烘焙后剥离。 */
   _author?: AuthorAnchor;
@@ -53,6 +79,8 @@ export interface StoryboardItem {
   footprintAnimates?: boolean;
   /** 由模板 paramsSchema 决定；模型只填表不写代码。 */
   params?: Record<string, unknown>;
+  /** 载体退让声明（D4-t2）。省略 = 未声明载体档，退让到 tier2 即判「无路可走」。 */
+  carrier?: CarrierRef;
   /** 调度决策字段，由 storyboard 阶段写入。 */
   decision?: ScheduleDecision;
 }

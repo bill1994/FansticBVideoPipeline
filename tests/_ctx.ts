@@ -11,6 +11,7 @@ import type {
   AlignReport,
   AlignWords,
   BakeReport,
+  CarrierRef,
   Cue,
   PerceiveRegion,
   PerceiveResult,
@@ -112,6 +113,22 @@ export function makeOccludingItem(over: Partial<StoryboardItem> = {}): Storyboar
     occluderSeq += 1;
   }
   return makeItem({ motion: OCCLUDER_MOTION, params: {}, ...over });
+}
+
+/** 载体类默认引用：`carrier/split-frame@1.0`（`subject-transform`，已声明但尚未有 .tsx）。 */
+export const CARRIER = 'carrier/split-frame@1.0';
+
+/**
+ * D4-t2 载体声明构造器。
+ *
+ * 载体档**逐 item 声明**（`item.carrier`）；原来的全局 `setCarrierFallback(motion, …)`
+ * 映射表已于 2026-10-17 按裁决 Q2 废除 —— 它按 motion 索引，放不下逐 item 几何。
+ */
+export function carrierOf(
+  template: string = CARRIER,
+  params: Record<string, unknown> = {},
+): CarrierRef {
+  return { template, params };
 }
 
 export function makeTrack(id: string, layer: number, items: StoryboardItem[], handoffTo?: string): StoryboardTrack {

@@ -149,7 +149,16 @@ agent_created: true
 | `subject-transform` / `footage-transform` | 须**包住**安全区 | 🔴 **本行尚未实装**（`W-D2-02` 于 2026-10-17 曾补入、**同日撤回**：载体类 `footprint` 是「视频位置」而非「overlay 位置」，且裁切量由 `params.scale` 决定、不体现在 footprint 上）。正确判据须基于 `visibleRegion(params)`，待 D4-t2 落地 |
 | `fullscreen` | — | **一律人工确认** → 本阶段只出 `W-D3-01`，硬拦在 render 启动闸 |
 
-**第 13 项三级退让**：冲突 → ① 同预算内尝试挪 `footprint`（不动时间轴、不改文案）→ ② 挪不动则自动切 `carrier` 模式 → ③ 仍冲突才报错。
+**第 13 项三级退让**：冲突 → ① 同预算内尝试挪 `footprint`（不动时间轴、不改文案）→ ② 挪不动则切 `carrier` 模式（画面缩进载体框，overlay 在框外）→ ③ 仍冲突才报错。
+
+> **② 的载体档是「逐 item 声明」**（D4-t2，2026-10-17）：写在 storyboard item 的 `carrier` 字段上
+> （`{ template, params }`），**不是**按 motion 索引的全局映射表（那张表已废除）。
+> `item.carrier` **未声明** → ② 无法启动 → `E-D4-01`；已声明 → 目前仍出 `W-D4-01`
+> （tier2 施加待 P3，故「声明了也不改画面」）。
+> 引用合法性由**结构检查**把关：模板必须已注册且属载体类 scope，否则直接 `ConfigError` → **退出码 2**。
+>
+> 🔴 **`carrier` 不是模型可填字段**：它由校验期写入（或人工返修时手填）。
+> 与 `_author` 同理 —— 起草稿里不要写它。
 
 **第 16 项参数契约：三条码与判定边界**
 

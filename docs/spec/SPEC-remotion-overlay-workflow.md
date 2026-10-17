@@ -113,7 +113,18 @@
 | `footprint` | `[x,y,w,h]` | 是 | 归一化 0–1 矩形，落盘时必带 |
 | `exclusive` | string | 否 | 互斥组名（如 `lower-third`）。**默认不互斥** |
 | `footprintAnimates` | boolean | 否 | `true` → 相交检测从 error 降为 warning |
-| `params` | object | 视模板 | 🟡TBD：由模板 `paramsSchema` 决定，具体键待模板落地后回填 |
+| `params` | object | 视模板 | 由模板 `paramsSchema` 决定 |
+| `carrier` | object | 否 | **载体退让声明**（D4-t2，2026-10-17）：`{ template: "carrier/split-frame@1.0", params: {…} }`。**逐 item 显式声明**，无全局映射表。省略 = 未声明载体档 → 遮挡冲突且挪不动时直接 `E-D4-01` |
+
+**`carrier` 字段的三条硬约束**（D4-t2 / Q1–Q3）：
+
+1. `template` 必须是**已注册且属载体类 scope**（`subject-transform` / `footage-transform`）的模板；
+   指向叠加类模板属**语义倒置**（让一条 overlay 去包住视频）。
+   违反 → **结构错误 `ConfigError` → 退出码 2**（与 `handoffTo` 指向不存在 track 同类），不降级成校验项。
+2. `params` 是**载体模板自己的**参数，不是本条 motion 的 `params`；其中 `window`（归一化裁切窗）
+   由**校验期**按「主体锚定」算好后写入，渲染期直接消费。
+3. **谁读它**：构建期 `assertStructuralIntegrity`（校验引用合法性）+ `resolveOcclusion`（tier2 触发依据）。
+   🔴 **P1 只立契约**：声明了也仍出 `W-D4-01`，因为施加变换尚未接线（P2 `split-frame.tsx` / P3 tier2 接线）。
 
 ```jsonc
 {

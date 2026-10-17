@@ -19,7 +19,7 @@
 
 import { CODES } from '../core/errors.ts';
 import type { ReportItem } from '../core/report.ts';
-import { OCCLUSION_BUDGET, carrierFallbackFor } from '../core/config.ts';
+import { OCCLUSION_BUDGET } from '../core/config.ts';
 import type { Footprint, PerceiveRegion, RegionKind } from '../core/types.ts';
 import { isOverlayScope } from '../templates/types.ts';
 import type { SceneItem, ValidateContext } from './context.ts';
@@ -58,9 +58,10 @@ const NUDGE_STEPS = [-0.2, -0.1, 0, 0.1, 0.2];
  * 该约束（SPEC §2.1 / context.ts 头注释）指的是**不再读磁盘、不写磁盘**，
  * 落盘仍由 render 阶段负责，并未触碰。改内存中的场景对象不破坏阶段快照不可变性。
  *
- * ⚠️ tier2（carrier）**仍是空操作**：它只抑制报错，不改 motion 也不改 footprint。
- *   这是已知缺口，见 `W-D4-01` 与2026-10-13 裁决材料 §1.5
- *   （修 tier2 须先在登记册立一条承载字段的裁决）。
+ * ⚠️ tier2（carrier）**仍不施加任何变换**：它只抑制报错，不改 motion 也不改 footprint。
+ *   触发依据已按 D4-t2（2026-10-17）从「全局 `motion → carrier` 表」改为
+ *   **`item.carrier` 逐 item 显式声明**；真正改写画面在 P3（本函数写入 `item.carrier`
+ *   并让渲染层包裹视频）与 P2（`split-frame.tsx`）之后。缺口本身见 `W-D4-01`。
  */
 export function resolveOcclusion(
   item: SceneItem,
@@ -89,13 +90,14 @@ export function resolveOcclusion(
   }
 
   // ② 自动切 carrier 模式
-  //    载体映射要求**显式登记**（见 config.CARRIER_FALLBACK）：
-  //    为任意 motion 自动挑载体不安全，未登记即视为「退路不存在」。
-  const carrierId = carrierFallbackFor(item.item.motion);
+  //    载体档**逐 item 显式声明**（D4-t2 / Q2：已废除全局 `motion → carrier` 映射表）。
+  //    未声明即视为「退路不存在」—— 为任意 motion 自动挑载体不安全
+  //    （例如 fullscreen 类没有可缩进的余地）。
+  const carrierId = item.item.carrier?.template;
   if (!carrierId) {
     return {
       status: 'no-carrier',
-      detail: `motion "${item.item.motion}" 未登记载体映射（config.CARRIER_FALLBACK），三级退让无法启动`,
+      detail: `item 未声明载体档（storyboard item 的 carrier 字段），三级退让无法启动`,
     };
   }
   if (!isOverlayScope(item.tpl.scope)) {
@@ -117,8 +119,8 @@ export function resolveOcclusion(
   return {
     status: 'carrier',
     detail:
-      `已登记载体档 ${carrierId}，但**当前实现不施加载体变换**` +
-      `（tier2 尚未实现，见 W-D4-01）；motion 与 footprint 均未被改写`,
+      `已声明载体档 ${carrierId}，但**当前实现不施加载体变换**` +
+      `（tier2 尚未实现，施加待 P3，见 W-D4-01）；motion 与 footprint 均未被改写`,
   };
 }
 
@@ -210,7 +212,7 @@ export function checkOcclusionBudget(ctx: ValidateContext): ReportItem[] {
           frames,
           `${head}；${res.detail}`,
           '⚠️ 这条是已知缺口：D4 的 ② 号载体档尚未实现，冲突被抑制但画面未被真正退让。' +
-            '在 tier2 实现前，载体映射登记**不会**改变成片。',
+            '声明 `item.carrier` **不会**改变成片 —— 施加变换待 P3。',
         ),
       );
       continue;
@@ -219,7 +221,7 @@ export function checkOcclusionBudget(ctx: ValidateContext): ReportItem[] {
     if (res.status === 'no-carrier') {
       out.push(
         mk(
-          CODES.CARRIER_FALLBACK,
+          CODES.CARRIER_NO_ROUTE,
           'build',
           [hit.scene.ref, hit.region.id],
           frames,
