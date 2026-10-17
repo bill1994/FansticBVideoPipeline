@@ -122,3 +122,95 @@ describe('split-frame · 渲染纪律', () => {
     expect(render(itemWith())).not.toBe(punchHtml);
   });
 });
+
+/**
+ * 🔴 真渲抽帧抓到的 bug 的回归护栏（2026-10-17）。
+ *
+ * ── 病 ────────────────────────────────────────────────────────
+ * `clip-path` 的百分比**相对父容器**，而 `MotionItem` 会先按 `item.footprint`
+ * 撑出一个定位 div（本模板的 footprint = `[0.5,0,0.5,1]`，即右半屏）。
+ * 于是「切掉左侧 50%」变成了「切掉该 div 自己的左半」
+ * ⇒ 画面实际可见 `[0.75, 1.0]`，**偏差 25%**。
+ *
+ * 单测与静态断言当时全绿（它们只看组件自己输出的 style，不解父级定位），
+ * 只有真渲抽帧 + 像素级量分界线位置才暴露。
+ *
+ * ── 药 ────────────────────────────────────────────────────────
+ * 本组件先**反向抵消**父级 footprint 定位、把自己撑回满画面，
+ * 使 clip-path 的百分比重新对齐**画面坐标系**。
+ * ⚠️ 反向抵消的百分比同样相对父宽 ⇒ 必须**除以 footprint 尺寸**换算。
+ *
+ * ── 为什么这些断言能守住 ──────────────────────────────────────
+ * 把「CSS 百分比相对谁」换算成数值断言，而不是靠人肉读 style 字符串。
+ */
+describe('split-frame · 坐标系对齐（真渲回归护栏）', () => {
+  /** 把 style 里的 `key: NNNpx/NNN%` 抠出来。 */
+  const styleOf = (html: string): Record<string, string> => {
+    const m = html.match(/style="([^"]*)"/);
+    const out: Record<string, string> = {};
+    for (const kv of (m?.[1] ?? '').split(';')) {
+      const [k, v] = kv.split(':').map((s) => s.trim());
+      if (k) out[k] = v ?? '';
+    }
+    return out;
+  };
+
+  it('必须撑满画面：宽/高 = 1 ÷ footprint 尺寸（父 div 已是 footprint 宽）', () => {
+    const html = render(itemWith()); // footprint [0.5,0,0.5,1]
+    const s = styleOf(html);
+    // 父 div 宽 = 画面 50% ⇒ 要占满画面，本组件须写 200%
+    expect(s['width']).toBe('200%');
+    // 父 div 高 = 画面 100% ⇒ 100%
+    expect(s['height']).toBe('100%');
+  });
+
+  it('必须反向抵消父级 left/top，且换算要用父尺寸作分母', () => {
+    const html = render(itemWith()); // footprint x=0.5, w=0.5
+    const s = styleOf(html);
+    const pct = (v: string | undefined) => parseFloat(v ?? '0') / 100;
+    // 想要画面系的 -0.5，父宽是画面 0.5 ⇒ 须写 -0.5/0.5 = -100%
+    expect(pct(s['left'])).toBeCloseTo(-1, 10);
+    // top：footprint[1] = 0 ⇒ 无需位移（用数值断言，避开 '-0%' 的字符串歧义）
+    expect(pct(s['top'])).toBeCloseTo(0, 10);
+  });
+
+  it('🔴 端到端换算：补偿后的可见区域必须恰为 display 声明的展示条', () => {
+    // 复现真渲实测过的算式：父 div 占画面 [0.5,1]，本组件补偿后覆盖 [0,1]，
+    // clip-path 再按画面系切出展示条 ⇒ 分界落在 0.5。
+    // （真渲实测：修复前 0.75，修复后 0.5000，偏差 0.000%）
+    const fp = { x: 0.5, w: 0.5 };
+    const html = render(itemWith());
+    const s = styleOf(html);
+    const pct = (v: string) => parseFloat(v) / 100;
+
+    const left = fp.x + pct(s['left'] ?? '0') * fp.w; // 补偿后的画面左边界
+    const width = pct(s['width'] ?? '100%') * fp.w; // 补偿后的画面宽度
+    expect(left).toBeCloseTo(0, 10); // 撑到画面最左
+    expect(width).toBeCloseTo(1, 10); // 撑满画面宽度
+
+    // clip-path 的 inset 百分比此时相对【满画面】⇒ 分界即 display[0]
+    const clip = html.match(/clip-path:inset\(([^)]*)\)/)?.[1] ?? '';
+    const leftInset = pct(clip.split(/\s+/)[3] ?? '0%');
+    expect(left + leftInset * width).toBeCloseTo(0.5, 10); // 分界 = 0.5 ✔
+  });
+
+  it('footprint 非右半屏时同样成立（补偿不是硬编码 50%）', () => {
+    // 换一个 footprint ⇒ 补偿值必须跟着变，否则又退回坐标系错乱
+    const html = renderToStaticMarkup(
+      <SplitFrame
+        frame={0}
+        durationInFrames={60}
+        item={{ ...itemWith(), footprint: [0.2, 0.1, 0.3, 0.4] }}
+        caption={EMPTY_CAPTION}
+      >
+        {VIDEO}
+      </SplitFrame>,
+    );
+    const s = styleOf(html);
+    const pct = (v: string | undefined) => parseFloat(v ?? '0') / 100;
+    expect(pct(s['left'])).toBeCloseTo(-0.2 / 0.3, 10); // -66.667%
+    expect(pct(s['width'])).toBeCloseTo(1 / 0.3, 10); // 333.333%
+    expect(pct(s['top'])).toBeCloseTo(-0.1 / 0.4, 10); // -25%
+    expect(pct(s['height'])).toBeCloseTo(1 / 0.4, 10); // 250%
+  });
+});

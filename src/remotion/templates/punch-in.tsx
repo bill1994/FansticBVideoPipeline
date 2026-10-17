@@ -36,12 +36,24 @@
 import { Easing } from 'remotion';
 import { num, type TemplateComponent } from './contract.tsx';
 
-/** 缺省推近量 —— 【实现期拟定，文档未点名】。 */
-const DEFAULT_SCALE = 1.06;
-/** 推近倍数下界：1.0 = 无运动（见文件头）。 */
-const SCALE_MIN = 1.0;
-/** 推近倍数上界：1.6 = 数字变焦的可见劣化线（见文件头）。 */
-const SCALE_MAX = 1.6;
+/**
+ * 🔴 **这三个常量已上提到 `core/carrier-window.ts`（2026-10-17，P4）**。
+ *
+ *   原先它们只存在于本文件，而 `validate/` 侧的 `visibleRegion` 需要同一套钳制区间
+ *   来算「放大裁掉了多少」。两边各写一份必然漂移 ⇒ 判据与渲染脱节
+ *   （`scale=3.0` 时渲染实际用 1.6、判据却按 3.0 算 ⇒ **误报**）。
+ *   这与 P2→P3 修的「CSS 坐标系」是同一款病：两处各写一套算法。
+ *   现改为**从 core 引用**；上提理由见 `core/carrier-window.ts` 中的完整说明。
+ *
+ * ⚠️ `clampScale` 同样共用 —— 判据与渲染必须对「模型填的 scale 变成多少」有**同一答案**。
+ */
+import {
+  clampScale,
+  DEFAULT_SCALE,
+  SCALE_MAX,
+  SCALE_MIN,
+} from '../../core/carrier-window.ts';
+
 /** 回退段占整条 motion 的比例（与 `DUR.exit` 同值，刻意对齐全项目出场配比）。 */
 const EXIT_RATIO = 0.22;
 /** 回退段的帧数下限（极短 motion 时按比例会得到 0 帧，读成"跳变"）。 */
@@ -80,13 +92,18 @@ export function punchInScale(frame: number, durationInFrames: number, target: nu
 
 export const PunchIn: TemplateComponent = ({ frame, durationInFrames, item, children }) => {
   const raw = num(item.params, 'scale', DEFAULT_SCALE);
-  const target = Math.min(SCALE_MAX, Math.max(SCALE_MIN, raw));
+  // 🔴 与 `validate/` 侧的 `visibleRegion` 共用 `clampScale` ——
+  //   判据算「裁掉多少」和渲染算「放大多少」必须是同一个答案，否则判定与画面脱节。
+  const target = clampScale(raw);
   const s = punchInScale(frame, durationInFrames, target);
 
   return (
     <div
       data-template="punch-in"
       data-scale={target}
+      // 🔴 把钳制区间也写进产物：渲染结果自带「我被钳在什么范围内」的自证，
+      //   便于与 `validate/visibleRegion` 的推算逐位对账（P4 复核时发现的正是这类脱节）。
+      data-scale-range={`${SCALE_MIN}-${SCALE_MAX}`}
       style={{
         position: 'absolute',
         inset: 0,

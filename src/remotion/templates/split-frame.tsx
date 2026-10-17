@@ -89,6 +89,44 @@ export const SplitFrame: TemplateComponent = ({ item, children }) => {
   const g = splitFrameGeometry(carrierParamsOf(item));
   const right = 1 - g.display[0] - g.display[2];
 
+  // 🔴 **2026-10-17 真渲抽帧抓到的 bug（单测与静态断言都测不出）**：
+  //
+  //   原实现直接 `inset: 0` + `clip-path: inset(0 right% 0 display[0]%)`，
+  //   真渲出来分界线落在画面 **0.75** 而非期望的 0.5，偏差 25%。
+  //
+  //   **根因**：`MotionItem` 会先按 `item.footprint` 给每个 item 套一个定位 div。
+  //   本模板的 `footprint` 是 `[0.5, 0, 0.5, 1]`（右半屏），于是这个 div 只占
+  //   画面 `[0.5, 1.0]`；而 **`clip-path` 的百分比相对父容器**，不是相对画面。
+  //   于是「切掉左侧 50%」变成了「切掉 div 自己的左半」⇒ 画面可见 `[0.75, 1.0]`。
+  //
+  //   复算：`divLeft(0.5) + clipLeft(0.5) × divW(0.5) = 0.75`。
+  //
+  //   🔴 为什么只有本模板露馅：`punch-in` 用 `transform: scale()`，
+  //     相对自身尺寸计算、不依赖父容器宽度 ⇒ 全屏 footprint 下恰好正确。
+  //     **「静态断言全绿」不等于「画面正确」** —— 这是本次教训。
+  //
+  //   **修法**：先让本组件**铺满整个画面**（用负 margin 反向抵消 MotionItem 的
+  //   footprint 定位），使 clip-path 的百分比重新对齐**画面坐标系**；
+  //   展示条位置仍由 `display` 算出，与 footprint 解耦。
+  //
+  //   ⚠️ 为什么不用「改 footprint 为全屏」：那是 `builtin.ts` 的**声明**，
+  //     声明同时被校验项读取（`#3/#4/#5/#11` 相交仲裁、可见性下限等）。
+  //     改它会把几何修复变成校验语义变更，风险外溢。
+  const fp = item.footprint;
+  const fw = fp[2] > 0 ? fp[2] : 1;
+  const fh = fp[3] > 0 ? fp[3] : 1;
+  // 🔴 **百分比全部相对父容器**（父 = MotionItem 按 footprint 撑出的定位 div），
+  //   不是相对画面。因此反向抵消时**必须除以父的 footprint 尺寸**才能换算到画面系：
+  //     想要画面系的 -fp[0]，得写 -fp[0] / fw（父宽）；
+  //     同理 top 用 -fp[1] / fh、尺寸用 1/fw、1/fh。
+  //   （第一版修复漏了这个除法，真渲复验仍是 0.75 —— CSS 百分比的坐标系坑。）
+  const compensate = {
+    left: `${(-fp[0] / fw) * 100}%`,
+    top: `${(-fp[1] / fh) * 100}%`,
+    width: `${(1 / fw) * 100}%`,
+    height: `${(1 / fh) * 100}%`,
+  } as const;
+
   return (
     <div
       data-template="split-frame"
@@ -97,7 +135,7 @@ export const SplitFrame: TemplateComponent = ({ item, children }) => {
       data-window={g.window.map((v) => v.toFixed(4)).join(',')}
       style={{
         position: 'absolute',
-        inset: 0,
+        ...compensate,
         // 只让展示条那一竖条露出来。刻意**不用** overflow+缩窄父容器 ——
         // 那会把 children 一起缩小（children 是满画面尺寸的实拍视频），
         // 等于对视频做了一次数字变焦。clip-path 不影响子树尺寸。
