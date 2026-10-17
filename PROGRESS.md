@@ -27,7 +27,7 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 | `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**：kukini 15 shot（face 8 / handheld 8 / broll 7）、3月22日 29（13 / 13 / 16）、5月28日 33（13 / 13 / 20）—— 合计 77 shot，**0 低置信** |
 | `03-storyboard` 起草 | 🔶 | 管线通；「本仓库不内置模型调用」，用户须手写 `sim_max`/`confidence` |
 | `04-validate` 校验 | ✅ | **17 项**（+#17 文本溢出）+ **2 条起草原生约束**（`W-D3-01` fullscreen 确认 / `W-F6-01` 主体未确），0 error / 2 warning（demo）。⚠️ #18「安全区未被包住」曾于 10-17 增补、同日撤回（判据不成立，见 D2-2） |
-| `05-render` 渲染 | 🔶 | **模板已不再是灰框** —— 8 个有真实实现（含背景链/遮挡型/fullscreen）；第二轮打磨（缓动/进出场）已落地；质感与配比待真实素材调校 |
+| `05-render` 渲染 | 🔶 | **模板已不再是灰框** —— 9 个有真实实现（含两个背景链：放大式 `punch-in` / 裁切分屏式 `split-frame`）；第二轮打磨（缓动/进出场）已落地；质感与配比待真实素材调校 |
 
 **结论：六道闸过了四道半 —— 硬阻断已解除。「出片」不再是"走不到渲染"，而是"能走完但未打磨"。**
 
@@ -43,7 +43,7 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **17 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**328 项全过**（20 文件：validate 41 / template-render 31 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / params 17 / yunet 17 / carrier-contract 10 / shot-detect 14 / bake 14 / region-derive 12 / occlusion 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
+- **单测**：**359 项全过**（22 文件：validate 41 / template-render 32 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / carrier-window 20 / caption 19 / schedule 19 / params 17 / yunet 17 / shot-detect 14 / bake 14 / region-derive 12 / carrier-contract 10 / occlusion 10 / split-frame 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -213,12 +213,14 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 ## 四、已知问题（🔴 按严重度排序）
 
-### 1. ⚠️ 模板 8/11，剩余 3 个**已无外部阻塞**（2026-10-17 更新）
+### 1. ⚠️ 模板 9/11，剩余 2 个**已无外部阻塞**（2026-10-17 更新）
 
 已解除"完全无产出"，剩下的是工作量与施工顺序，**不再是依赖问题**：
-- **剩余 3 个**：`carrier/split-frame`（**D4-t2 已于 10-17 裁决**，待 P1–P4 施工）、
-  `annotation/pointer-callout`（**主体框已由内置 perceive 产出**，可开工）、
-  `transition/whip-pan`（fullscreen 确认闸已实装）。即优化计划书 §4.6 的第 3/4/5 批。
+- ✅ **`carrier/split-frame`**：**P2 已完成**（2026-10-17）—— cover 裁切分屏 + 主体锚定窗口，
+  几何真源 `core/carrier-window.ts`（含 `visibleRegion`），30 项新测。⚠️ 未做真渲抽帧、窗口锚定未校准 ⇒ `status` 仍 `experimental`。
+  **但 tier2 尚未接线（P3）** ⇒ 声明了载体也不会真的改变成片。
+- **`annotation/pointer-callout`**：**主体框已由内置 perceive 产出**，可开工（依赖已解除）。
+- **`transition/whip-pan`**（fullscreen）：**确认闸已实装**，无外部阻塞。
   ⚠️ **2026-10-16 更正计划书 §4.6 的一处时点判断**：计划书把第 5 批写作「等 06-review 流程就绪」，
   但 `renderGate()` 里的 fullscreen 人工确认闸（D3-a：读 `06-review/confirmed.json` 的
   `acknowledgedFullscreen`，未确认即拒绝启动）**已完整实装** ⇒
@@ -336,7 +338,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 4 | ~~契约字段审计~~ | `occludesSubject` 补实现 / `handoffIn` 删除（问题 9） | ✅ 2026-10-15 |
 | 5 | ~~接入 perceive（face 通道）~~ | 内置后端上线：镜头切分（ffmpeg `scdet`，阈值 10 实测无漏检/无过检）+ YuNet 人脸检测 → shot 级并集 → `safeArea`（主体 bbox 上部 60%）。未配 `PERCEIVER_CMD` 不再退出码 2。真实素材实测 15 shot / 12 有主体 | ✅ 2026-10-17 |
 | 5b | ~~补 `handheld` / `broll` 两通道~~ | **handheld**：人脸框外扩成「上半身＋手部」区域，**不做物体检测** —— 主讲解物品是鞋子而 COCO 80 类无 shoe，且用户判断「只要上半身不被遮挡」即够；**broll**：仅无脸镜头用经典显著性（零模型），框不到即退让；有脸 shot 不产 broll（实测会框到背景噪声）。⚠️ `HANDHELD_EXPANSION` 与显著性 `targetAreaRatio` 均为占位值 | ✅ 2026-10-17 |
-| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 已完成**（契约 + 结构校验，10 项新测）→ P2 实现 `split-frame.tsx` → P3 tier2 接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 施工中（1/4） |
+| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 契约 + 结构校验** → **P2 ✅ `split-frame.tsx` + `core/carrier-window.ts`（含 `visibleRegion`）** → P3 tier2 真正接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 施工中（2/4） |
 
 > ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
 > 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
@@ -379,17 +381,17 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      17 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        328 项全过（20 文件）           ← … → 318 → 328（D4-t2 的 P1：+10 契约/结构校验测）
+单测        359 项全过（22 文件）           ← … → 318 → 328（P1 契约）→ 359（P2 载体窗口 20 + split-frame 渲染 10 + 出场豁免名单 1）
 契约字段    occludesSubject 已补实现；handoffIn 已删除；`item.carrier` 已立契约（D4-t2 P1）← 前两者此前零消费
 登记册      44 条表格行含 RESOLVED（`grep '^|.*RESOLVED'` 可复算；+D4-t2；D2-2 为 REVERTED）；OPEN：C2-2（待实测）/ C2-3（倾向不做）
-模板        11 个声明 / 8 个实现            ← 0 → 5 → 7 → 8（批次 2 + D-A；剩余 3 个分批，见 §4.6）
+模板        11 个声明 / 9 个实现            ← 0 → 5 → 7 → 8 → 9（批次 2 + D-A + D4-t2 的 P2；剩余 2 个，见 §四 1）
+背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）  ← 机制：src/remotion/carrier.tsx（分段包裹）
 遮挡判定    首个遮挡型模板 center-emphasis 落地  ← 此前 10/10 模板 0 触发（D-A）
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
-背景链      首个载体实现 punch-in（包裹视频）  ← 机制：src/remotion/carrier.tsx（分段包裹）
 字幕通道    words.json 已接入 props         ← 此前渲染期无人读它
 占位数值    7 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio / HANDHELD_EXPANSION / targetAreaRatio / MIN_VISIBLE_RATIO）← 详见 §四 3
 手感表      docs/templates/2026-10-15-参数手感表.md（已建）
-测试文件    20 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
+测试文件    22 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
 ```
 
 > ⚠️ **D4-t2 的 P1 没有新增校验项**：`item.carrier` 的引用合法性属**结构错误**

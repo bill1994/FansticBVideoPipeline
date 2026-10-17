@@ -82,10 +82,17 @@ demo（无需真实素材）：`pipeline storyboard|validate|render --job demo -
 
 ## 下次开工点
 
-**D4-t2 施工**：~~P1 改契约~~ ✅ **2026-10-17 傍晚完成**（`StoryboardItem.carrier` + 废除全局 `CARRIER_FALLBACK` + 引用合法性结构检查 + 328 测）
-→ **P2**：实现 `split-frame.tsx`（cover 裁切分屏 + 主体锚定窗口 + `visibleRegion(params)`）
-→ **P3**：`resolveOcclusion` 真正写入 `item.carrier` → **P4**：以 `visibleRegion` 重立 `W-D2-02`（判据 `|safeArea∩window|/|safeArea| ≥ 0.5`）。
+**D4-t2 施工**：~~P1 改契约~~ ✅ → ~~P2 `split-frame.tsx`~~ ✅ **2026-10-17 晚完成**
+（`core/carrier-window.ts` 几何真源 + `split-frame.tsx` + 映射入册 + 30 项新测；模板 **8 → 9**）
+→ **P3**：`resolveOcclusion` 真正**写入** `item.carrier`（含用 `computeCarrierWindow(safeArea, ratio)` 算出 `window`），并让渲染层对带 `carrier` 的 item 施加变换 —— **在此之前声明了载体也不会改变成片**
+→ **P4**：以 `visibleRegion(params)` 重立 `W-D2-02`（判据 `|safeArea∩window|/|safeArea| ≥ MIN_VISIBLE_RATIO`）。
 
 其余待办：第 4/5 批模板（`pointer-callout` 主体框已就绪 / `whip-pan` 无阻塞）、face fail-closed、`D-B2` 度量表、根 `SKILL.md`、参数决策档案、渲染基准量化（F4）。
 
-**P1 定下的口径（后续 P2–P4 别推翻）**：`carrier.template` 的引用合法性走**结构检查**（`assertStructuralIntegrity` 抛 `ConfigError` → 退出码 2），**不占 17 项校验名额** —— 理由与 `handoffTo` 指向不存在 track 同类：配置写错 ≠ 内容没做好，报成校验项会让返修方向从一开始就错。
+**P1/P2 定下的口径（后续别推翻）**：
+- `carrier.template` 的引用合法性走**结构检查**（`assertStructuralIntegrity` 抛 `ConfigError` → 退出码 2），**不占 17 项校验名额** —— 理由与 `handoffTo` 指向不存在 track 同类：配置写错 ≠ 内容没做好。
+- **`window` 刻意不进 `paramsSchema`**：它是校验期写入的系统字段，进表模型就能填它。
+- **载体几何真源只有 `core/carrier-window.ts`**：validate（P3/P4）与 remotion（P2）都从它取，别在别处重算。
+- **split-frame 刻意无进出场**：窗口若随帧变化，`W-D2-02` 的判据就不再成立（P4 要求静态 `window`）。它因此是渲染测试里**唯一**的出场豁免项，且豁免名单具名 + 断言只含载体类。
+- **`CARRIER_SIDE_DEFAULT = 'right'` 与 `builtin.ts` 的 footprint `[0.5,0,0.5,1]` 同侧**：声明与默认渲染不一致是 #17 字号事故的同款病。
+- `CARRIER_RATIO_DEFAULT = 0.5` 与 `safeAreaTopRatio`/`HANDHELD_EXPANSION`/`targetAreaRatio`/`MIN_VISIBLE_RATIO` 同属 🔴 占位值。

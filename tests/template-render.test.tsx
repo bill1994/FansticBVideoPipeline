@@ -58,6 +58,8 @@ const ALL: Array<{ id: string; params: Record<string, unknown> }> = [
   { id: 'ambience/noise-grain@1.0', params: { opacity: 0.06 } },
   // D-A（2026-10-16）
   { id: 'typography/center-emphasis@1.0', params: { text: '核心竞争力' } },
+  // D4-t2 P2（2026-10-17）：首个裁切型背景链
+  { id: 'carrier/split-frame@1.0', params: { side: 'left', ratio: 0.5 } },
 ];
 
 function makeItem(id: string, params: Record<string, unknown>, fromFrame = 100): StoryboardItem {
@@ -95,20 +97,20 @@ describe('D1 · 渲染映射表自洽', () => {
     expect(() => assertRenderMapValid()).not.toThrow();
   });
 
-  it('8 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个）', () => {
+  it('9 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个 + D4-t2 P2 一个）', () => {
     for (const { id } of ALL) {
       expect(isImplemented(id), `${id} 应有真实实现`).toBe(true);
     }
-    expect(listImplemented()).toHaveLength(8);
+    expect(listImplemented()).toHaveLength(9);
   });
 
-  it('覆盖率：已实现 8 / 声明 11', () => {
-    expect(renderCoverage()).toEqual({ implemented: 8, declared: 11 });
+  it('覆盖率：已实现 9 / 声明 11', () => {
+    expect(renderCoverage()).toEqual({ implemented: 9, declared: 11 });
   });
 
-  it('未实现的 3 个落占位块，且带缺失标记（不许伪装成已实现）', () => {
+  it('未实现的 2 个落占位块，且带缺失标记（不许伪装成已实现）', () => {
     const missing = listUnimplemented();
-    expect(missing).toHaveLength(3);
+    expect(missing).toHaveLength(2);
     for (const id of missing) {
       const html = renderAt(id, {}, 10);
       expect(html, `${id} 未实现，应打 data-template-missing`).toContain('data-template-missing="1"');
@@ -119,7 +121,7 @@ describe('D1 · 渲染映射表自洽', () => {
 });
 
 describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）', () => {
-  it('8 个模板在同一帧的输出两两不同', () => {
+  it('9 个模板在同一帧的输出两两不同', () => {
     const htmls = new Map<string, string>();
     for (const { id, params } of ALL) {
       htmls.set(id, renderAt(id, params, 30));
@@ -134,8 +136,8 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
         ).not.toBe(htmls.get(ids[j]));
       }
     }
-    // 八份输出互不相同（去重后应为 8）
-    expect(new Set(htmls.values()).size).toBe(8);
+    // 九份输出互不相同（去重后应为 9）
+    expect(new Set(htmls.values()).size).toBe(9);
   });
 
   it('每个模板都输出自己的 data-template 标识', () => {
@@ -148,6 +150,7 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
       'cinematic/punch-in@1.0': 'punch-in',
       'ambience/noise-grain@1.0': 'noise-grain',
       'typography/center-emphasis@1.0': 'center-emphasis',
+      'carrier/split-frame@1.0': 'split-frame',
     };
     for (const { id, params } of ALL) {
       expect(renderAt(id, params, 30)).toContain(`data-template="${expected[id]}"`);
@@ -237,10 +240,33 @@ describe('D1 · 动效真的在动（不同帧输出不同）', () => {
    *
    * 判据：**末尾帧必须与「中段静止帧」不同** —— 只验「入场在动」
    * 会漏掉「出场没做」这个方向。
+   *
+   * ⚠️ **例外只有一个，且必须逐个具名（2026-10-17 / D4-t2 P2 加入）**：
+   * `carrier/split-frame` 是**布局切换**而不是元素动画 —— 画面「劈开」必须一步到位，
+   * 缓动滑入会读成"镜头在横移"，而且**会让裁切窗随帧变化**，
+   * 直接动摇 `W-D2-02` 判据的基础（P4 要求 `params.window` 是静态值）。
+   *
+   * 🔴 为什么例外必须**具名**而不是过滤 scope：放宽既有断言时，
+   *    「谁被放开了」必须写在代码里可查。否则下次有人再加一个静态模板，
+   *    护栏就悄悄失效了 —— 这正是问题 9（「定义了没人用」）的同款病。
+   *    下方 `STATIC_LAYOUT_TEMPLATES` 因此同时被断言「只含 layout 类」。
    */
-  it('每个已实现模板的**出场**都有变化（不只入场）', () => {
+  const STATIC_LAYOUT_TEMPLATES = ['carrier/split-frame@1.0'];
+
+  it('出场豁免名单必须全是**载体类**（布局切换），不得混入叠加类', () => {
+    for (const id of STATIC_LAYOUT_TEMPLATES) {
+      const tpl = BUILTIN_TEMPLATES.find((t) => t.id === id);
+      expect(tpl, `${id} 必须有声明`).toBeDefined();
+      expect(['subject-transform', 'footage-transform'], `${id} 不是载体类`).toContain(tpl!.scope);
+    }
+    // 名单只允许 1 项：任何新增都要显式改这里并重写理由
+    expect(STATIC_LAYOUT_TEMPLATES).toHaveLength(1);
+  });
+
+  it('每个已实现模板的**出场**都有变化（layout 切换类除外）', () => {
     // 中段静止属**预期**（motion 停住让人读），出场帧必须与之不同
     for (const { id, params } of ALL) {
+      if (STATIC_LAYOUT_TEMPLATES.includes(id)) continue;
       const holding = renderAt(id, params, 30, 60);
       const exiting = renderAt(id, params, 58, 60);
       expect(exiting, `${id} 的出场帧与中段静止帧相同 —— 出场可能没实现`).not.toBe(holding);

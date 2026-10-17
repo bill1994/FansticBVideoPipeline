@@ -41,7 +41,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | `src/core/` | 类型契约、调度、烘焙、IO | `bake.ts`（锚点→帧）、`types.ts` |
 | `src/validate/` | **17 项**构建期校验（纯函数） | `text-metrics.ts`（#17，最新） |
 | `src/templates/` | 11 个模板的**声明**（非实现） | `builtin.ts` |
-| `src/remotion/` | 渲染层 | `templates/`（8 个真实实现）、`tokens.ts`、`carrier.tsx`（背景链分段包裹） |
+| `src/remotion/` | 渲染层 | `templates/`（**9 个真实实现**）、`tokens.ts`、`carrier.tsx`（背景链分段包裹）、`core/carrier-window.ts`（载体窗口几何真源） |
 | `.workbuddy/skills/` | 五阶段执行期行为契约 | `perceive/SKILL.md` 等 |
 
 ---

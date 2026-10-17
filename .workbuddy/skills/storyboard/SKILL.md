@@ -138,6 +138,11 @@ storyboard 只能引用 `01-align/` 与 `02-perceive/` 的产物。
 | `exclusive` | string | 否 | 互斥组名（如 `lower-third`）。**默认不互斥** |
 | `footprintAnimates` | boolean | 否 | `true` → 相交检测由 error 降为 warning |
 | `params` | object | 视模板 | 由模板 `paramsSchema`（有哪些键 / 值类型）+ `requiredParams`（哪些必填）决定，见 §1.1 |
+| `carrier` | object | 🔴 **不是模型可填字段** | 载体退让声明（D4-t2）：`{ template, params }`，**校验期写入或人工返修手填**。起草稿里**不要写它** —— 与 `_author` 同理。 |
+
+> 🔴 **`carrier` 与 `_author` 同属「非模型产出」**：前者由遮挡退让（D4 ② 号档）在校验期写入，
+> 后者由模型写、烘焙后剥离。**模型只填 `motion` / `footprint` / `params` 这三样。**
+> 填了 `carrier` 而模板未注册或不是载体类 ⇒ 结构错误 → **退出码 2**。
 
 **motion 命名空间**：`family/subtype@version`（如 `typography/lower-third@1.2`）。
 **版本锁定** → 升级不破坏旧 storyboard。

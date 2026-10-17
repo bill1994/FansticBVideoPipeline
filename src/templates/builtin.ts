@@ -189,8 +189,19 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     scope: 'subject-transform',
     layer: 5,
     occludesSubject: true,
+    // ⚠️ `status: 'experimental'` **保留**（P2 实现了组件，但主体锚定窗口
+    //    未经真实素材校准 —— 实现完成 ≠ 质量达标，同 `D-B` 的教训）。
     status: 'experimental',
-    paramsSchema: { inset: 'number' },
+    // 🔴 2026-10-17（P2）：原 `paramsSchema: { inset: 'number' }` 已废弃 ——
+    //    `inset` 的语义与值域一直未定义，正是 D4-t2 的三个落地阻塞点之一。
+    //    现按 Q3 定义为 `side`（视频显在哪一侧）+ `ratio`（展示条占比，钳 0.3–0.7）。
+    //
+    // ⚠️ **裁切窗 `window` 刻意不在 paramsSchema 里**：
+    //    它是**校验期写入**的系统字段（模型不该也不能填），
+    //    与 `textMetrics` / `requiredParams` 的分工同理。
+    //    一旦把它写进这张表，模型就能填它；#16 的「未知键」拦截也就跟着失效。
+    paramsSchema: { side: 'string', ratio: 'number' },
+    // 与实现的缺省侧（`right`）一致 —— 声明与默认渲染不一致是 #17 字号事故的同款病。
     footprint: [0.5, 0, 0.5, 1],
     minVisibleInFrames: 30,
   },

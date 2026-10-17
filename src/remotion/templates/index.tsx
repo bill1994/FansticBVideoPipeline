@@ -14,9 +14,10 @@
  *    里被列成一张清单 —— 加模板忘了写实现，会立刻在自检里暴露。
  * 3. **本表只收有真实实现的模板**（D1 第一轮 5 个 `overlay-safe`；
  *    批次 2 加 `cinematic/punch-in`（背景链）/ `ambience/noise-grain`（fullscreen）；
- *    D-A 加 `typography/center-emphasis`（首个遮挡型叠加）——
+ *    D-A 加 `typography/center-emphasis`（首个遮挡型叠加）；
+ *    D4-t2 的 P2 加 `carrier/split-frame`（首个**裁切型**背景链）——
  *    未实现的一律不进本表，退回 `Placeholder`）。
- *    其余 3 个的落地时点见优化计划书 §4.6「第1/2/3/4/5 批」。
+ *    其余 2 个的落地时点见优化计划书 §4.6「第 4/5 批」。
  */
 
 import type { FC } from 'react';
@@ -30,6 +31,7 @@ import { StatCard } from './stat-card.tsx';
 import { PunchIn } from './punch-in.tsx';
 import { NoiseGrain } from './noise-grain.tsx';
 import { CenterEmphasis } from './center-emphasis.tsx';
+import { SplitFrame } from './split-frame.tsx';
 
 /**
  * 占位组件 —— 声明存在但实现尚未落地时使用。
@@ -90,6 +92,11 @@ const IMPLEMENTED: Record<string, TemplateComponent> = {
   'ambience/noise-grain@1.0': NoiseGrain,
   // ── D-A（2026-10-16）：首个会遮挡主体的叠加模板 ───────────────
   'typography/center-emphasis@1.0': CenterEmphasis,
+  // ── D4-t2 P2（2026-10-17）：首个**裁切型**背景链 ─────────────
+  // 与 punch-in 的差别：punch-in 改的是「放大」（footprint 全屏），
+  // split-frame 改的是「**画面被劈开、视频挪到一侧**」——
+  // 正因如此，它的可见区域不在 footprint 上而在 params.window 上（见 core/carrier-window.ts）。
+  'carrier/split-frame@1.0': SplitFrame,
 };
 
 /** 取组件；未实现则返回 `Placeholder`。**永不抛错**。 */

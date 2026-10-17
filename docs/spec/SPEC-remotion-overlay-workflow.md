@@ -189,11 +189,17 @@
 > ⚠️ **该归类未经登记册裁决，如要变更须走 `OPEN-DECISIONS.md`**。
 > **第 18 项曾于 2026-10-17 增补、同日撤回**（`W-D2-02`「motion footprint 未包住安全区」，
 > **D2-2**）—— 判据「`footprint` 须包含 `safeArea`」**不成立**：
-> `carrier/split-frame@1.0` 只有声明、无渲染实现，`footprint` 语义未定（缩放后视频位置？裁剪后剩余半边？）；
+> `carrier/split-frame@1.0` 当时只有声明、无渲染实现，`footprint` 语义未定（缩放后视频位置？裁剪后剩余半边？）；
 > `cinematic/punch-in@1.0` 确实是放大裁切，但其 `footprint` 为全屏 `[0,0,1,1]`
-> ⇒ 该判据**对分屏可能误报、对放大完全漏报**。正确判据须基于变换参数（`scale` / `inset`）
-> 推算「变换后可见区域」，与 **D4 载体语义**一并裁决后再立。
+> ⇒ 该判据**对分屏可能误报、对放大完全漏报**。正确判据须基于变换参数推算「变换后可见区域」，
+> 与 **D4 载体语义**一并裁决后再立。
 > **增补须先走 `docs/decisions/OPEN-DECISIONS.md`，不得只在正文里加而不同步登记册。**
+>
+> 📌 **后续（2026-10-17 晚，D4-t2 的 P2 已完成）**：上述两个前提**都已落地**——
+> ① `carrier/split-frame@1.0` 有渲染实现了（cover 裁切分屏 + 主体锚定窗口）；
+> ② 「变换后可见区域」已由 `core/carrier-window.ts` 的 `visibleRegion(params)` 给出唯一实现。
+> ⇒ `W-D2-02` 的正确判据为 `|safeArea ∩ visibleRegion| / |safeArea| ≥ MIN_VISIBLE_RATIO`（0.5，🔴 占位值），
+> **重立它是 P4 的事**（P3 先把 tier2 真正接线）。**在此之前清单仍是 17 项。**
 >
 > **有一条规则刻意不在本清单内**：D3 的 fullscreen 人工确认。原因见 §2.10。
 
