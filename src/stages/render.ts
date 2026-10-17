@@ -19,8 +19,9 @@ import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { ValidateReport } from '../core/report.ts';
-import type { SourceManifest, Storyboard } from '../core/types.ts';
+import type { SourceManifest } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
+import { resolveScene } from '../validate/occlusion.ts';
 import { isCarrierScope } from '../templates/types.ts';
 import { toCaptionData } from '../remotion/caption.ts';
 
@@ -138,7 +139,33 @@ export function runRender(opts: RenderOptions): RenderOutcome {
   assertVersionPinned();
 
   const source = readJson<SourceManifest>(path.join(base, STAGES.input, 'source.json'));
-  const storyboard = readJson<Storyboard>(path.join(base, STAGES.storyboard, 'storyboard.json'));
+
+  // ── 消解重算（通道方案 A，2026-10-17）────────────────────────────
+  // 🔴 **为什么必须在这里重跑**：遮挡消解（tier1 平移 / tier2 载体退让）改的是
+  //   `buildContext()` 读进来的**内存对象**，而本函数是**独立进程** ——
+  //   04-validate 跑完就退出，内存随之销毁。不重算则成片拿到的仍是原始
+  //   storyboard.json，退让「算了却没落地」（报告却写着已消解 ⇒ 假绿）。
+  //
+  //   历史：这一层假绿自 2026-10-13 起残留 —— 那次修掉了「只拼进 detail 字符串」，
+  //   但内存改写始终没有跨进程通道，直到本次才补上。
+  //
+  //   **为什么共用 validate 的几何逻辑**（而非在 remotion 侧重算）：
+  //   「校验时判的几何」与「渲染时用的几何」必须逐位一致。分叉两份实现，
+  //   报告会开始对成片说谎 —— 那比不同步更难排查。
+  //
+  //   不落新阶段产物文件（方案 A 的取舍）：`io.ts` 的不可变快照守卫本就禁止
+  //   04 阶段回写 03 的 storyboard.json，落一份 resolved 副本需扩展 SPEC §1
+  //   的阶段契约与守卫规则，代价大于收益。
+  const ctx = buildContext(opts.jobId, opts.jobsDir);
+  const resolvedCount = resolveScene(ctx);
+  if (resolvedCount > 0) {
+    log.info(
+      `遮挡消解已重算并应用到渲染输入：${resolvedCount} 个 item 的 footprint / carrier 被改写` +
+        `（tier1 平移与 tier2 载体退让现在会真正改变成片）`,
+    );
+  }
+  const storyboard = ctx.storyboard;
+
   if (storyboard.meta.fps !== source.fps) {
     throw new ConfigError(
       `storyboard.meta.fps (${storyboard.meta.fps}) 与素材 (${source.fps}) 不一致 —— fps 与烘焙绑定，必须重新烘焙`,

@@ -20,6 +20,13 @@
 import { CODES } from '../core/errors.ts';
 import type { ReportItem } from '../core/report.ts';
 import { OCCLUSION_BUDGET } from '../core/config.ts';
+import {
+  CARRIER_RATIO_MIN,
+  carrierDisplayRect,
+  computeCarrierWindow,
+  readCarrierRatio,
+  readCarrierSide,
+} from '../core/carrier-window.ts';
 import type { Footprint, PerceiveRegion, RegionKind } from '../core/types.ts';
 import { isOverlayScope } from '../templates/types.ts';
 import type { SceneItem, ValidateContext } from './context.ts';
@@ -58,20 +65,56 @@ const NUDGE_STEPS = [-0.2, -0.1, 0, 0.1, 0.2];
  * 该约束（SPEC §2.1 / context.ts 头注释）指的是**不再读磁盘、不写磁盘**，
  * 落盘仍由 render 阶段负责，并未触碰。改内存中的场景对象不破坏阶段快照不可变性。
  *
- * ⚠️ tier2（carrier）**仍不施加任何变换**：它只抑制报错，不改 motion 也不改 footprint。
- *   触发依据已按 D4-t2（2026-10-17）从「全局 `motion → carrier` 表」改为
- *   **`item.carrier` 逐 item 显式声明**；真正改写画面在 P3（本函数写入 `item.carrier`
- *   并让渲染层包裹视频）与 P2（`split-frame.tsx`）之后。缺口本身见 `W-D4-01`。
+ * ⚠️ tier2（carrier）的三段历史 —— 值得留档，因为它**两次**都曾是假绿：
+ *   1. **P1/P2 阶段**：tier2 只抑制报错、不改任何数据。触发依据已按 D4-t2
+ *      （2026-10-17）从「全局 `motion → carrier` 表」改为 `item.carrier` 逐 item 显式声明。
+ *   2. **2026-10-17 22:30 通道方案 A**：tier1「真正回写 footprint」是**假的** ——
+ *      它只改内存，而 `render` 是独立进程、重读 JSON，没有任何跨进程通道
+ *      （实测：validate 前后 storyboard.json 的 sha256 完全一致）。
+ *      ⇒ 连 tier1 的「真正回写」也是空操作，报告却写着「已平移消解」。
+ *      现由 `resolveScene`（本文件末尾）+ `stages/render.ts` 的重算补上通道。
+ *   3. **P3（同日）**：tier2 真正写入 `carrier.params.window`（主体锚定裁切窗，
+ *      几何取自 `core/carrier-window.ts` 唯一真源），渲染期 `split-frame.tsx`
+ *      经 `visibleRegion(params)` 消费。遮挡率按**施加后**的展示条重算 —— 用施加前的
+ *      值做判定就是自欺。
+ *
+ *   ⚠️ 两层假绿的同源性：**「算了」不等于「落地」**，而报告的措辞容易让人以为落地了。
+ *   凡涉及「改变产物」的判定，都必须能回答「成片里哪儿变了」。
  */
 export function resolveOcclusion(
   item: SceneItem,
   region: PerceiveRegion,
   ratio: number,
   budget: number,
+  /**
+   * 裁切窗锚点 —— 该 region 所属 shot 的 `safeArea`（P3 新增参数）。
+   *
+   * 🔴 **为什么显式传参而不是让本模块自己去查**：`SceneItem` 不携带 perceive 的引用，
+   *   而 validate 的纯函数边界不允许校验器反向依赖 `context.ts` 的读盘能力。
+   *   显式传入 ⇒ 本函数仍是**纯函数**，且单测可直接喂 `safeArea` 而不必构造整个 job。
+   *
+   *   传 `null`（找不到 shot / 感知低置信）⇒ `computeCarrierWindow` 退回**画面居中**窗口。
+   *   这是刻意选择：主体不在场时退让不能失效，居中是最保守的中性解（见
+   *   `core/carrier-window.ts` 文件头第 3 条）。
+   */
+  safeArea: Footprint | null = null,
 ): Resolution {
   const box = region.box;
 
   // ① 同预算内挪动 footprint
+  //
+  // 🔴 **幂等护栏（2026-10-17，通道方案 A）**：`render` 阶段会**再跑一遍**本函数
+  //   （见 `resolveScene`），所以必须保证「已消解过」的 item 不会被二次平移。
+  //   理论上 `collectHits` 已过滤掉 ratio ≤ budget 的项（平移后不会再进来），
+  //   但那依赖「平移后重算 ratio」这一隐式前提；一旦将来 tier1 改成只挪不重算，
+  //   就会退化成「每跑一次多挪一格」的漂移。故显式钉住：已在预算内则不再尝试平移。
+  if (occlusionRatio(item.item.footprint, box) <= budget) {
+    return {
+      status: 'nudged',
+      detail: `遮挡率已在预算内（${(occlusionRatio(item.item.footprint, box) * 100).toFixed(1)}% ≤ ${(budget * 100).toFixed(0)}%），无需平移`,
+    };
+  }
+
   for (const dy of NUDGE_STEPS) {
     for (const dx of NUDGE_STEPS) {
       if (dx === 0 && dy === 0) continue;
@@ -116,15 +159,60 @@ export function resolveOcclusion(
     };
   }
 
+  // ── P3（2026-10-17）：**真正写入载体几何** ─────────────────────────
+  // 此前此处只 return 一句「尚未实现」，冲突被抑制但画面分毫未动 —— 与 10-13
+  // 那次假绿同源的第二层（内存改写无跨进程通道，已由通道方案 A 修好）。
+  // 现在把 D4-t2 / Q3 裁决的**主体锚定裁切窗**算好后写进 `carrier.params.window`，
+  // 渲染期 `split-frame.tsx` 直接消费 `visibleRegion(params)`。
+  //
+  // 🔴 **窗口宽取哪个值**：用该 item 已声明的 `params.ratio`（模型可填、已钳制
+  //   [0.3,0.7]），缺省走 `CARRIER_RATIO_DEFAULT`。**不用**区域宽 —— 展示条是给
+  //   overlay 用的，其宽度由构图决定，与被遮挡区域无关。
+  //   几何实现见 `core/carrier-window.ts`（**唯一真源**，别处不得重算）。
+  const carrier = item.item.carrier!; // 上面已判 !carrierId，此处必然存在
+  const params: Record<string, unknown> = carrier.params;
+  const barRatio = readCarrierRatio(params);
+  const side = readCarrierSide(params);
+
+  // 锚点 = 调用方传入的 safeArea（D4-t2 / Q3：主体几乎恒完整）
+  const window = computeCarrierWindow(safeArea, barRatio);
+  params['window'] = window;
+
+  // 载体施加后，画面「视频可见区域」= 展示条所覆盖的那一条。
+  // 用它重算遮挡率：**这才是退让是否真的有效的判据**
+  // （形参 `ratio` 是未退让时的值，拿它做判定就是自欺）。
+  const display = carrierDisplayRect(side, barRatio);
+  const after = rectOverlapArea(display, box) / rectArea(box);
+
+  // 🔴 **终判（P3 实测发现，原实现缺此步）**：
+  //   施加载体**不等于**退让成功。展示条仍可能压着主体 —— 典型是 face 预算为 0，
+  //   而视频只缩到 50% 宽，主体必然还有一半落在展示条内。
+  //   若不在这里收口，就会把「施加了但没用」报成 `carrier`（成功），
+  //   那是**第三层假绿**：报告说载体生效、几何也真写了，可冲突一点没解。
+  //   正确终态是 `carrier-insufficient` → `E-D2-01`（根因是「退路不够」，
+  //   与 `E-D4-01`「退路不存在」互斥，见文件头）。
+  if (after > budget) {
+    return {
+      status: 'carrier-insufficient',
+      detail:
+        `已施加载体档 ${carrierId}（视频缩进 ${side} 侧 ${(barRatio * 100).toFixed(0)}% 展示条），` +
+        `但主体仍被遮挡 ${(after * 100).toFixed(1)}% > 预算 ${(budget * 100).toFixed(0)}%。` +
+        `预算为 0 的区域（人脸）要求视频**完全让出**主体框，` +
+        `而载体最低只能缩到 ${(CARRIER_RATIO_MIN * 100).toFixed(0)}%。`,
+    };
+  }
+
   return {
     status: 'carrier',
     detail:
-      `已声明载体档 ${carrierId}，但**当前实现不施加载体变换**` +
-      `（tier2 尚未实现，施加待 P3，见 W-D4-01）；motion 与 footprint 均未被改写`,
+      `已施加载体档 ${carrierId}：视频缩进 ${side} 侧展示条（宽 ${(barRatio * 100).toFixed(0)}%），` +
+      `裁切窗 [${window.map((v) => v.toFixed(2)).join(', ')}] 以 safeArea 中心为锚；` +
+      `遮挡率 ${(ratio * 100).toFixed(1)}% → ${(after * 100).toFixed(1)}%（预算 ${(budget * 100).toFixed(0)}%）`,
   };
 }
 
-/** 一个 item 对某个区域的遮挡率（该 item 覆盖面占区域面积的比例）。 */
+/**
+ * 一个 item 对某个区域的遮挡率（该 item 覆盖面占区域面积的比例）。 */
 function occlusionRatio(item: Footprint, box: Footprint): number {
   const area = rectArea(box);
   if (area <= 0) return 0;
@@ -135,6 +223,18 @@ interface Hit {
   scene: SceneItem;
   region: PerceiveRegion;
   ratio: number;
+}
+
+export { collectHits };
+
+/**
+ * 取某个 region 所属 shot 的 `safeArea`（P3：载体裁切窗的锚点）。
+ *
+ * 找不到对应 shot 时返回 `null` ⇒ 退化为画面居中窗口（刻意，见参数注释）。
+ */
+function safeAreaOfRegion(ctx: ValidateContext, region: PerceiveRegion): Footprint | null {
+  const shot = ctx.perceive.shots.find((s) => s.id === region.shotId);
+  return shot?.safeArea ?? null;
 }
 
 function collectHits(ctx: ValidateContext): Hit[] {
@@ -182,7 +282,7 @@ export function checkOcclusionBudget(ctx: ValidateContext): ReportItem[] {
   for (const hit of collectHits(ctx)) {
     if (hit.region.kind === 'broll') continue; // 归 #14
     const budget = budgetOf(hit.region.kind);
-    const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budget);
+    const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budget, safeAreaOfRegion(ctx, hit.region));
     const frames = [Math.max(hit.scene.start, hit.region.fromFrame), Math.min(hit.scene.end, hit.region.fromFrame + hit.region.durationInFrames)];
     const head =
       `区域 ${hit.region.id}（${hit.region.kind}）被遮挡 ${(hit.ratio * 100).toFixed(1)}%，` +
@@ -206,13 +306,18 @@ export function checkOcclusionBudget(ctx: ValidateContext): ReportItem[] {
     if (res.status === 'carrier') {
       out.push(
         mk(
+          // 🔴 P3（2026-10-17）：码字符串仍是 `W-D4-01`，但**语义已变**。
+          //   它原为「载体档已登记但未实际施加」的诚实告警；P3 让 tier2 真正写入
+          //   `carrier.params.window` 之后，这条码降级为「**退让已生效**」的记录。
+          //   ⚠️ 码名与描述文本（`errors.ts` 的 `carrier-not-applied`）此时已名不副实，
+          //   保留字符串是为保登记册可追溯（P1 同款决策）；**语义以本文件为准**。
           CODES.CARRIER_NOT_APPLIED,
           'build',
           [hit.scene.ref, hit.region.id],
           frames,
           `${head}；${res.detail}`,
-          '⚠️ 这条是已知缺口：D4 的 ② 号载体档尚未实现，冲突被抑制但画面未被真正退让。' +
-            '声明 `item.carrier` **不会**改变成片 —— 施加变换待 P3。',
+          'D4 的 ② 号载体档已生效：画面裁切为分屏，主体锚定窗口保证主体完整，' +
+            '视频移出 overlay 所在区域。成片会真正改变（通道已由 render 侧重算打通）。',
         ),
       );
       continue;
@@ -252,7 +357,7 @@ export function checkBrollOcclusion(ctx: ValidateContext): ReportItem[] {
   const budget = budgetOf('broll');
   for (const hit of collectHits(ctx)) {
     if (hit.region.kind !== 'broll') continue;
-    const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budget);
+    const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budget, safeAreaOfRegion(ctx, hit.region));
     const frames = [Math.max(hit.scene.start, hit.region.fromFrame), Math.min(hit.scene.end, hit.region.fromFrame + hit.region.durationInFrames)];
     // 同上：退让成功同样要留下可对账的告警，而不是静默跳过
     if (res.status === 'nudged' || res.status === 'carrier') {
@@ -265,7 +370,7 @@ export function checkBrollOcclusion(ctx: ValidateContext): ReportItem[] {
           `B-roll 主体 ${hit.region.id} 被遮挡 ${(hit.ratio * 100).toFixed(1)}% > 预算 ${(budget * 100).toFixed(0)}%；${res.detail}`,
           res.status === 'nudged'
             ? 'footprint 已就地改写并重算遮挡率至预算内。'
-            : '⚠️ D4 的 ② 号载体档尚未实现，冲突被抑制但画面未被真正退让。',
+            : 'D4 的 ② 号载体档已生效：画面裁切为分屏，视频移出 overlay 所在区域。',
         ),
       );
       continue;
@@ -282,6 +387,57 @@ export function checkBrollOcclusion(ctx: ValidateContext): ReportItem[] {
     );
   }
   return out;
+}
+
+/**
+ * ── 通道方案 A（2026-10-17）：消解结果的跨进程传递 ──────────────
+ *
+ * **要解决的问题**：`resolveOcclusion` 改的是 `buildContext()` 读进来的**内存对象**，
+ * 而 `05-render` 是**另一个进程**（`render.ts` 里 `readJson(storyboard.json)` 重新读盘）。
+ * 两进程之间没有任何通道 ⇒ tier1 的平移与 tier2 的载体退让**从未真正改变过成片**，
+ * 而报告却写着「已平移消解」、退出码 0、`ok: true`。这是自 2026-10-13 修掉
+ * 「只拼进 detail 字符串」那版假绿之后，**残留的第二层假绿**。
+ *
+ * **为什么选 render 侧重算（A）而不是落一份 resolved storyboard（B）**：
+ *   - 不新增阶段产物文件 ⇒ 不必改 SPEC §1 的阶段契约，也不必扩展 `io.ts` 的
+ *     不可变快照守卫（`guardSnapshot` 会直接拒绝 04 阶段回写 03 的产物）；
+ *   - 消解逻辑仍是**唯一一份**（就是本文件），render 不复制几何代码；
+ *   - 代价：render 依赖 validate 的几何模块 —— 这是**有意的依赖**，
+ *     因为「校验时判的几何」与「渲染时用的几何」必须逐位一致，
+ *     一旦分叉，报告会开始对成片说谎（比不同步更危险）。
+ *
+ * **幂等性是硬要求**：validate 与 render 各跑一次本函数，故 `resolveOcclusion`
+ * 内置了「已在预算内则不再平移」的护栏（见其 tier1 开头）。
+ *
+ * ⚠️ **本函数只负责「让改写生效到内存」**；它不产出报告条目。
+ *   报告由 `checkOcclusionBudget` / `checkBrollOcclusion` 负责，两者共用同一份
+ *   `resolveOcclusion`，因此**校验侧与渲染侧的消解结果必然一致**（同输入同输出）。
+ *
+ * @returns 实际发生了改写的 item 数（供 render 侧日志对账，非控制流）。
+ */
+export function resolveScene(ctx: ValidateContext): number {
+  let changed = 0;
+  // 与 checkOcclusionBudget / checkBrollOcclusion 同样按 kind 分派预算，
+  // 保证 render 侧重算时用的预算与校验期完全一致。
+  for (const hit of collectHits(ctx)) {
+    const before = hit.scene.item.footprint;
+    const beforeCarrier = hit.scene.item.carrier?.params?.['window'];
+    const res = resolveOcclusion(hit.scene, hit.region, hit.ratio, budgetOf(hit.region.kind), safeAreaOfRegion(ctx, hit.region));
+    if (res.status === 'nudged' || res.status === 'carrier') {
+      const after = hit.scene.item.footprint;
+      const afterCarrier = hit.scene.item.carrier?.params?.['window'];
+      if (
+        before[0] !== after[0] ||
+        before[1] !== after[1] ||
+        before[2] !== after[2] ||
+        before[3] !== after[3] ||
+        beforeCarrier !== afterCarrier
+      ) {
+        changed += 1;
+      }
+    }
+  }
+  return changed;
 }
 
 /**

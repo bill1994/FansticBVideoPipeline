@@ -129,12 +129,12 @@ describe('#12 tier1 平移 —— 必须真正改写 footprint', () => {
   });
 });
 
-describe('#13 tier2 载体档 —— 目前不施加变换，必须诚实告警', () => {
+describe('#13 tier2 载体档 —— P3 起真正施加载体变换', () => {
   /** face 预算 0% + footprint 与区域完全重合 ⇒ 平移网格内无解，必落到 tier2。 */
   const BIG_FP: [number, number, number, number] = [0.2, 0.2, 0.6, 0.6];
   const BIG_BOX: [number, number, number, number] = [0.2, 0.2, 0.6, 0.6];
 
-  it('T3 声明 item.carrier 后：冲突被抑制，但 motion 与 footprint 均未被改写（已知缺口）', () => {
+  it('T3 tier2 必须**真正写入** carrier.params.window（主体锚定裁切窗）', () => {
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
@@ -148,19 +148,28 @@ describe('#13 tier2 载体档 —— 目前不施加变换，必须诚实告警'
       ],
       regions: faceRegion(BIG_BOX),
     });
-    const report = runValidation(ctx);
-    const codes = report.items.map((i) => i.code);
+    runValidation(ctx);
 
-    // 冲突被抑制：不报 E-D4-01
-    expect(codes).not.toContain('E-D4-01');
-    // 🔴 但必须明确告知「未实际退让」，而不是静默假绿
-    expect(codes).toContain('W-D4-01');
-    // 且数据确实没变 —— 这是当前实现的真实状态，如实断言
-    expect(ctx.scene[0]?.item.footprint).toEqual(BIG_FP);
-    expect(ctx.scene[0]?.item.motion).toBe(OCCLUDER_MOTION);
+    // 🔴 P3 的核心断言：声明了载体**必须**留下可被渲染期消费的 window。
+    //   通道方案 A 打通后，这个 window 真的会改变成片 —— 写不进去就是又一次假绿。
+    const w = ctx.scene[0]?.item.carrier?.params?.['window'];
+    expect(w).toBeDefined();
+    expect(Array.isArray(w)).toBe(true);
+    const [wx = -1, wy = -1, ww = -1, wh = -1] = w as number[];
+    // 全高竖条
+    expect(wy).toBe(0);
+    expect(wh).toBe(1);
+    // 宽被钳制在 [0.3, 0.7]
+    expect(ww).toBeGreaterThanOrEqual(0.3);
+    expect(ww).toBeLessThanOrEqual(0.7);
+    // 左边界必须钳在画面内（主体贴边时窗口不能有一部分落在画面外）
+    expect(wx).toBeGreaterThanOrEqual(0);
+    expect(wx + ww).toBeLessThanOrEqual(1 + 1e-9);
   });
 
-  it('T3b W-D4-01 的消息必须点明「未实际施加」', () => {
+  it('T3a 施加后若仍超预算 → 必须报 E-D2-01，不得谎称退让成功', () => {
+    // face 预算为 0，而载体最低只能缩到 30% 宽 ⇒ 主体必然还有部分落在展示条内。
+    // 这是 P3 实测中暴露的第三层假绿：几何写了，但冲突一点没解。
     const ctx = runCtx({
       tracks: [
         makeTrack('a', 60, [
@@ -174,9 +183,36 @@ describe('#13 tier2 载体档 —— 目前不施加变换，必须诚实告警'
       ],
       regions: faceRegion(BIG_BOX),
     });
-    const item = runValidation(ctx).items.find((i) => i.code === 'W-D4-01');
-    expect(item?.message).toMatch(/未.*施加|尚未实现/);
-    expect(item?.hint).toMatch(/尚未实现|不会.*改变成片/);
+    const codes = runValidation(ctx).items.map((i) => i.code);
+
+    expect(codes).toContain('E-D2-01');
+    expect(codes).not.toContain('W-D4-01');
+    // 且必须解释清楚「为什么载体救不了」—— 预算是 0，载体有下限
+    const item = runValidation(ctx).items.find((i) => i.code === 'E-D2-01');
+    expect(item?.message).toMatch(/仍被遮挡/);
+  });
+
+  it('T3b 退让成功后不得静默 —— 必须留下可对账的条目', () => {
+    const ctx = runCtx({
+      tracks: [
+        makeTrack('a', 60, [
+          makeOccludingItem({
+            fromFrame: 111,
+            durationInFrames: 60,
+            footprint: [...BIG_FP],
+            carrier: carrierOf(),
+          }),
+        ]),
+      ],
+      regions: faceRegion(BIG_BOX),
+    });
+    // 与 T3a 同一场景，但断言「必须有条目」这件事本身：
+    // 无论成功还是失败，都不允许静默通过（2026-10-13 起的老规矩）。
+    const items = runValidation(ctx).items;
+    expect(items.length).toBeGreaterThan(0);
+    // 载体系信息必须出现在消息里，含裁切窗与前后遮挡率，可对账
+    const carrierish = items.find((i) => /载体档|展示条/.test(i.message));
+    expect(carrierish?.message).toMatch(/展示条|裁切窗/);
   });
 
   it('T5 未声明 item.carrier 时 E-D4-01 仍可达（防止未来误删此码）', () => {
