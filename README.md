@@ -75,7 +75,7 @@ npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 
-预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 16` + `summary.extra = 2`），
+预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 17` + `summary.extra = 2`），
 并写出 `examples/demo/04-validate/validate-report.json`；
 那两条 warning 都是 `W-F6-01`（示例里 s2 镜头与其人脸区被故意标成低置信，用来演示 F6 的人工兜底通道）。
 注意 `checked` 只数清单内的 17 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
@@ -84,7 +84,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：6 个测试文件 / 109 项（校验 40 · 遮挡分级 10 · 参数契约 17 · 烘焙 14 · 调度 19 · 对齐门控 9）
+npm test            # vitest：19 个测试文件 / 318 项（校验 41 · 模板渲染 31 · 文本对齐 26 · 文本溢出 26 · SRT 22 …）
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```
 
@@ -236,6 +236,10 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 | 安全阀 | 中位数 < `0.4` → 整批转 custom | 文档值 |
 | 接力 gap | > `1.5s` → warning | 文档值 |
 | 遮挡预算 | 人脸 `0%` / 手持物 `≤20%` / B-roll `≤30%` | 文档值 |
+| 安全区上部比例 `safeAreaTopRatio` | `0.6` | 🔴 **占位值**：SPEC 只写「取 bbox 上部」，无精确比例 |
+| 手持物外扩 `HANDHELD_EXPANSION` | 宽 `3×` / 高 `2.5×` | 🔴 **占位值**：由单条素材反推，只对当前构图成立 |
+| 显著性目标面积 `targetAreaRatio` | `0.35` | 🔴 **占位值**：三素材目视可接受，未量化 |
+| 分屏可见比 `MIN_VISIBLE_RATIO` | `0.5` | 🔴 **占位值**：D4-t2 派生判据，**尚未实现** |
 | 渲染基准 | 10 分钟成片的墙钟时长 + CPU 峰值 | 首次渲染时量 |
 
 改这些值前，请先看 [`.workbuddy/memory/MEMORY.md`](.workbuddy/memory/MEMORY.md) 与登记册的对应条目。

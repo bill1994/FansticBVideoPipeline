@@ -213,12 +213,12 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 ## 四、已知问题（🔴 按严重度排序）
 
-### 1. ⚠️ 模板 8/11，剩余 3 个全部卡在外部依赖
+### 1. ⚠️ 模板 8/11，剩余 3 个**已无外部阻塞**（2026-10-17 更新）
 
-已解除"完全无产出"，但：
-- **剩余 3 个**：`carrier/split-frame`（D4 tier2 的退让载体，须先立登记册裁决）、
-  `annotation/pointer-callout`（依赖 perceive 主体框）、`transition/whip-pan`（fullscreen）。
-  即优化计划书 §4.6 的第 3/4/5 批。
+已解除"完全无产出"，剩下的是工作量与施工顺序，**不再是依赖问题**：
+- **剩余 3 个**：`carrier/split-frame`（**D4-t2 已于 10-17 裁决**，待 P1–P4 施工）、
+  `annotation/pointer-callout`（**主体框已由内置 perceive 产出**，可开工）、
+  `transition/whip-pan`（fullscreen 确认闸已实装）。即优化计划书 §4.6 的第 3/4/5 批。
   ⚠️ **2026-10-16 更正计划书 §4.6 的一处时点判断**：计划书把第 5 批写作「等 06-review 流程就绪」，
   但 `renderGate()` 里的 fullscreen 人工确认闸（D3-a：读 `06-review/confirmed.json` 的
   `acknowledgedFullscreen`，未确认即拒绝启动）**已完整实装** ⇒
@@ -240,7 +240,7 @@ tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告�
 
 **修复须先在登记册立一条承载字段的裁决。**
 
-### 3. ⚠️ 四个占位数值从未实测
+### 3. ⚠️ 占位数值：**7 个从未实测**（2026-10-17 由 4 增到 7）
 
 | 项 | 当前值 | 状态 |
 |----|--------|------|
@@ -248,6 +248,10 @@ tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告�
 | `alignedRatioMin` | 0.8 | 🔴 PLACEHOLDER，须与上一项**一并**校准 |
 | 每 cue item 数 | 3 | 🔴 PLACEHOLDER，却直接产 error |
 | `DUR.enter/exit` | 0.16 / 0.22 | 🔶 第二轮调优后的取值（expo-out / cubic-in）；**仍待真实素材校准** |
+| `PERCEIVE.safeAreaTopRatio` | 0.6 | 🔴 PLACEHOLDER（SPEC 只写"取 bbox 上部"，无精确比例；0.6 取自 talkcraft 口径） |
+| `HANDHELD_EXPANSION` | 宽 3× / 高 2.5× | 🔴 PLACEHOLDER：高度由 s2 实测反推（手与鞋在 0.75–0.85），只对当前构图成立 |
+| 显著性 `targetAreaRatio` | 0.35 | 🔴 PLACEHOLDER：三素材目视可接受，未做量化 |
+| `MIN_VISIBLE_RATIO`（D4-t2 派生） | 0.5 | 🔴 PLACEHOLDER：判据本身尚未实现（P4） |
 
 > **`DENSITY.maxItemsPerCue = 3` 是个未校准的占位值，却会阻断真实素材**，
 > 而项目没有编辑 UI，用户只能手改 JSON。这是「过度严格」最现实的伤害点。
@@ -375,16 +379,16 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 校验项      17 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
 单测        318 项全过（19 文件）           ← … → 300 → 312 → 318（批次 2 / D7 / D-A / 感知接入；+7 于当日增补后又撤回）
-登记册      47 条 RESOLVED（+D-A / +M-2 / +M-4；D-B2 亦已裁决待实施）；OPEN：C2-2（待实测）
+登记册      44 条表格行含 RESOLVED（`grep '^|.*RESOLVED'` 可复算；+D4-t2；D2-2 为 REVERTED）；OPEN：C2-2（待实测）/ C2-3（倾向不做）
 模板        11 个声明 / 8 个实现            ← 0 → 5 → 7 → 8（批次 2 + D-A；剩余 3 个分批，见 §4.6）
 遮挡判定    首个遮挡型模板 center-emphasis 落地  ← 此前 10/10 模板 0 触发（D-A）
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
 背景链      首个载体实现 punch-in（包裹视频）  ← 机制：src/remotion/carrier.tsx（分段包裹）
 字幕通道    words.json 已接入 props         ← 此前渲染期无人读它
 契约字段    occludesSubject 已补实现；handoffIn 已删除  ← 此前两个都零消费
-占位数值    对齐门控（×2）/ 每 cue item 数 / 闸2 分档 待实测；DUR 配比已第二轮调优
+占位数值    7 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio / HANDHELD_EXPANSION / targetAreaRatio / MIN_VISIBLE_RATIO）← 详见 §四 3
 手感表docs/templates/2026-10-15-参数手感表.md（已建）
-测试文件    15 个
+测试文件    19 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
 ```
 
 ### 已知环境问题（非项目 bug）

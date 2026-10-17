@@ -1,5 +1,5 @@
 /**
- * Stage 4 · validate —— 跑构建期校验项（当前 15 项），产出 validate-report.json。
+ * Stage 4 · validate —— 跑构建期校验项（当前 17 项），产出 validate-report.json。
  *
  * **必须停条件：有 error 必须停，不进渲染**（F2 的两处硬阻断之一）。
  * warning 不阻断。

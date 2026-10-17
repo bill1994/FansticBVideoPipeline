@@ -1,178 +1,86 @@
 # 项目长期记忆 — video pipeline
 
-## 项目身份
+## 身份
 
-- **项目**：Remotion 视频动效工作流（在实拍粗剪视频上叠 motion-graphic overlay）。
-- **根目录**：`G:\WorkbuddyProject\VideoPipeline`（2026-10-15 从 `C:\Users\63088\WorkBuddy\video pipeline` 迁入；新路径**无空格**，命令仍建议绝对路径 + 引号）。
-  ⚠️ **旧路径 C 盘已废弃** —— 只余空目录壳（0 文件，待 WorkBuddy 重启后清理），脚本/文档勿再引用。
-- **目标产物**：一个可运行的完整 Remotion 项目（自动起草 → 人工审 → 渲染导出）。
-- **形态**：Node/TypeScript 工程（Node ≥ 22.19，ESM，tsx 直跑 TS）。MIT。
+- **Remotion 视频动效叠加管线**：在已拍摄/已粗剪、无文字无特效的实拍口播视频上叠 motion-graphic overlay。Node ≥22.19 / ESM / tsx，MIT。
+- **两个工作区共用同一远端**：`G:\WorkbuddyProject\VideoPipeline`（长期记忆主维护机）与 `G:\VideoPipeline`（10-14 从 E 盘迁入，**当前活跃**）。
+- 远端：`github.com/bill1994/FansticBVideoPipeline`（**PUBLIC**），main。`docs/proposals/` 与 `.workbuddy/memory/` 会随仓库公开。
+- 🔴 **定位 = 「被模型读取的 skill pipeline」**：模型就是操作者，仓库**不调模型**；`03-storyboard/draft.json` 是模型产物的等价物。
 
-## 常用命令
+## 命令
 
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
-npm run typecheck        # tsc --noEmit
-npm test                 # vitest（269 项 / 15 文件）
-npm run studio           # Remotion Studio
-npm run render:video     # 已内置 --gl=angle
+npm run typecheck   # tsc --noEmit
+npm test            # vitest 318 项 / 19 测试文件（+_ctx.ts 夹具）
+npm run studio / npm run render:video   # 后者已内置 --gl=angle
 ```
+demo（无需真实素材）：`pipeline storyboard|validate|render --job demo --jobs-dir examples`（storyboard 要带 `--draft`）。
+预期 0 error / 2 warning（均 `W-F6-01`）。⚠️ 只在**不重跑 storyboard** 时成立（见雷区）。
 
-demo（无需真实素材，端到端跑通）：
-```bash
-npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
-npm run pipeline -- validate   --job demo --jobs-dir examples
-npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
-```
-预期：0 error / 2 warning（**均为 `W-F6-01`**，demo 故意标低置信以演示 F6 人工兜底；checked = 17）。
-
-⚠️ **但这只在「不重跑 storyboard」时成立** —— 见下方「已知雷区」的 demo 夹具坑：
-`draft.json` 带 `highlightColor`，重跑 `storyboard` 后 validate 会报 2 个 `E-P1-01` 阻断。
-
-## 代码结构
+## 结构
 
 | 路径 | 职责 |
 |------|------|
-| `src/core/` | 类型契约、错误码、报告、**调度**（两道闸+地板+动态T）、**烘焙**（锚点→帧）、IO、SRT 解析与繁简归一 |
-| `src/validate/` | **17 项**构建期校验（纯函数；#17 文本溢出为 warning 档） |
-| `src/templates/` | 模板契约（双轴 family × scope）与注册表（**11 个模板声明**，含 D-A 新增 `typography/center-emphasis`） |
-| `src/stages/` | 五阶段执行逻辑（含内置对齐器：whisper-adapter / text-align / builtin-align） |
-| `src/remotion/` | C6 双栈映射 + **8 个**模板真实实现（`templates/`）+ 令牌层 / 字幕通道 / **载体链分段包裹**（`carrier.tsx`） |
-| `tools/` | 一次性探针脚本（render-probe / setup-whisper / slice-srt / probe-* 等） |
-| `.workbuddy/skills/` | 五阶段 Skill（执行期行为契约） |
+| `src/cli.ts` | 唯一入口；参数解析 + 阶段分发 + 语义化退出码（0/1/2/…/6/130） |
+| `src/core/` | 契约与骨架：`types.ts` 数据契约 / `errors.ts` 项级码 / `exit-code.ts` 进程码 / `config.ts` 阈值与路径 / `bake.ts` 锚点→帧 / `schedule.ts` 两道闸+地板+动态T / `io.ts` job 目录+不可变快照守卫 / `report.ts` / `srt.ts` / `zh-normalize.ts` |
+| `src/stages/` | 五阶段执行：`align`(后端选择)→`builtin-align`→`whisper-adapter`+`text-align`(DP) ；`perceive`(后端选择)→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive` ；`storyboard`(bake+schedule) / `validate` / `render`(启动闸+映射) |
+| `src/validate/` | **17 项**构建期校验（纯 JSON→JSON）+ 2 条 extra（`W-D3-01`/`W-F6-01`）；`context.ts` 是唯一读盘入口 |
+| `src/templates/` | 模板**声明**：`builtin.ts` **11 个** / `registry.ts` 注册与自检 / `types.ts` 双轴 family×scope |
+| `src/remotion/` | 渲染层：`index→Root→Overlay`（双栈）+ `MotionItem`（全树唯一 `useCurrentFrame`）+ `carrier.tsx`（分段包裹）+ `caption.ts`（words.json 唯一入口）+ `tokens.ts`（颜色唯一来源）+ `templates/` **8 个实现** + 映射表 |
+| `tests/` `tools/` | vitest；一次性探针（probe-yunet / probe-regions / probe-shots / probe-saliency 等 16 个） |
+| `docs/` `.workbuddy/skills/` | 规格/裁决/提案/评审/变更/模板清单；五阶段执行期契约 |
 
-- **`align` 双后端**（2026-10-14 起）：配 `ALIGNER_CMD` → 外部对齐器；未配置 → **内置对齐器**
-  （whisper.cpp 出时间 + SRT 文本权威 + text-align 合成，`alignedRatio` 首次成为真实测量值）。
-  默认查找「**仓库根 / whisper.cpp**」（**D7 已修**：`resolveWhisperCppRoot()`，不依赖 cwd；`WHISPER_CPP_PATH` 可覆盖）——
-  本机未装时按提示跑 `tools/setup-whisper.mts`；whisper 缺失时退出码 2。
-- **`perceive` 仍不内置**（模型接入方案讨论中），走 `PERCEIVER_CMD` 契约；未配置**直接退出码 2**，绝不伪造结果。
-- **`03-storyboard/draft.json` 是「模型产出」的等价物** —— 仓库不调模型。
+## 当前状态（2026-10-17 收工，提交 `856c7c5`）
 
-## 数值占位（🔴 勿当结论）
+六道闸**四道半**：`01-align` ✅（whisper 时间 + SRT 文字权威 + DP，`alignedRatio` 真实测量）/
+`02-perceive` ✅（内置三通道：ffmpeg `scdet` 切镜 → YuNet `face` → 人脸外扩 `handheld` → 无脸镜头显著性 `broll`；三素材 77 shot / 0 低置信）/
+`03-storyboard` 🔶（管线通、不调模型）/ `04-validate` ✅（17 项）/ `05-render` 🔶（8/11 模板有真实实现）。
+**硬阻断已拆**（未配 `PERCEIVER_CMD` 不再退出码 2）。错误码 26 条。
 
-| 项 | 值 | 状态 |
-|----|----|------|
-| 对齐门控 | 均值 0.60 / 低置信词 30% | 文档初值，**待实测**（登记册 C2-2 仍 OPEN） |
-| 对齐门控 `alignedRatioMin` | 0.80 | 🔴 **占位值**（M-1c 新增）；**须与均值一并校准，不得分开拍** |
-| 闸2 confidence 分档 | high 0.80 / mid 0.50 | **占位值**（真源只给组合矩阵） |
-| 每 cue item 数 | 3 | **占位值**（真源只写「超阈值」） |
-| `CARRIER_FALLBACK` 映射 | 空 | 默认不可用 → 报 `E-D4-01`；**填表也只抑制报错（出 `W-D4-01`），成片不会真正退让**（10-13 更正；修 tier2 须先立登记册裁决） |
+✅ **计数漂移已清零（10-17 傍晚）**：全仓**活文件**按实测校正 —— 17 项校验 / 318 单测 / **19 测试文件**（+`_ctx.ts` 夹具）/ 11 声明 / 8 实现 / 44 条 RESOLVED / **7 个占位值**。
+改动位置：`package.json`·`cli.ts`·`report.ts`·`stages/validate.ts`·`errors.ts`·`validate/index.ts`·`tests/validate.test.ts`·README·PROGRESS·SKILL.md（**补了缺失的 #17 行**）·SPEC·登记册正文 5 处。
+🔴 **纪律**：历史档案保留原数字不动（`docs/changelog/`、`.workbuddy/memory/` 日志、`docs/reviews/`、`docs/decisions/2026-10-13-裁决材料.md`、SPEC 版本历史行）——**「第 N 项」是条目身份，「当前 N 项」才是活计数**。
 
-## 文档缺口与待裁决
+## 占位值（🔴 勿当结论）
 
-**已裁决并回写（2026-10-13）**：
-1. D3 fullscreen 人工确认 → 裁决 **D3-a**：落在 render 启动闸，`validate` 只出 `W-D3-01` 预告（在 extra）。
-   E5 禁配段相交 → **并入清单为第 15 项**（`E-E5-01`；不再计入 extra）。
-2. **`offset:"-8f"` 时序冲突** → 裁决 **C2-5a**：C2-5 区间下界由「词起点」改为
-   「**锚定词所在 cue 的起点**」——负偏移＝抢拍、**合法**（demo 已改回负偏移，作为回归证据）。
+`ALIGN_GATE` 0.60 / 30% + `alignedRatioMin` 0.8（**须一并校准**）；`DENSITY.maxItemsPerCue=3`（却能直接产 error）；
+闸2 分档 0.8/0.5；`PERCEIVE.safeAreaTopRatio=0.6`；`HANDHELD_EXPANSION` 宽3×/高2.5×；显著性 `targetAreaRatio=0.35`；
+`MIN_VISIBLE_RATIO=0.5`（D4-t2 派生，未实现）；`CARRIER_FALLBACK` 空（tier2 仍是空操作，只出 `W-D4-01`）。
 
-**✅ 已完成（2026-10-16 晚）：perceive 检测后端深度研究**（专家团 5 阶段全流程，团队已解散）
-- 最终报告：`docs/reviews/2026-10-16-perceive检测后端选型与工程集成-研究报告.md`（431 行 / 62 来源）；
-  过程材料（含五章终稿全文）：`docs/reviews/2026-10-16-perceive后端选型-研究过程记录.md`
-- 核心结论：YuNet（MIT）主选人脸 + union bbox 安全区 + fail-closed；RTMO/RTMPose（Apache-2.0）按需；
-  手持物 = 姿态手腕点 + RTMDet 组合（shot 级累积）；MediaPipe Node 不可行；
-  **RTMDet 有唯一一例 JS 移植参照（单项目待核）**；许可全链 MIT/Apache 可商用
-- **下一步 = 按报告施工接入 perceive**（§5.4 两项验证：YuNet Node 端实测 / 预处理依赖取舍；
-  §5.5 三项校准：人脸与手持物阈值 / fail-closed 覆盖率下限）
-- **报告 v1.1（10-16 深夜修正）**：AGPL 义务**仅在分发/服务化触发（自用不触发）**——YOLO 系改列"自用场景备选"；
-  依据 FSF 原文 + Ultralytics FAQ（厂商主张更严，区分"法律要求 vs 厂商主张"）
-- **施工进展（10-16 深夜）**：**阶段 A 全通过** —— YuNet × onnxruntime-node 端到端实测（`tools/probe-yunet.mts`），
-  与 OpenCV 参照**逐框对齐 <0.5px**（亚像素级）。🔴 环境铁律：**OpenSSL 客户端（node/python）对清华源 TLS 不稳定
-  （record layer failure）→ 用阿里源；npm 大包走「curl 下 tgz → npm cache add → 离线装」**；
-  参照 venv：`~/.workbuddy/binaries/python/envs/default`（cv2 5.0.0 + ort 1.31.0 + numpy 2.5.4）；
-  模型落 `perceive-models/`（不入库）；HF 同名模型是变体（官方 sha256 `ebafce4e…`）
+## 裁决状态
 
-**⏳ 当前活跃待裁决（2026-10-16 状态，详见 `CONTRIBUTING.md` §5 与登记册）**：
-- **D-A**：✅ 已裁决（10-16）→ 选 A1，`typography/center-emphasis@1.0` **已实装**（首个遮挡型叠加模板）
-- **D-B2**：✅ 已拍板（10-15）：选 C（批量真渲实测）—— **实施待做**，前置阻塞：本机**缺图像量测管线**
-  （自带 ffmpeg 无 `eq`、无 PIL）⇒ 需先定量测方案
-- **M-2**：✅ 已定案 —— **全 Node（`onnxruntime-node`）+ RTMO-S 起步**（Apache-2.0；YOLO26n-pose 为 AGPL 注意边界）
-- **M-4**：✅ 已拍板（10-15）：不接受「用 VLM 替代检测」的降级（#12/#14 保留测量）
-- **D4 tier2 载体退让**：仍 OPEN，**须先立登记册裁决**（承载字段 + 键粒度 + 新载体模板）⇒ 阻塞第 3 批 `carrier/split-frame`
-
+- **D-A** ✅ `typography/center-emphasis@1.0` 已实装（首个遮挡型，否则 11 个声明无一能触发遮挡判定）。
+- **D-B2** ✅ 选 C（批量真渲度量表）⏳ 未做；前置阻塞：本机缺图像量测管线（ffmpeg 无 `eq`、无 PIL）。
+- **M-2** ✅ 全 Node（onnxruntime-node）+ RTMO-S 起步；**M-4** ✅ 不接受 VLM 替代检测 ⇒ **face fail-closed 至今一行实现都没有**（只做 `lowConfidence` 标记）。
+- **D4-t2** ✅ 裁决（10-17）：Q1 `StoryboardItem.carrier?: { template, params }`；Q2 逐 item 显式声明、**废全局 map**；Q3 **cover 裁切分屏 + 主体锚定窗口**（中心 = shot 的 `safeArea` 中心，`ratio` 钳 0.3–0.7，`side` 只决定视频显在哪侧；裁切窗在校验期算好写入 `params.window`）。派生 `visibleRegion(params)` ⇒ `W-D2-02` 正确判据 = `|safeArea∩window|/|safeArea| ≥ 0.5`。**施工 P1–P4 未开始。**
+- ⚠️ 10-17 曾把 `W-D2-02` 补成第 18 项，**当日撤回**（假设 split-frame 已有实现、punch-in footprint 全屏 ⇒ 对分屏误报、对放大漏报）。教训：**「规格写了」≠「我读懂了」**，carrier 类 `footprint` 是**视频位置**不是 overlay 位置。
 
 ## 文档真源层级（冲突时以此裁决）
 
-| 层 | 位置 | 地位 |
-|----|------|------|
-| 1 | 乐享 KB《Remotion 视频动效工作流 — 进度总结》 | **唯一活文档**（给人读） |
-| 2 | `docs/decisions/OPEN-DECISIONS.md` | **裁决唯一真源**，40+ 条 |
-| 3 | `docs/spec/SPEC-remotion-overlay-workflow.md` | 实现规格，**与层 2 冲突时以层 2 为准** |
-| 4 | `docs/changelog/` | KB 侧变更记录 |
-| 5 | `docs/proposals/` | **待裁决议题 + 方案对比 + 落地计划**（未裁决前不含结论）|
+乐享 KB（唯一活文档，给人读）> `docs/decisions/OPEN-DECISIONS.md`（**裁决真源**，48 RESOLVED；OPEN 仅 `C2-2` 阈值实测、`C2-3` BGM 分离倾向不做）> `docs/spec/SPEC-*.md`（v0.7）> `docs/changelog/` > `docs/proposals/`（未裁决前不含结论）。
+另：`PROGRESS.md`（真实数字 + 后续计划）、`CONTRIBUTING.md`（接手 3 分钟，口径：裁决册 > PROGRESS > 其他）。
 
-- **待裁决项命名**：用带前缀的编号（已有 `M-1`~`M-4` 用于模型选型），**裁决后必须回写登记册**。
-- 仓库根目录另有：`PROGRESS.md`（项目进度与真实数字）、`CONTRIBUTING.md`（接手开发 3 分钟指南；其口径：真源优先级 `OPEN-DECISIONS` > `PROGRESS.md` > 其他）。
+## 约定 / 雷区
 
-- KB 文档：`entry_id = cc6a8c8fa38e4fa68d59e4141d747c71`，`space_id = 57d1ad38cf8f4617ba18729f7661972d`。
-- 乐享是 v2 MCP：`company_domain = https://lexiangla.com` 是顶级域 → 访问链接必须带 `?company_from=<company.code>`。
-- 本地 `docs/Remotion视频动效工作流-进度总结-2026-10-12.md` 是**早间过期快照**，仅历史留档，别拿它当依据。
-
-## 约定
-
-- **Spec 文件名不带版本号**（`SPEC-remotion-overlay-workflow.md`），版本只写文内标题 —— 避免每次改版都要改文件名/引用。
-- 设计结论未落到字段级细节时，Spec 里标 `🟡TBD`，**不得凭常识填**；先去登记册查证，查不到就保持开放。
-- **Skill 放 `.workbuddy/skills/<name>/SKILL.md`**（项目级），已通过 `!.workbuddy/skills/` 入库。5 个 = align / perceive / storyboard / validate / render，按管线阶段切，**不做巨型 skill**。
-- Skill 是**自包含**的（不指向 Spec）：§10.2 明确说 Skill 要精简到只保留「必须遵守」的部分 —— 塞整份 Spec 会挤掉素材本身的信息。代价是局部重复，属有意为之。
-- **新增字段 / 令牌 / 配置后，立刻问「谁读它」** —— 2026-10-15 一天撞见三例同款病（`occludesSubject` / `handoffIn` / `DUR.exit`）；「定义了」不等于「被用了」。
-- 文档只规定目录里**有哪些数据**、不点名文件名。自拟的文件名一律标【实现期拟定，文档未点名】，**别把实现建议伪装成文档结论**。
-- 分支代号：A 素材与前提 / B 感知与对齐 / C 时间轴模型 / D 构图与遮挡 / E 渲染架构 / F 工程化与闭环。**六分支已于 2026-10-12 全部封口。**
-- 时间坐标：**帧是真相**（`fromFrame` + `durationInFrames`）；模型只写锚点 `{anchor:"word:37", offset:"-8f"}`，由烘焙器解析成帧。
-- `.workbuddy/` 不是缓存，勿删；其下 **`memory/` 与 `skills/` 入 git**，其余忽略。
+- **帧是真相**：模型只写锚点 `{anchor:"word:37", offset:"-8f"}`，烘焙器解析成帧；负偏移＝抢拍**合法**（下界是锚定词所在 cue 起点，C2-5a）。
+- **新增字段/令牌/配置后立刻问「谁读它」** —— 10-15 一天撞见三例（`occludesSubject` / `handoffIn` / `DUR.exit`）。
+- **推进实现后回头改计划书状态** —— 10-17 发现 `docs/proposals/2026-10-14-后续提升优化计划书.md` 仍按「未做」描述 D1/D2/D7（已加文首「实施状态回写」横幅 + §5.1/§5.2 实测值）。**每完成一条 D 项，先更新横幅**。
+- 增补校验项**须先改裁决册**；新错误码同时进 `errors.ts` 的 `CODES`。
+- 确定性红线：全树仅 `MotionItem` 读时钟；禁 `Date.now()`/`Math.random()`（用 `mulberry32`）/CSS animation/`<Series>`/显式 z-index。
+- 🔴 **demo 夹具坑**：`draft.json` 曾带 `highlightColor` 而模板声明刻意不含 ⇒ 手改快照能骗过 validate，重跑 storyboard 就红（已修；**别手改下游快照**）。
+- **改文档计数时区分活计数与条目身份**（「当前 16 项」要改，「第 16 项」不能改）。
+- 🔴 环境铁律：pip **阿里源**（清华源 TLS 挂）；npm 大包「curl 下 tgz → cache add → 离线装」；`onnxruntime-node@1.30.0` 实测 **288MB**；模型落 `perceive-models/`（gitignore，换机重下，sha256 `ebafce4e…`）。
+- `PROGRESS.md §七` 的 ffmpeg `EBUSY` 在新工作区**不复现**（ffmpeg 9.0.2 gyan.dev）⇒ 属特定安装方式问题，勿当通用坑。
 
 ## git
 
-- 仓库：`main` 分支，**已推送到 <https://github.com/bill1994/FansticBVideoPipeline>**（**PUBLIC**）。
-- **远端由两个工作区并行使用**：本机（`G:\WorkbuddyProject\VideoPipeline`）与另一环境（`G:\VideoPipeline`，2026-10-14 从 E 盘迁入）。
-  两边都会写 `.workbuddy/memory/` 的日期日志 → **拉取时先检查有没有同名日志冲突、需合并**（先例：10-12 / 10-13 / 10-15 均已合入同一文件）；
-  ⚠️ **`MEMORY.md` 只有本机在维护**（最后更新于 10-13，另一环境 10-14/15 未改过）——长期记忆的校准靠本机自己。
-  2026-10-15 本机已 pull 对齐至 `697d9de`（远端那台当日做了大量开发：5 模板实现、对齐器、校验项 17 等）。
-- **本仓库用 noreply 身份**：仓库级 `user.email = 29155565+bill1994@users.noreply.github.com`
-  （全局仍是 gmail，**没动**）。2026-10-13 首次推送前用 `filter-branch` 把 8 个提交的作者+提交者全改过。
-- 凭证：`gh auth setup-git` → `credential.https://github.com.helper = gh auth git-credential`
-  （**不要用 GCM**，它在 wincredman 校验处会失败）。
-  ⚠️ **两台机的 gh 路径不同**：`G:\WorkbuddyProject\VideoPipeline` 那台在
-  `~/.workbuddy/binaries/gh/bin/gh.exe`（**2026-10-16 晚实测仍在位**）；`G:\VideoPipeline` 那台
-  （2026-10-16 实测）在 `C:\Program Files\GitHub CLI\gh.exe`，那边便携版已不存在。
-- 代理：**走环境变量 `HTTP_PROXY` / `HTTPS_PROXY`，不要写死端口** ——
-  WorkBuddy 宿主**每个会话会换端口**（2026-10-16 实测：上午是 `4436` → 下午变 `11542`，
-  同日的 `CODEBUDDY_SERVICE_PROXY_URL` 也从 `8113` 变 `1965`）。
-  🔴 **教训**：曾用 `git -c http.proxy=http://127.0.0.1:4436 push` 把 git 指向已失效的端口，
-  连续 5 次 `Failed to connect … over proxy`；而当时 curl 走环境变量是通的 ——
-  **两边"用的不是同一个代理"，不要用 curl 通来推断 git 通**。
-  ⇒ 直接 `git push` / `git fetch`（不加 `-c http.proxy`），让环境变量生效。
-  当前端口可用 `env | grep -i proxy` 查；`(exec 3<>/dev/tcp/127.0.0.1/<port>)` 可验连通性。
-  偶发 `CONNECT tunnel failed, response 502` 或 `Could not connect`，**重试即通**（瞬时）。
-- **双工作区并行提交会产生「同内容不同 hash」的重复提交**（2026-10-16 实测：本地 `f81706d` 与远端 `697d9de`
-  内容逐字节相同）。处理：先建 `backup/pre-pull-<date>` 分支，确认 `git diff <本地> <远端>` 为空后 `reset --hard origin/main`。
-- `.gitignore`：忽略 `.workbuddy/*`（**保留 `memory/` 与 `skills/`**）、媒体大文件、`jobs/`、`node_modules`、`out`、`.vitest-cache/`。
-- **`docs/proposals/` 与 `.workbuddy/memory/` 都会随仓库公开** —— 写这两处时按「会被公开」的标准写。
+- 仓库级 noreply 身份（`29155565+bill1994@…`）；`gh auth setup-git` 做凭证，**别用 GCM**。
+- 🔴 **代理只走环境变量 `HTTP_PROXY`/`HTTPS_PROXY`，勿写死端口**（宿主每会话换端口）；直接 `git push`。偶发 502/连不上→重试即通。
+- 双工作区并行提交会产生「同内容不同 hash」的重复提交：先建 `backup/` 分支，`git diff` 为空再 `reset --hard origin/main`。
+- 两边都会写 `.workbuddy/memory/` 日期日志 ⇒ **拉取时先查同名日志冲突、需合并**；`MEMORY.md` 只本机维护。
 
-## 已知雷区
+## 下次开工点
 
-- 🔴 **demo 夹具坑（2026-10-16 发现并修复）**：`examples/demo/03-storyboard/draft.json` 里两条
-  `caption/karaoke-word` 曾带 `highlightColor: "#ffd166"`，而模板声明按 P1 硬约束**刻意不含该键**。
-  当时已提交的 `storyboard.json` 里这两个键是**手工删掉的**（错层修复）⇒ 直接 `validate` 是 0 error，
-  但**照 PROGRESS §八 的顺序先 `storyboard` 再 `validate` 会重新烘焙出该键 → 2 × `E-P1-01` 阻断**。
-  已修：删 `draft.json` 的该键（draft 才是模型产物等价物），重烘焙后 storyboard.json **逐字节相同**，
-  validate 回到 0 error / 2 warning。demo README 已补两条纪律（不写颜色键 / 不手改下游快照）。
-  **教训：幂等产物出现"直接跑是绿的、按文档重跑就红"，说明某处被手改了 —— 先查 draft 与快照是否同源。**
-- 🔴 **缺 `02-perceive` 产物时 `validate` 直接拒绝启动**（实测，非静默放过）——
-  阶段目录是不可变快照，"缺即为前置未跑"。叠加 `perceive` 阶段未配置即退出码 2
-  ⇒ **真实素材在 `01-align` 之后无路可走**，这是当前唯一硬阻断点（perceive 为第一优先的依据）。
-- **文档数字漂移（2026-10-16 已统一）**：此前 `PROGRESS.md` §三/§四 写「16 项校验」「218 项单测」，
-  §七 写「268 项」，README/SPEC 亦停在 16 项；实际 = **17 项 / 269 项 / 15 文件 / 11 声明 / 8 实现**。
-  ⚠️ 残留的「16 项」只应出现在 **2026-10-12 时间戳章节**（历史记录，按「只追加」纪律不动）。
-  引用数字前先跑 `npm test` 核一遍。
-- **改文档计数时区分两种引用**：「**当前** 16 项」是活计数（要改）；「**第 16 项**」是条目身份（不能改）。
-- **乐享预签名 URL 必须整串复制**：截断 `filename%3D"..."` 之后的 `%3B%20filename%2A%3Dutf-8%27%27...` 会直接 `SignatureDoesNotMatch`（403）。与代理无关。
-- 乐享 HTML `<table>` **不能逐格替换**，必须整表删掉重建为 GFM 表；GFM 表**行数上限 10**（含表头）。
-- **`block_fetch_page(render_mode="markdown")` 下，HTML 表格标记（`</table>`/`</td>`）不可匹配** —— 那些标记不在 block 文本里。
-  但**原生表格的单元格文本可以匹配**。要改表格**结构**（增/删行）必须走 `render_mode=mdx` + `replace_blocks`。
-- **改一处会让别处的匹配产生歧义**：新文本若仍包含旧子串，同类替换会变成 `match_count=2`。
-  解法是先用 `replace_all_matches=true` 统一改，再回来清理多余尾巴。
-- **代码块里的 `|` 匹配不上**（`|` 与 `\|` 都试过）。绕法：改用不含 `|` 的锚点。
-- `update_content` 的 dry_run **遇第一条 matched=false 即中止**，后面的不再报 —— 排查时一次只探一条。
-- Git Bash 下 `python -c` 传含反引号的多行串会失败 —— 写临时 `.py` 文件再执行。
-- **git 输出里的中文路径**：默认 `core.quotepath` 会转成八进制转义（如 `"docs/changelog/2026-10-15-D1\346\250\241..."`，脚本读取直接 ENOENT）。
-  一次性覆盖：`GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=false git …`（勿写进仓库配置）。
+**D4-t2 施工**：P1 改 `types.ts`（`carrier?`）+ `config.ts` + 校验非法引用 → P2 实现 `split-frame.tsx`（含 `visibleRegion(params)`）→ P3 `resolveOcclusion` 真正写入 `item.carrier` → P4 以 `visibleRegion` 重立 `W-D2-02` 并补单测。
+其余待办：第 4/5 批模板（`pointer-callout` 依赖主体框已就绪 / `whip-pan`）、face fail-closed、`D-B2` 度量表、根 `SKILL.md`（编排层仍缺）、`PARAM-DECISIONS.md`、渲染基准量化（F4）。

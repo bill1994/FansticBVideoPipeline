@@ -1,13 +1,13 @@
 ---
 name: validate
 description: >-
-  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑构建期校验项（当前 16 项）
+  Remotion motion-graphic overlay 管线的第 4 步「validate」。当 storyboard.json 写完、需要在渲染前跑构建期校验项（当前 17 项）
   并产出 validate-report.json 时使用。负责构建期校验（纯 JSON→JSON）与渲染期兜底。
   不用于对齐、感知、storyboard 起草或渲染。
 agent_created: true
 ---
 
-# validate —— 构建期校验与阻断门控（当前 16 项）
+# validate —— 构建期校验与阻断门控（当前 17 项）
 
 > **管线位置**：第 4 步 / 共 5 步
 > **上游**：`03-storyboard/storyboard.json` + `01-align/` + `02-perceive/`
@@ -24,7 +24,7 @@ agent_created: true
 
 | 阶段 | 可判条件 | 覆盖 |
 |------|----------|------|
-| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **全部校验项（当前 16 项）** |
+| **构建期**（纯 JSON→JSON，**不渲染**） | 只读 `03-storyboard/` + `01-align/` + `02-perceive/` | **全部校验项（当前 17 项）** |
 | **渲染期兜底** | 需实际渲染才暴露 | 字体未加载、Canvas 未挂载（`delayRender` 超时）、GPU 上下文创建失败 |
 
 构建期之所以能判全：校验器读的全是**结构化数据**（footprint / minVisibleInFrames / 各区域预算占用 / 主体框 / noMotionRanges），不需要渲染。
@@ -66,7 +66,7 @@ agent_created: true
 > **不要试图「就地修一下让它过」** —— 本阶段是**只读**的校验器，不改 `03-storyboard/`。
 > 正确回路是：报出 →人工改 `03-storyboard/` → **重跑本阶段**。
 
-## 校验项全表（当前 16 项）
+## 校验项全表（当前 17 项）
 
 **时间轴类（9 项）**
 
@@ -99,7 +99,13 @@ agent_created: true
 |---|--------|------|------|-------|---------|
 | **16** | **`params` 按 `paramsSchema` + `requiredParams` 校验**（三条码，见下） | error | **P1** | **`E-P1-01/02/03`** | **—（不设 warning 档）** |
 
-**不在 16 项内、但同样会出现在报告里**
+**可读性类（1 项）**
+
+| # | 校验项 | 判定 | 来源 | error | warning |
+|---|--------|------|------|-------|---------|
+| **17** | **文本估算宽超出 `footprint`**：按 `textMetrics`（字号 / 内边距 / 余量）估算 CJK 1.0em、拉丁 0.5em | warning，**不阻断** | **D-B** | — | **`W-DB-01`** |
+
+**不在 17 项内、但同样会出现在报告里**
 
 | 项 | 判定 | 来源 | code |
 |----|------|------|------|
@@ -108,7 +114,8 @@ agent_created: true
 
 > 第 5 项**无错误码** —— 它不校验、直接放行，不产 report 条目。
 > 第 10 项最危险：`item` 结束帧超出 `<Composition>` 时长时 Remotion **静默截断，不打日志**，成片少一截而全链路无报错。**不可省略**。
-> **`summary.checked` 只数那 16 项**，不含下面两条警告 —— 它们记在 `summary.extra`。别把 `checked` 读成「全跑完了」。
+> **`summary.checked` 只数那 17 项**，不含下面两条警告 —— 它们记在 `summary.extra`。别把 `checked` 读成「全跑完了」。
+> ⚠️ 第 17 项是 **warning 档**，理由是判定基于字符宽度估算而非字体度量，误报会误伤合法起草；实测校准后方可升 error。
 
 ## 关键判定细则
 
@@ -139,7 +146,7 @@ agent_created: true
 | motion 类型 | footprint 约束 | 判定 |
 |-------------|----------------|------|
 | `overlay-safe` / `under-subject` | 须**避开**各级区域 | 超预算 → error |
-| `subject-transform` / `footage-transform` | 须**包住**安全区 | 未包住 → warning |
+| `subject-transform` / `footage-transform` | 须**包住**安全区 | 🔴 **本行尚未实装**（`W-D2-02` 于 2026-10-17 曾补入、**同日撤回**：载体类 `footprint` 是「视频位置」而非「overlay 位置」，且裁切量由 `params.scale` 决定、不体现在 footprint 上）。正确判据须基于 `visibleRegion(params)`，待 D4-t2 落地 |
 | `fullscreen` | — | **一律人工确认** → 本阶段只出 `W-D3-01`，硬拦在 render 启动闸 |
 
 **第 13 项三级退让**：冲突 → ① 同预算内尝试挪 `footprint`（不动时间轴、不改文案）→ ② 挪不动则自动切 `carrier` 模式 → ③ 仍冲突才报错。
@@ -176,7 +183,7 @@ agent_created: true
 {
   "jobId": "2026-10-12-demo",
   "ok": false,                       // 无 error 才为 true（warning 不影响）
-  "summary": { "error": 2, "warning": 3, "checked": 16, "extra": ["W-D3-01", "W-F6-01"] },
+  "summary": { "error": 2, "warning": 3, "checked": 17, "extra": ["W-D3-01", "W-F6-01"] },
   "items": [
     {
       "code": "E-C4-01",
@@ -194,7 +201,7 @@ agent_created: true
 ```
 
 渲染期兜底用同结构，`stage: "render"`，`code` 前缀 `E-RT-*` / `W-RT-*`。
-`summary.extra` 列出**不在 16 项内**但已执行的规则码（`W-D3-01` / `W-F6-01`）—— `checked` 与 `extra` 相加才是本次执行的全貌。
+`summary.extra` 列出**不在 17 项内**但已执行的规则码（`W-D3-01` / `W-F6-01`）—— `checked` 与 `extra` 相加才是本次执行的全貌。
 
 ## 两套码不要混用
 
@@ -237,7 +244,7 @@ agent_created: true
 
 ## 落盘检查清单
 
-- [ ] 16 项**全部**已跑（`summary.checked == 16`），无早退短路
+- [ ] 17 项**全部**已跑（`summary.checked == 17`），无早退短路
 - [ ] `items` 已按 `level` → `code` 排序，输出可逐字节复现
 - [ ] 有 error 时 `ok=false` 且已阻断（退出码 `1`）
 - [ ] 安全区判定优先级高于 exclusive 组判定
@@ -245,6 +252,7 @@ agent_created: true
 - [ ] 第 10 项（尾部截断）**没有**被跳过
 - [ ] 第 15 项（禁配段相交）**没有**被跳过
 - [ ] 第 16 项（参数契约）**没有**被跳过，`E-P1-01/02/03` 逐项跑过
+- [ ] 第 17 项（文本溢出）**没有**被跳过（它是 warning 档，但必须出现在 `checked` 的 17 项里）
 - [ ] 每个 item 的 `params` 键都对照过 `paramsSchema`；必填键对照过 `requiredParams`
 - [ ] 非有限数值（`NaN` / `Infinity`）未被 `'number'` 声明放行
 - [ ] `summary.extra` 已列出 `W-D3-01` / `W-F6-01`，未被误当成 `checked` 的一部分
