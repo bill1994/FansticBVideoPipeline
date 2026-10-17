@@ -8,10 +8,15 @@
 import { CODES } from '../core/errors.ts';
 import type { ReportItem } from '../core/report.ts';
 import { ConfigError } from '../core/exit-code.ts';
+import {
+  MIN_VISIBLE_RATIO,
+  carrierParamsOf,
+  visibleRegion,
+} from '../core/carrier-window.ts';
 import { getTemplate, hasTemplate } from '../templates/registry.ts';
 import { CARRIER_SCOPES, isCarrierScope, isMasterSlavePair } from '../templates/types.ts';
 import type { ValidateContext } from './context.ts';
-import { framesOverlap, rectOverlapArea } from './context.ts';
+import { framesOverlap, rectArea, rectOverlapArea } from './context.ts';
 import { mk } from './item.ts';
 
 /**
@@ -189,6 +194,78 @@ export function checkSubjectCutBoundary(ctx: ValidateContext): ReportItem[] {
         ),
       );
     }
+  }
+  return out;
+}
+
+/**
+ * `W-D2-02` —— **载体变换后主体被切走太多**（P4 重立，2026-10-17）。
+ *
+ * ── 判据（D4-t2 / Q3 派生判据）───────────────────────────────
+ * ```
+ * 对每个载体类 item:
+ *   vr = visibleRegion(carrierParamsOf(item))   // null = 无裁切
+ *   if (vr === null) continue                    // 不裁 ⇒ 无从切走主体
+ *   ratio = |safeArea ∩ vr| / |safeArea|
+ *   if (ratio < MIN_VISIBLE_RATIO) → warning
+ * ```
+ *
+ * ── 为什么判据不能挂在 `footprint` 上 ────────────────────────
+ * 载体类 `footprint` 是**视频位置**、不是 overlay 位置，而裁切量由变换参数决定、
+ * **根本不体现在 footprint 上**：
+ *   · `carrier/split-frame` footprint `[0.5,0,0.5,1]` = 视频显在右半屏，
+ *     但**裁掉多少**由 `window` 决定（`ratio` 从 0.3 到 0.7 画面完全不同）；
+ *   · `cinematic/punch-in` footprint 全屏 `[0,0,1,1]`，但 `scale=1.4` 时**四周确实被裁**。
+ * 这正是 D2-2 当日撤回本条的两条理由；判据换源为 `visibleRegion` 后才成立。
+ *
+ * ── 与 #8（`E-C3-02`）的分工 ──────────────────────────────────
+ * #8 管**时间**：item 是否骑跨裁切边界（画面会跳）。
+ * 本条管**空间**：主体在变换后还剩多少留在画面里。两者正交，不可互相替代。
+ *
+ * 🔴 **降级为 warning 的理由**：判据含 🔴 占位阈值 `MIN_VISIBLE_RATIO = 0.5`，
+ *   未在真实素材上校准 ⇒ 阻断会误伤合规成片。校准后可升 error。
+ */
+export function checkSubjectVisibleRegion(ctx: ValidateContext): ReportItem[] {
+  const out: ReportItem[] = [];
+
+  for (const s of ctx.scene) {
+    if (!isCarrierScope(s.tpl.scope)) continue;
+
+    // 主体锚定窗口以 shot.safeArea 为锚 —— 找不到该 shot 或 safeArea 为 null
+    // （主体不在场 / 感知低置信）时**无从判断**，跳过而非误报。
+    const vr = visibleRegion(carrierParamsOf(s.item));
+    if (vr === null) continue; // 无裁切 ⇒ 主体不会被切走
+
+    const shot = ctx.perceive.shots.find(
+      (sh) => sh.fromFrame <= s.start && s.start < sh.fromFrame + sh.durationInFrames,
+    );
+    const safeArea = shot?.safeArea ?? null;
+    if (!safeArea) continue; // 🔴 主体不在场 ⇒ 不判（归 W-F6-01 的地盘）
+
+    const safeAreaArea = rectArea(safeArea);
+    if (safeAreaArea <= 0) continue;
+
+    // ⚠️ 必须按**时间相交**而非「item 起始帧落在 shot 内」找 shot ——
+    //   item 可能横跨两个 shot，而 safeArea 是按 shot 取并集的（不逐帧跟随）。
+    const visible = rectOverlapArea(safeArea, vr);
+    const ratio = visible / safeAreaArea;
+
+    if (ratio >= MIN_VISIBLE_RATIO) continue;
+
+    out.push(
+      mk(
+        CODES.SUBJECT_CUT_VISIBLE,
+        'build',
+        [s.ref],
+        [s.start, s.end],
+        `载体 ${s.tpl.id} 变换后，主体（${shot!.id} 安全区）只剩 ${(ratio * 100).toFixed(1)}% 留在可见区内，` +
+          `< ${(MIN_VISIBLE_RATIO * 100).toFixed(0)}%。可见区 [${vr.map((v) => v.toFixed(2)).join(', ')}]，` +
+          `安全区 [${safeArea.map((v) => v.toFixed(2)).join(', ')}]`,
+        `把 ${s.tpl.id} 的裁切调小（split-frame 调 ratio 往 0.7 靠、punch-in 调 scale 往 1.0 靠），` +
+          `或换到主体不在该画面区的 shot。` +
+          `⚠️ 本判据阈值 ${MIN_VISIBLE_RATIO} 仍是占位值（未在真实素材校准），暂不阻断。`,
+      ),
+    );
   }
   return out;
 }

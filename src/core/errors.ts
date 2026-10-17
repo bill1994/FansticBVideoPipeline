@@ -80,6 +80,31 @@ export const CODES = {
   OCCLUSION_NUDGED: W('W-D2-01', 'occlusion-nudged', 'D2', 12, '遮挡冲突已由平移消解'),
 
   /**
+   * `W-D2-02` —— **载体变换后主体被切走太多**（P4 重立，2026-10-17）。
+   *
+   * 🔴 **历史**：本条于 2026-10-17 上午随「第 18 项」增补、**当日撤回**（D2-2）。
+   *   撤回的两条理由在 P4 已**逐条消解**：
+   *   ① 「split-frame 只有声明、无渲染实现」⇒ P2 已实现 `split-frame.tsx`，
+   *      且 22:50 真渲抽帧抓到并修掉了坐标系 bug（分界曾落在 0.75）；
+   *   ② 「用 footprint 判定对分屏误报、对放大漏报」⇒ **判据已换源**：
+   *      不再用 `footprint`，改用 `visibleRegion(params)`（认 `window` 裁切与
+   *      `scale` 放大两种来源），判据 = `|safeArea ∩ visibleRegion| / |safeArea| ≥ MIN_VISIBLE_RATIO`。
+   *
+   * ⚠️ 为何仍是 warning 不阻断：判据含 🔴 占位阈值 `MIN_VISIBLE_RATIO = 0.5`，
+   *   未在真实素材上校准 ⇒ 贸然阻断会误伤合规成片。校准后可升 error。
+   *
+   * 🔴 码字符串沿用 `W-D2-02`（与 `W-D4-01` 同款处理）：登记册 D2-2 已引用该码，
+   *   改字符串会破坏可追溯性。**语义以本注释与 `validate/geometry.ts` 为准**。
+   */
+  SUBJECT_CUT_VISIBLE: W(
+    'W-D2-02',
+    'subject-cut-visible',
+    'D2',
+    18,
+    '载体变换后主体可见比例低于阈值',
+  ),
+
+  /**
    * fullscreen 需人工确认。
    *
    * 来源：D3「`fullscreen` 类 motion 必然覆盖全画面，一律走人工确认，**不设自动放行规则**」。

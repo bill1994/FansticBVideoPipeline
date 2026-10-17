@@ -20,13 +20,13 @@ function codesOf(over: CtxOverrides = {}): string[] {
 }
 
 describe('基线', () => {
-  it('空 storyboard → ok，且 17 项全跑', () => {
+  it('空 storyboard → ok，且 18 项全跑', () => {
     const r = runValidation(makeCtx());
     expect(r.ok).toBe(true);
-    // 17 = 原 16 项 + #17（文本溢出，D-B 裁决 2026-10-15 增补）
-    // 注：#18（安全区未被包住）曾于 2026-10-17 增补后当日撤回，判据不成立，见 index.ts 注释
-    expect(r.summary.checked).toBe(17);
-    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(17);
+    // 18 = 17 + #18（`W-D2-02` 载体变换后主体可见比，P4 于 2026-10-17 当晚重立）
+    // 三段历史见 `src/validate/index.ts` 注释：上午增补 → 同日撤回 → 当晚换源重立。
+    expect(r.summary.checked).toBe(18);
+    expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(18);
     expect(r.summary.extra).toEqual(['W-D3-01', 'W-F6-01']);
     expect(r.items).toEqual([]);
   });

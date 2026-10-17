@@ -91,7 +91,7 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
   align       抽音轨 → 16kHz 单声道 wav，强制对齐，置信度门控
   perceive    抽帧 + 主体/手持物/B-roll 检测 + 安全区
   storyboard  按词级锚点起草并烘焙 storyboard.json
-  validate    跑构建期校验项（当前 17 项），产出 validate-report.json
+  validate    跑构建期校验项（当前 18 项），产出 validate-report.json
   render      C6 双栈映射 + 本地渲染（必须显式 --gl=angle）
 
 选项：
