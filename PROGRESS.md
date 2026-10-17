@@ -26,7 +26,7 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 | `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。真实素材实测 `alignedRatio=1.0`、8/8 cue、72 词、0 空洞/0 重叠/0 倒序 |
 | `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**：kukini 15 shot（face 8 / handheld 8 / broll 7）、3月22日 29（13 / 13 / 16）、5月28日 33（13 / 13 / 20）—— 合计 77 shot，**0 低置信** |
 | `03-storyboard` 起草 | 🔶 | 管线通；「本仓库不内置模型调用」，用户须手写 `sim_max`/`confidence` |
-| `04-validate` 校验 | ✅ | **17 项**（+#17 文本溢出）+ **2 条起草原生约束**（`W-D3-01` fullscreen 确认 / `W-F6-01` 主体未确），0 error / 2 warning（demo）。⚠️ #18「安全区未被包住」曾于 10-17 增补、同日撤回（判据不成立，见 D2-2） |
+| `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比，P4 重立）+ **2 条起草原生约束**（`W-D3-01` fullscreen 确认 / `W-F6-01` 主体未确），0 error / 2 warning（demo）。⚠️ #18「安全区未被包住」曾于 10-17 增补、同日撤回（判据不成立，见 D2-2） |
 | `05-render` 渲染 | 🔶 | **模板已不再是灰框** —— 9 个有真实实现（含两个背景链：放大式 `punch-in` / 裁切分屏式 `split-frame`）；第二轮打磨（缓动/进出场）已落地；质感与配比待真实素材调校 |
 
 **结论：六道闸过了四道半 —— 硬阻断已解除。「出片」不再是"走不到渲染"，而是"能走完但未打磨"。**
@@ -42,8 +42,8 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
-- **校验器**：构建期 **17 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**359 项全过**（22 文件：validate 41 / template-render 32 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / carrier-window 20 / caption 19 / schedule 19 / params 17 / yunet 17 / shot-detect 14 / bake 14 / region-derive 12 / carrier-contract 10 / occlusion 10 / split-frame 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
+- **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
+- **单测**：**384 项全过**（23 文件：validate 41 / template-render 32 / carrier-window 30 / text-overflow 26 / text-align 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / yunet 17 / params 17 / split-frame 14 / shot-detect 14 / bake 14 / region-derive 12 / occlusion 11 / subject-visible 10 / carrier-contract 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -74,7 +74,7 @@ if (j < m && dp[i][j+1] < cur - 0.5) ...    // 跳过 segment 罚分 0.5
 `getTemplate()` 只返回**声明**（纯数据），从 `motion id` 到 React 组件之间一片空白，
 于是所有 motion 渲染出**逐像素相同**的灰框。
 
-🔴 **这类退化能逃过全部现有防线**：17 项校验是纯 JSON→JSON（不读渲染产物）、
+🔴 **这类退化能逃过全部现有防线**：18 项校验是纯 JSON→JSON（不读渲染产物）、
 typecheck 通过、原有 183 项单测无一断言渲染产物、成片能正常导出不报错。
 ⇒ **只有直接断言渲染输出的测试能兜住它**（已补，见下）。
 
@@ -153,7 +153,7 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 ⚠️ `whiteSpace: nowrap` 意味着溢出**既不折行也不缩放**
 ⇒ 模型填长文本会让成片出现跑出画面的文字，
-**而 17 项校验完全看不出来**（全是结构判定，不读渲染结果）。
+**而 18 项校验完全看不出来**（全是结构判定，不读渲染结果）。
 
 两条处置（渲染期自适应 / 构建期校验）**均未实施、待裁决**，
 理由见手感表 §7 与下方问题 6。
@@ -216,9 +216,12 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 ### 1. ⚠️ 模板 9/11，剩余 2 个**已无外部阻塞**（2026-10-17 更新）
 
 已解除"完全无产出"，剩下的是工作量与施工顺序，**不再是依赖问题**：
-- ✅ **`carrier/split-frame`**：**P2 已完成**（2026-10-17）—— cover 裁切分屏 + 主体锚定窗口，
-  几何真源 `core/carrier-window.ts`（含 `visibleRegion`），30 项新测。⚠️ 未做真渲抽帧、窗口锚定未校准 ⇒ `status` 仍 `experimental`。
-  **但 tier2 尚未接线（P3）** ⇒ 声明了载体也不会真的改变成片。
+- ✅ **`carrier/split-frame`**：**P1–P4 全部完成**（2026-10-17）—— P1 契约 + P2 实现
+  （cover 裁切分屏 + 主体锚定窗口，几何真源 `core/carrier-window.ts` 含 `visibleRegion`）
+  + P3 tier2 真正接线（**通道方案 A**：`render` 侧重算消解 + 写入 `carrier.params.window`）
+  + P4 以 `visibleRegion` 重立 `W-D2-02`（第 18 项）。
+  🔴 同日真渲抽帧抓到并修掉坐标系 bug（分界曾落在 0.75 而非 0.5，偏差 25%）。
+  ⚠️ 仍 `experimental`：`MIN_VISIBLE_RATIO` 等阈值未校准、真素材端到端未验。
 - **`annotation/pointer-callout`**：**主体框已由内置 perceive 产出**，可开工（依赖已解除）。
 - **`transition/whip-pan`**（fullscreen）：**确认闸已实装**，无外部阻塞。
   ⚠️ **2026-10-16 更正计划书 §4.6 的一处时点判断**：计划书把第 5 批写作「等 06-review 流程就绪」，
@@ -238,7 +241,7 @@ tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告�
 原三个阻塞点：
 - ✅ `StoryboardItem` 无处承载「已切载体、画面要缩进哪个框」—— **2026-10-17 P1 已解决**：新增 `carrier?: { template, params }`
 - ✅ `CARRIER_FALLBACK` 按 motion 索引，**放不下逐 item 几何**—— **已废除**（裁决 Q2：逐 item 显式声明，废全局表）
-- ⬚ `split-frame` 表达不了「把这条 motion 挪出这张人脸」—— **仍未解决**（P2 实现模板 + P3 接线 + P4 重立 `W-D2-02`）
+- ✅ `split-frame` 现已能表达「把这条 motion 挪出这张人脸」—— P2 实现模板 + P3 接线 + P4 重立 `W-D2-02` 均已完成（🔴 阈值未校准，且真素材端到端未验）
 
 **修复须先在登记册立一条承载字段的裁决** —— ✅ 已立（`D4-t2`，2026-10-17）。
 ⚠️ P1 只立契约 + 加引用合法性结构检查，**tier2 仍不施加任何变换**（声明了也照出 `W-D4-01`）。
@@ -254,7 +257,7 @@ tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告�
 | `PERCEIVE.safeAreaTopRatio` | 0.6 | 🔴 PLACEHOLDER（SPEC 只写"取 bbox 上部"，无精确比例；0.6 取自 talkcraft 口径） |
 | `HANDHELD_EXPANSION` | 宽 3× / 高 2.5× | 🔴 PLACEHOLDER：高度由 s2 实测反推（手与鞋在 0.75–0.85），只对当前构图成立 |
 | 显著性 `targetAreaRatio` | 0.35 | 🔴 PLACEHOLDER：三素材目视可接受，未做量化 |
-| `MIN_VISIBLE_RATIO`（D4-t2 派生） | 0.5 | 🔴 PLACEHOLDER：判据本身尚未实现（P4） |
+| `MIN_VISIBLE_RATIO`（D4-t2 派生） | 0.5 | 🔴 PLACEHOLDER：**判据已于 P4 实装**（`W-D2-02` 第 18 项），阈值本身仍未在真实素材校准 |
 
 > **`DENSITY.maxItemsPerCue = 3` 是个未校准的占位值，却会阻断真实素材**，
 > 而项目没有编辑 UI，用户只能手改 JSON。这是「过度严格」最现实的伤害点。
@@ -305,7 +308,7 @@ tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告�
 ### 6. ⚠️ 长文本溢出会跑出画面，但校验器看不见
 
 `whiteSpace: nowrap` + 模型可填长文本 ⇒ **成片出现跑出画面的文字**，
-而 17 项校验全是结构判定，**完全看不出**。
+而 18 项校验全是结构判定，**完全看不出**。
 
 真渲实测 16 中文字：`kinetic-line`/`lower-third`/`tag-float` 均溢出，
 `stat-card` 溢出画面边界。真实阈值约 13–14 中文字（比初稿估计宽 3 倍）。
@@ -338,7 +341,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 4 | ~~契约字段审计~~ | `occludesSubject` 补实现 / `handoffIn` 删除（问题 9） | ✅ 2026-10-15 |
 | 5 | ~~接入 perceive（face 通道）~~ | 内置后端上线：镜头切分（ffmpeg `scdet`，阈值 10 实测无漏检/无过检）+ YuNet 人脸检测 → shot 级并集 → `safeArea`（主体 bbox 上部 60%）。未配 `PERCEIVER_CMD` 不再退出码 2。真实素材实测 15 shot / 12 有主体 | ✅ 2026-10-17 |
 | 5b | ~~补 `handheld` / `broll` 两通道~~ | **handheld**：人脸框外扩成「上半身＋手部」区域，**不做物体检测** —— 主讲解物品是鞋子而 COCO 80 类无 shoe，且用户判断「只要上半身不被遮挡」即够；**broll**：仅无脸镜头用经典显著性（零模型），框不到即退让；有脸 shot 不产 broll（实测会框到背景噪声）。⚠️ `HANDHELD_EXPANSION` 与显著性 `targetAreaRatio` 均为占位值 | ✅ 2026-10-17 |
-| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 契约 + 结构校验** → **P2 ✅ `split-frame.tsx` + `core/carrier-window.ts`（含 `visibleRegion`）** → P3 tier2 真正接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 施工中（2/4） |
+| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 契约 + 结构校验** → **P2 ✅ `split-frame.tsx` + `core/carrier-window.ts`（含 `visibleRegion`）** → **P3 ✅ tier2 真正接线**（通道方案 A：render 侧重算 + 写入 `carrier.params.window`）→ **P4 ✅ 以 `visibleRegion` 重立 `W-D2-02`** | ✅ 施工完成（4/4） |
 
 > ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
 > 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
@@ -379,9 +382,9 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ## 七、当前真实数字
 
 ```
-校验项      17 项（构建期）+ 3 类（渲染期兜底）
+校验项      18 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        359 项全过（22 文件）           ← … → 318 → 328（P1 契约）→ 359（P2 载体窗口 20 + split-frame 渲染 10 + 出场豁免名单 1）
+单测        384 项全过（23 文件）           ← … → 318 → 328（P1 契约）→ 359（P2）→ 364（P3）→ 374（P4）→ 384（复核 visibleRegion 修三处缺陷）
 契约字段    occludesSubject 已补实现；handoffIn 已删除；`item.carrier` 已立契约（D4-t2 P1）← 前两者此前零消费
 登记册      44 条表格行含 RESOLVED（`grep '^|.*RESOLVED'` 可复算；+D4-t2；D2-2 为 REVERTED）；OPEN：C2-2（待实测）/ C2-3（倾向不做）
 模板        11 个声明 / 9 个实现            ← 0 → 5 → 7 → 8 → 9（批次 2 + D-A + D4-t2 的 P2；剩余 2 个，见 §四 1）
@@ -395,7 +398,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 
 > ⚠️ **D4-t2 的 P1 没有新增校验项**：`item.carrier` 的引用合法性属**结构错误**
-> （`ConfigError` → 退出码 2，与 `handoffTo` 指向不存在 track 同类），**不占 17 项名额**。
+> （`ConfigError` → 退出码 2，与 `handoffTo` 指向不存在 track 同类），**不占 18 项名额**。
 > 加校验项须先改登记册，而本次改的是契约不是清单。
 
 ### 已知环境问题（非项目 bug）

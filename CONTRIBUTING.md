@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 318 项全过（19 文件）
+npm test               # 应 384 项全过（23 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
@@ -29,7 +29,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 00-input → 01-align → 02-perceive → 03-storyboard → 04-validate → 05-render
                             ↑                            ↓
-                      ⚠️ 需外部感知器            纯 JSON→JSON，17 项
+                      ⚠️ 需外部感知器            纯 JSON→JSON，18 项
 ```
 
 **核心心智模型：帧是真相。**
@@ -39,7 +39,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | 目录 | 职责 | 关键文件 |
 |---|---|---|
 | `src/core/` | 类型契约、调度、烘焙、IO | `bake.ts`（锚点→帧）、`types.ts` |
-| `src/validate/` | **17 项**构建期校验（纯函数） | `text-metrics.ts`（#17，最新） |
+| `src/validate/` | **18 项**构建期校验（纯函数） | `geometry.ts`（#18 载体可见比，P4 最新） |
 | `src/templates/` | 11 个模板的**声明**（非实现） | `builtin.ts` |
 | `src/remotion/` | 渲染层 | `templates/`（**9 个真实实现**）、`tokens.ts`、`carrier.tsx`（背景链分段包裹）、`core/carrier-window.ts`（载体窗口几何真源） |
 | `.workbuddy/skills/` | 五阶段执行期行为契约 | `perceive/SKILL.md` 等 |

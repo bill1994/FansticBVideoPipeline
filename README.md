@@ -23,7 +23,7 @@
 
 ```
 00-input ──► 01-align ──► 02-perceive ──► 03-storyboard ──► 04-validate ──► 05-render ──► 06-review
-  素材       强制对齐        感知与安全区      storyboard 起草      校验（当前 17 项）       渲染出片      人工放行
+  素材       强制对齐        感知与安全区      storyboard 起草      校验（当前 18 项）       渲染出片      人工放行
              ↑ 门控                                ↑ 烘焙锚点→帧      ↑ 有 error 停
 ```
 
@@ -34,7 +34,7 @@
 | `align` | 抽 16kHz 单声道 wav → 强制对齐 → 置信度门控 | **门控不达标必须停**，降级必须阻断 |
 | `perceive` | 抽帧、镜头切分、主体检测、安全区与区域预算基线 | **内置后端**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）→ 人脸框外扩（`handheld`）→ 无脸镜头显著性（`broll`）。未配 `PERCEIVER_CMD` 也能直接跑；配了则走外部感知器覆盖。低置信**不阻断**，走告警 + 人工兜底 |
 | `storyboard` | 按**词级锚点**起草并烘焙 `storyboard.json` | 安全阀 / fullscreen / custom 不许绕地板 |
-| `validate` | 跑构建期校验项（当前 17 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
+| `validate` | 跑构建期校验项（当前 18 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
 | `render` | C6 双栈映射 + 本地渲染 | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
 
 每阶段的详细行为契约见 [`.workbuddy/skills/`](.workbuddy/skills/) —— 那是**执行期读**的精简版，
@@ -78,7 +78,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 17` + `summary.extra = 2`），
 并写出 `examples/demo/04-validate/validate-report.json`；
 那两条 warning 都是 `W-F6-01`（示例里 s2 镜头与其人脸区被故意标成低置信，用来演示 F6 的人工兜底通道）。
-注意 `checked` 只数清单内的 17 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
+注意 `checked` 只数清单内的 18 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
 
 其他命令：
 
@@ -103,7 +103,7 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 │   │   ├── schedule.ts       两道闸 + 产路地板 + 动态阈值 T
 │   │   ├── bake.ts           锚点 → 帧的一次性烘焙
 │   │   └── io.ts             job 目录 + 不可变快照守卫
-│   ├── validate/             构建期校验（当前 17 项，纯函数）
+│   ├── validate/             构建期校验（当前 18 项，纯函数）
 │   ├── templates/            模板契约（双轴 family × scope）与注册表
 │   ├── stages/               五个阶段的执行逻辑
 │   └── remotion/             Remotion 工程（C6 双栈映射）
