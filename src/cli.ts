@@ -133,7 +133,7 @@ function runInit(args: Args): ExitCode {
   return EXIT.OK;
 }
 
-function main(): ExitCode {
+async function main(): Promise<ExitCode> {
   assertRegistryValid();
   const args = parseArgs(process.argv.slice(2));
 
@@ -174,7 +174,7 @@ function main(): ExitCode {
     }
 
     case 'perceive': {
-      const outcome = runPerceive({
+      const outcome = await runPerceive({
         jobId: args.job,
         jobsDir: args.jobsDir,
         force: args.force,
@@ -223,9 +223,9 @@ function main(): ExitCode {
   }
 }
 
-const code = ((): ExitCode => {
+const code = await (async (): Promise<ExitCode> => {
   try {
-    return main();
+    return await main();
   } catch (e) {
     if (e instanceof ConfigError) {
       log.error(e.message);

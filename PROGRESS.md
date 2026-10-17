@@ -1,6 +1,6 @@
 # 项目进度 — Remotion 视频动效叠加管线
 
-> 最近更新：2026-10-16
+> 最近更新：2026-10-17
 > 状态标记：✅ 完成 / 🔶 进行中 / ⛔ 明确不做 / ❌ 未做
 
 ---
@@ -24,12 +24,12 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 |----|------|------|
 | `00-input` 放素材 | ✅ | — |
 | `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。真实素材实测 `alignedRatio=1.0`、8/8 cue、72 词、0 空洞/0 重叠/0 倒序 |
-| `02-perceive` 主体检测 | ❌ | `PERCEIVER_CMD` 未配置 → 退出码 2 |
+| `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**：kukini 15 shot（face 8 / handheld 8 / broll 7）、3月22日 29（13 / 13 / 16）、5月28日 33（13 / 13 / 20）—— 合计 77 shot，**0 低置信** |
 | `03-storyboard` 起草 | 🔶 | 管线通；「本仓库不内置模型调用」，用户须手写 `sim_max`/`confidence` |
-| `04-validate` 校验 | ✅ | **17 项**（+#17 文本溢出），0 error / 2 warning（demo） |
+| `04-validate` 校验 | ✅ | **17 项**（+#17 文本溢出）+ **2 条起草原生约束**（`W-D3-01` fullscreen 确认 / `W-F6-01` 主体未确），0 error / 2 warning（demo）。⚠️ #18「安全区未被包住」曾于 10-17 增补、同日撤回（判据不成立，见 D2-2） |
 | `05-render` 渲染 | 🔶 | **模板已不再是灰框** —— 8 个有真实实现（含背景链/遮挡型/fullscreen）；第二轮打磨（缓动/进出场）已落地；质感与配比待真实素材调校 |
 
-**结论：六道闸过了三道半。「出片」从"完全没价值"变成"有产出但未打磨"。**
+**结论：六道闸过了四道半 —— 硬阻断已解除。「出片」不再是"走不到渲染"，而是"能走完但未打磨"。**
 
 ---
 
@@ -42,8 +42,8 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
-- **校验器**：构建期 **17 项**（纯 JSON→JSON）+ 渲染期兜底三类
-- **单测**：**269 项全过**（15 文件：validate 41 / template-render 31 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / params 17 / bake 14 / occlusion 10 / align-gate 9 / carrier 6 / dtw-unit 5 / whisper-path 3）
+- **校验器**：构建期 **17 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
+- **单测**：**318 项全过**（19 文件：validate 41 / template-render 31 / text-align 26 / text-overflow 26 / srt 22 / zh-normalize 21 / schedule 19 / caption 19 / params 17 / yunet 17 / shot-detect 14 / bake 14 / region-derive 12 / occlusion 10 / align-gate 9 / perceive-sampling 6 / carrier 6 / dtw-unit 5 / whisper-path 3）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -329,14 +329,14 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 2 | ~~模板实现（最小 5 个）~~ | D1 第一轮 | ✅ 2026-10-15 |
 | 3 | ~~模板第二轮打磨~~ | 缓动曲线、时值配比、进出场质感 + 参数手感表 | ✅ 2026-10-15 |
 | 4 | ~~契约字段审计~~ | `occludesSubject` 补实现 / `handoffIn` 删除（问题 9） | ✅ 2026-10-15 |
-| 5 | **接入 perceive** | 全 Node（`onnxruntime-node`，M-2）已开装；**选型报告已交付**（`docs/reviews/2026-10-16-perceive检测后端选型与工程集成-研究报告.md` v1.1）；**阶段 A 已通过**（YuNet 实测与 OpenCV 参照逐框对齐 <0.5px） | 🔶 **第一优先（施工中）** |
-| 6 | **修 tier2 载体退让** | 须先立裁决（承载字段 + 键粒度 + 新载体模板）；解锁第 3 批 `split-frame` | ❌ |
+| 5 | ~~接入 perceive（face 通道）~~ | 内置后端上线：镜头切分（ffmpeg `scdet`，阈值 10 实测无漏检/无过检）+ YuNet 人脸检测 → shot 级并集 → `safeArea`（主体 bbox 上部 60%）。未配 `PERCEIVER_CMD` 不再退出码 2。真实素材实测 15 shot / 12 有主体 | ✅ 2026-10-17 |
+| 5b | ~~补 `handheld` / `broll` 两通道~~ | **handheld**：人脸框外扩成「上半身＋手部」区域，**不做物体检测** —— 主讲解物品是鞋子而 COCO 80 类无 shoe，且用户判断「只要上半身不被遮挡」即够；**broll**：仅无脸镜头用经典显著性（零模型），框不到即退让；有脸 shot 不产 broll（实测会框到背景噪声）。⚠️ `HANDHELD_EXPANSION` 与显著性 `targetAreaRatio` 均为占位值 | ✅ 2026-10-17 |
+| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工待做：P1 改契约 → P2 实现 `split-frame.tsx` → P3 tier2 接线 → P4 以 `visibleRegion` 重立 W-D2-02 | 🔶 裁决完成，待施工 |
 
-> ⚠️ **顺序第三次变化**：模板两轮打磨与契约字段审计均已完成，
-> 第一优先现为**接入 perceive** —— 它不只是"少了检测能力"：
-> 缺 `02-perceive` 产物时 `validate` **直接拒绝启动**（阶段目录不可变快照，缺即为前置未跑），
-> 而 `perceive` 阶段本身未配置 `PERCEIVER_CMD` 即退出码 2
-> ⇒ **真实素材在 `01-align` 之后无路可走**，这是当前唯一的硬阻断点。
+> ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
+> 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
+> 内置后端上线后这条路通了。剩余缺口不再是「无路可走」，而是**感知覆盖不全**：
+> `handheld`（手持讲解物品）与 `broll`（B-roll 主体）两通道未实现（见 5b）。
 
 ### 阶段 2 · 补齐质量
 
@@ -374,7 +374,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      17 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        269 项全过（15 文件）           ← 183 → 249 → 265 → 269（批次 2 / D7 / D-A）
+单测        318 项全过（19 文件）           ← … → 300 → 312 → 318（批次 2 / D7 / D-A / 感知接入；+7 于当日增补后又撤回）
 登记册      47 条 RESOLVED（+D-A / +M-2 / +M-4；D-B2 亦已裁决待实施）；OPEN：C2-2（待实测）
 模板        11 个声明 / 8 个实现            ← 0 → 5 → 7 → 8（批次 2 + D-A；剩余 3 个分批，见 §4.6）
 遮挡判定    首个遮挡型模板 center-emphasis 落地  ← 此前 10/10 模板 0 触发（D-A）

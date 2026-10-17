@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 269 项全过（15 文件）
+npm test               # 应 318 项全过（19 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json

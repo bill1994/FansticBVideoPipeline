@@ -110,6 +110,28 @@ export const REMOTION_VERSION = '4.0.534';
 export const DEFAULT_FRAME_INTERVAL_SEC = 1.5;
 
 /**
+ * 感知阶段（02-perceive）参数。
+ *
+ * ⚠️ `safeAreaTopRatio` 是 **PLACEHOLDER**：SPEC §2.7 只写「安全区 ≠ 主体 bbox，
+ *    取 **bbox 上部**（腿部以下可压）」，**没有给精确比例**。
+ *    0.6 取自 talkcraft 的生产口径（上 60% / 左右 20%），**待真实素材校准**。
+ *    ⚠️ 与 `ALIGN_GATE` 同理：占位值不得当校准结论引用。
+ *
+ * `scoreThreshold` / `nmsThreshold` 对齐 opencv_zoo demo 的默认值（0.9 / 0.3），
+ * 这两项是**上游惯例**而非本项目实测 —— 检测率偏低时可调，但调完须记下依据。
+ */
+export const PERCEIVE = {
+  /** 安全区 = 主体 bbox 的上部比例。🔴 PLACEHOLDER（SPEC 未规定）。 */
+  safeAreaTopRatio: 0.6,
+  /** 检测输入长边：先等比缩到此值，再向上补到 32 的倍数。 */
+  detectMaxSide: 512,
+  /** YuNet 分数阈值（对齐 opencv_zoo demo）。 */
+  scoreThreshold: 0.9,
+  /** NMS IoU 阈值（对齐 opencv_zoo demo）。 */
+  nmsThreshold: 0.3,
+} as const;
+
+/**
  * D4 三级退让的载体映射：`motion id → carrier 模板 id`。
  *
  * ⚠️ 【实现期拟定，文档未点名】

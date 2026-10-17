@@ -32,7 +32,7 @@
 | 阶段 | 做什么 | 必须停 |
 |------|--------|--------|
 | `align` | 抽 16kHz 单声道 wav → 强制对齐 → 置信度门控 | **门控不达标必须停**，降级必须阻断 |
-| `perceive` | 抽帧、主体检测、安全区与区域预算基线 | ⚠️ 未配置 `PERCEIVER_CMD` → 退出码 2；**且缺 `02-perceive` 产物时 `validate` 直接拒绝启动**（阶段目录不可变快照，缺即为前置未跑）。检测结果低置信**不阻断**，走告警 + 人工兜底 |
+| `perceive` | 抽帧、镜头切分、主体检测、安全区与区域预算基线 | **内置后端**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）→ 人脸框外扩（`handheld`）→ 无脸镜头显著性（`broll`）。未配 `PERCEIVER_CMD` 也能直接跑；配了则走外部感知器覆盖。低置信**不阻断**，走告警 + 人工兜底 |
 | `storyboard` | 按**词级锚点**起草并烘焙 `storyboard.json` | 安全阀 / fullscreen / custom 不许绕地板 |
 | `validate` | 跑构建期校验项（当前 17 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
 | `render` | C6 双栈映射 + 本地渲染 | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
@@ -137,12 +137,16 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 
 ## 外部工具适配
 
-`align` 与 `perceive` 需要**专用模型** —— 但**都不是「重型」的**：
+需要模型的阶段（`align` / `perceive`）**都有内置实现**，外部命令是可选覆盖：
 
-| 阶段 | 用什么 | 体积 |
-|------|--------|------|
-| `align` | `@remotion/install-whisper-cpp`（Remotion 官方包，逐词时间戳 + probability） | 75MB ~ 1.5GB |
-| `perceive` | MediaPipe（pose 9.4MB / hand 7.8MB / face 230KB）+ 经典显著性（零模型） | 几 MB 级 |
+| 阶段 | 内置用什么 | 体积 |
+|------|-----------|------|
+| `align` | `whisper.cpp`（出逐词时间）+ **SRT 文字权威** + 内置 DP 对齐（`text-align.ts`） | whisper 模型 148MB |
+| `perceive` | **YuNet**（MIT，人脸检测，已实测与 OpenCV 参照逐框对齐 <0.5px）+ ffmpeg `scdet`（镜头切分） | 230KB |
+
+> `perceive` 内置后端三通道：`face`（YuNet 人脸）、`handheld`（人脸框外扩，**不做物体检测**）、
+> `broll`（仅无脸镜头用经典显著性，框不到即退让）。主讲解物品是鞋子而 **COCO 80 类里没有 shoe**，
+> 所以 `handheld` 走几何外扩 —— 语义是「保护上半身＋手部区域」，不是精确物品框。
 
 **为什么不让多模态大模型直接干？** 分界是「**测量 vs 选择**」：
 逐词时间戳、bbox 坐标、显著性峰值属于**测量**，多模态模型的实测误差比容差大一个数量级
@@ -150,10 +154,11 @@ npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 它擅长的是**选择** —— 候选框三选一、shot 分类、挑模板写文案。
 
 完整论证、待裁决项与落地计划见
-[`docs/proposals/2026-10-13-模型选型与分工.md`](docs/proposals/2026-10-13-模型选型与分工.md)。
+[`docs/proposals/2026-10-13-模型选型与分工.md`](docs/proposals/2026-10-13-模型选型与分工.md)；
+感知后端的选型与集成方案见
+[`docs/reviews/2026-10-16-perceive检测后端选型与工程集成-研究报告.md`](docs/reviews/2026-10-16-perceive检测后端选型与工程集成-研究报告.md)。
 
-本仓库**暂不内置**这两个阶段的模型实现 —— 选型有两条待裁决的岔路，故先只定义
-**输入输出契约**，通过环境变量接入：
+**外部命令覆盖**（可选；都不配也能跑）：
 
 ```bash
 # 强制对齐：把 {fps, words: WordTimestamp[], cues: Cue[]} 写到 {out}
@@ -163,8 +168,13 @@ export ALIGNER_CMD="python tools/align.py --wav {wav} --srt {srt} --out {out} --
 export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_dir} --out {out_dir} --fps {fps} --interval {interval}"
 ```
 
-未配置时**直接报错退出（退出码 2）**，绝不伪造对齐或检测结果 ——
-一条静默产出的错误 storyboard，比一次显式失败危险得多。
+未配外部命令时走内置实现；内置也跑不通（缺 whisper 模型 / 缺 ffmpeg / 缺 YuNet 权重）时
+**显式报错退出（退出码 2），绝不伪造结果** —— 一条静默产出的错误 storyboard，
+比一次显式失败危险得多。
+
+> 模型权重**不入库**（`.gitignore` 忽略 `perceive-models/`）：换机需重新下载，
+> 且下载后应校验 sha256（YuNet 2026may 官方版 = `ebafce4e…`，229,738 字节）。
+> `PERCEIVE_MODEL` 可覆盖模型路径。
 
 > 换模型的代价很低：`02-perceive` 的产物契约已定死形状，实现只需填内容，
 > 下游校验器不关心模型怎么来。

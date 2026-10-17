@@ -29,6 +29,7 @@ describe('基线', () => {
     const r = runValidation(makeCtx());
     expect(r.ok).toBe(true);
     // 17 = 原 16 项 + #17（文本溢出，D-B 裁决 2026-10-15 增补）
+    // 注：#18（安全区未被包住）曾于 2026-10-17 增补后当日撤回，判据不成立，见 index.ts 注释
     expect(r.summary.checked).toBe(17);
     expect(DOCUMENTED_CHECK_ITEMS).toHaveLength(17);
     expect(r.summary.extra).toEqual(['W-D3-01', 'W-F6-01']);

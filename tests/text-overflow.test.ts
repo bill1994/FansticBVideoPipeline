@@ -197,7 +197,8 @@ describe('#17 · warning 不阻断 + 编入清单', () => {
 
   it('第 17 项已编入 DOCUMENTED_CHECK_ITEMS', () => {
     expect(DOCUMENTED_CHECK_ITEMS).toContain(17);
-    expect(DOCUMENTED_CHECK_ITEMS.length).toBe(17);
+    // 刻意不断言长度：清单是活清单，每增补一项都要改这里就是脆弱耦合。
+    // 长度由 tests/validate.test.ts 的基线测试统一把关。
   });
 });
 

@@ -15,14 +15,31 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_FRAME_INTERVAL_SEC, STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { PerceiveRegion, PerceiveResult, RegionKind, Shot, SourceManifest } from '../core/types.ts';
 import { OCCLUSION_BUDGET } from '../core/config.ts';
+import { runBuiltinPerceive } from './builtin-perceive.ts';
+import { detectShotSpans } from './shot-detect.ts';
 
 const REGION_KINDS: RegionKind[] = ['face', 'handheld', 'broll'];
+
+/** 仓库根（不依赖 cwd —— D7 的教训：换机/换工作目录都要能解析）。 */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+/**
+ * 内置后端默认模型路径。
+ * 模型不入库（`.gitignore` 忽略 `perceive-models/`），换机需重新下载；
+ * 可用 `PERCEIVE_MODEL` 环境变量覆盖（绝对路径或相对 cwd）。
+ */
+export const DEFAULT_MODEL_PATH = path.join(
+  REPO_ROOT,
+  'perceive-models',
+  'face_detection_yunet_2026may-official.onnx',
+);
 
 export interface PerceiveOptions {
   jobId: string;
@@ -50,10 +67,11 @@ export function runExternalPerceiver(
   const tpl = process.env.PERCEIVER_CMD;
   if (!tpl) {
     throw new ConfigError(
-      '未配置 PERCEIVER_CMD —— 主体/手持物/B-roll 检测需要外部感知器。\n' +
-        '  示例：PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_dir} --out {out_dir} --fps {fps} --interval {interval}"\n' +
-        '  契约：写出 {out_dir}/shots.json（Shot[]）与 {out_dir}/regions.json（PerceiveRegion[]）\n' +
-        '  提示：安全区取 bbox 上部、按 shot 取并集；手持物走 shot 级累积（D2/D5）。',
+      '未配置 PERCEIVER_CMD。\n' +
+        '  内置后端（YuNet）已可用 —— 不配该变量即自动走内置，无需外部感知器。\n' +
+        '  若要走外部感知器，请配置本变量：\n' +
+        '  PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_dir} --out {out_dir} --fps {fps} --interval {interval}"\n' +
+        '  契约：写出 {out_dir}/shots.json（Shot[]）与 {out_dir}/regions.json（PerceiveRegion[]）',
     );
   }
   const cmd = tpl
@@ -101,7 +119,7 @@ export interface PerceiveOutcome {
   lowConfidenceShots: string[];
 }
 
-export function runPerceive(opts: PerceiveOptions): PerceiveOutcome {
+export async function runPerceive(opts: PerceiveOptions): Promise<PerceiveOutcome> {
   const base = jobDir(opts.jobId, opts.jobsDir);
   const dir = stageDir(opts.jobId, STAGES.perceive, opts.jobsDir);
   const shotsFile = path.join(dir, 'shots.json');
@@ -127,10 +145,36 @@ export function runPerceive(opts: PerceiveOptions): PerceiveOutcome {
   }
 
   const interval = opts.frameIntervalSec ?? DEFAULT_FRAME_INTERVAL_SEC;
-  log.stage('perceive', `抽帧（每 ${interval}s，可调）+ 主体/手持物/B-roll 检测`);
 
-  const framesDir = path.join(dir, 'frames');
-  runExternalPerceiver(videoPath, framesDir, dir, source.fps, interval);
+  if (process.env.PERCEIVER_CMD) {
+    log.stage('perceive', `外部感知器：抽帧（每 ${interval}s）+ 检测`);
+    const framesDir = path.join(dir, 'frames');
+    runExternalPerceiver(videoPath, framesDir, dir, source.fps, interval);
+  } else {
+    // 未配置外部命令 → 走**内置后端**。
+    // 🔴 此前这里直接抛 ConfigError（退出码 2），是「真实素材在 01-align 之后无路可走」的
+    //    唯一硬阻断点。内置后端上线后该阻断解除，外部命令仍作为可选覆盖保留。
+    log.stage('perceive', `内置感知器（YuNet）：镜头切分 + 每 ${interval}s 抽帧检测`);
+
+    const { spans } = detectShotSpans(videoPath, source.fps, source.durationInFrames, {});
+    log.info(`镜头切分：${spans.length} 个 shot`);
+
+    const modelPath = process.env.PERCEIVE_MODEL
+      ? path.resolve(process.env.PERCEIVE_MODEL)
+      : DEFAULT_MODEL_PATH;
+
+    const builtin = await runBuiltinPerceive({
+      videoPath,
+      modelPath,
+      fps: source.fps,
+      totalFrames: source.durationInFrames,
+      spans,
+      frameIntervalSec: interval,
+    });
+
+    writeJson(shotsFile, builtin.shots);
+    writeJson(regionsFile, builtin.regions);
+  }
 
   const shots = readJson<Shot[]>(path.join(dir, 'shots.json'));
   const regions = readJson<PerceiveRegion[]>(path.join(dir, 'regions.json'));
