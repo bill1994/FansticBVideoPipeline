@@ -105,21 +105,28 @@ export function resolveAnchor(
           `若对齐产物没有 cues[]，改用 word:<n> 或 abs:<帧>`,
       );
     }
+
+    // 🔴 **SRT 时间是显示时序的权威**（C2-6 补正，2026-10-18）。
+    //   词落点会漂：实测某条 cue 早 7.06 秒（whisper 把 7 秒静音并进一个分段，
+    //   DP 只能把词平摊在里面），成片里字幕因此跑到静音空镜上 —— 用户一眼就看出「不连贯」。
+    //   字幕「什么时候出现」本就该跟着**用户编辑过的 SRT**，词只负责「哪个字在亮」。
+    //   缺 `srtFromSec`（如 demo/外部对齐器产物）时静默回退到词落点，行为与旧版一致。
+    const hasSrt =
+      typeof c.srtFromSec === 'number' &&
+      typeof c.srtToSec === 'number' &&
+      Number.isFinite(c.srtFromSec) &&
+      Number.isFinite(c.srtToSec);
+    const startFrame = hasSrt ? Math.round(c.srtFromSec! * fps) : c.fromFrame;
+    const endFrame = hasSrt ? Math.round(c.srtToSec! * fps) : c.toFrame;
+
     return {
-      fromFrame: c.fromFrame + off,
+      fromFrame: startFrame + off,
       wordIndex: null,
       wordStartFrame: null,
       wordEndFrame: null,
       cueIndex: c.index,
-      // 🔴 **半开区间 [from, toFrame)**（2026-10-18 第二轮真渲修正）。
-      //   首版写成 `toFrame - fromFrame + 1`（按 `Cue.toFrame 含端点` 的字面理解），
-      //   结果与 `wordsInWindow` 的闭区间判定叠加出两个可见问题：
-      //     ① 相邻 caption item 差 1 帧 ⇒ 该帧两条字幕同时渲染，且 `W-C4-01` 报 54 条相交；
-      //     ② 成片里每条字幕都多出一个邻句的字（实测「的是 … 前」）。
-      //   对齐产物里 `cues[i].toFrame === cues[i+1].fromFrame`，说明它本就是**分界点**
-      //   而非「末词末帧」⇒ 当**半开区间**才是对这份数据的正确读法。
-      //   丢掉的只有末句 1/60 秒，肉眼不可见；换来相邻字幕不重叠、不多字。
-      cueDurationInFrames: c.toFrame - (c.fromFrame + off),
+      // 半开区间 [from, to)：相邻 cue 的分界不重叠（见下方历史说明）
+      cueDurationInFrames: endFrame - (startFrame + off),
     };
   }
 

@@ -28,10 +28,16 @@ import type { AlignWords, Cue, WordTimestamp } from '../core/types.ts';
 export interface CaptionData {
   words: WordTimestamp[];
   cues: Cue[];
+  /**
+   * from 01-align 的 fps。`srtFromSec` 是秒，要换算成帧才能和 item 的
+   * 绝对帧区间比较（C2-6 补正后 cue 的显示时序以 SRT 为准）。
+   * 缺省 30（与 demo 一致），缺了也不致命 —— 只影响能否按 cue 定位。
+   */
+  fps: number;
 }
 
 /** 空通道 —— `words.json` 缺失时的降级形态。 */
-export const EMPTY_CAPTION: CaptionData = { words: [], cues: [] };
+export const EMPTY_CAPTION: CaptionData = { words: [], cues: [], fps: 30 };
 
 /**
  * 归一化 `words.json`。
@@ -47,10 +53,11 @@ export const EMPTY_CAPTION: CaptionData = { words: [], cues: [] };
  */
 export function toCaptionData(raw: unknown): CaptionData {
   if (!raw || typeof raw !== 'object') return EMPTY_CAPTION;
-  const o = raw as { words?: unknown; cues?: unknown };
+  const o = raw as { words?: unknown; cues?: unknown; fps?: unknown };
   const words = Array.isArray(o.words) ? o.words.filter(isWord) : [];
   const cues = Array.isArray(o.cues) ? o.cues.filter(isCue) : [];
-  return { words, cues };
+  const fps = typeof o.fps === 'number' && Number.isFinite(o.fps) && o.fps > 0 ? o.fps : 30;
+  return { words, cues, fps };
 }
 
 function isWord(v: unknown): v is WordTimestamp {
@@ -132,6 +139,55 @@ export function activeWordIndex(words: WordTimestamp[], frame: number): number {
 export function nextCueAt(data: CaptionData, frame: number): Cue | null {
   for (const c of data.cues) {
     if (c.fromFrame > frame) return c;
+  }
+  return null;
+}
+/**
+ * 取与 `[fromFrame, fromFrame+durationInFrames)` 相交的那条 **cue**（C2-6 补正）。
+ *
+ * 🔴 为什么需要它：字幕的**文字**必须来自用户编辑过的 SRT 那一行，而不是
+ *   「窗口内恰好落进了哪些词」。词落点会漂（实测某条 cue 早 7.06 秒），
+ *   若用词拼文字，时间一对齐就必然拼出**别的句子**。
+ *   ⇒ 文字以 `cue.text` 为准，词只负责「哪个字在亮」。
+ *
+ * 时序以 `srtFromSec/srtToSec` 为准（用户编辑过的那份）；缺这两个字段时
+ * 回退到词落点推出的 `fromFrame/toFrame`（demo / 外部对齐器兼容）。
+ */
+export function cueInWindow(
+  data: CaptionData,
+  fromFrame: number,
+  durationInFrames: number,
+): Cue | null {
+  const end = fromFrame + durationInFrames;
+  for (const c of data.cues) {
+    const hasSrt = typeof c.srtFromSec === 'number' && typeof c.srtToSec === 'number';
+    const a = hasSrt ? Math.round((c.srtFromSec as number) * data.fps) : c.fromFrame;
+    const b = hasSrt ? Math.round((c.srtToSec as number) * data.fps) : c.toFrame;
+    if (a < end && b > fromFrame) return c;
+  }
+  return null;
+}
+
+/**
+ * 在 cue 原文里定位「当前高亮词」的字符区间 `[start, end)`。
+ *
+ * 逐词在原文里**顺序**查找（不是全文 indexOf），因此同样的字重复出现也不会错位；
+ * 找不到（词与原文对不上，通常是对齐漂移）⇒ 返回 `null`，调用方退化为「整句不高亮」。
+ * 宁可不高亮，也不能把高亮打在别的字上 —— 那会让观众以为念错了。
+ */
+export function highlightSpan(
+  cueText: string,
+  words: WordTimestamp[],
+  activeIndex: number,
+): { start: number; end: number } | null {
+  if (activeIndex < 0 || activeIndex >= words.length) return null;
+  let cursor = 0;
+  for (let i = 0; i < words.length; i += 1) {
+    const w = words[i]!;
+    const at = cueText.indexOf(w.word, cursor);
+    if (at < 0) return null;
+    if (i === activeIndex) return { start: at, end: at + w.word.length };
+    cursor = at + w.word.length;
   }
   return null;
 }

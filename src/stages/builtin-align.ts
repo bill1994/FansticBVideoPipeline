@@ -242,9 +242,15 @@ export function runBuiltinAlign(
     if (!ws || ws.length === 0) continue;
     outCues.push({
       index: c.index,
+      // 帧区间取词的首末帧（时间来自音频）—— 供**高亮**定位用
       fromFrame: ws[0]!.startFrame,
       toFrame: ws[ws.length - 1]!.endFrame,
       text: c.text,
+      // SRT 原始时间原样带下去（C2-6 补正）：
+      // `fromFrame` 是词落点推出来的，会随对齐漂移（实测某条 cue 早 7.06 秒）；
+      // 而字幕「何时出现」应以用户编辑过的 SRT 为准，词只决定「哪个字在亮」。
+      srtFromSec: c.srtFromSec,
+      srtToSec: c.srtToSec,
     });
   }
 

@@ -9,7 +9,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeWordIndex,
+  cueInWindow,
   EMPTY_CAPTION,
+  highlightSpan,
   nextCueAt,
   toCaptionData,
   wordsInWindow,
@@ -28,7 +30,7 @@ const WORDS: WordTimestamp[] = [
 
 describe('caption · toCaptionData 容错', () => {
   it('合法结构被接受', () => {
-    const d = toCaptionData({ words: WORDS, cues: [] });
+    const d = toCaptionData({ words: WORDS, cues: [], fps: 30 });
     expect(d.words).toHaveLength(3);
   });
 
@@ -63,22 +65,22 @@ describe('caption · toCaptionData 容错', () => {
 
 describe('caption · wordsInWindow 取词', () => {
   it('完整覆盖时取全部', () => {
-    expect(wordsInWindow({ words: WORDS, cues: [] }, 100, 60)).toHaveLength(3);
+    expect(wordsInWindow({ words: WORDS, cues: [], fps: 30 }, 100, 60)).toHaveLength(3);
   });
 
   it('窗口切在词中间时，边缘的词仍被保留（不能缺字）', () => {
-    const got = wordsInWindow({ words: WORDS, cues: [] }, 110, 20);
+    const got = wordsInWindow({ words: WORDS, cues: [], fps: 30 }, 110, 20);
     // 窗口 [110,130)：word0(100-119) 相交、word1(120-139) 相交、word2 不相交
     expect(got.map((x) => x.index)).toEqual([0, 1]);
   });
 
   it('窗口与所有词不相交时返回空', () => {
-    expect(wordsInWindow({ words: WORDS, cues: [] }, 0, 10)).toHaveLength(0);
+    expect(wordsInWindow({ words: WORDS, cues: [], fps: 30 }, 0, 10)).toHaveLength(0);
   });
 
   it('零时长窗口不会误取大量词', () => {
     // 边界用例：duration=0 时窗口是空区间，应几乎取不到东西
-    expect(wordsInWindow({ words: WORDS, cues: [] }, 100, 0)).toHaveLength(0);
+    expect(wordsInWindow({ words: WORDS, cues: [], fps: 30 }, 100, 0)).toHaveLength(0);
   });
 });
 
@@ -123,7 +125,7 @@ describe('caption · nextCueAt 取下一条 cue', () => {
     { index: 0, fromFrame: 100, toFrame: 160, text: '第一条' },
     { index: 1, fromFrame: 200, toFrame: 260, text: '第二条' },
   ];
-  const data = { words: WORDS, cues };
+  const data = { words: WORDS, cues, fps: 30 };
 
   it('返回首个未开始的 cue', () => {
     expect(nextCueAt(data, 50)?.text).toBe('第一条');
@@ -136,5 +138,68 @@ describe('caption · nextCueAt 取下一条 cue', () => {
 
   it('无 cue → null', () => {
     expect(nextCueAt(EMPTY_CAPTION, 10)).toBeNull();
+  });
+});
+// ─────────────────────────────────────────────────────────────
+// C2-6 补正：字幕的**时间**用 SRT、**文字**用 cue.text、词只负责高亮
+//
+// 起因：用户反馈「字幕拆开后不连贯」。实测那条 cue 早 7 秒出现在静音空镜上。
+// 两层根因：① cue 帧区间取词落点（会漂）；② 组件用「窗口内的词」拼字幕
+// ⇒ 时间一旦对齐到 SRT，拼出来的就是别的句子。
+// ─────────────────────────────────────────────────────────────
+describe('caption · cueInWindow（时序以 SRT 为准）', () => {
+  const FPS = 30;
+  // 同一个 cue：词落点说 0–60 帧，SRT 说 300–390 帧（差 10 秒，模拟漂移）
+  const drifted: Cue = {
+    index: 3,
+    fromFrame: 0,
+    toFrame: 60,
+    text: '它把中底和外骨骼结合在了一起',
+    srtFromSec: 10,
+    srtToSec: 13,
+  };
+  const data = { words: WORDS, cues: [drifted], fps: FPS };
+
+  it('按 SRT 秒定位：落在 SRT 区间内才命中', () => {
+    expect(cueInWindow(data, 300, 90)?.index).toBe(3);
+    // 词落点区间（0–60）**不再**让它命中 —— 否则字幕会早 10 秒冒出来
+    expect(cueInWindow(data, 0, 60)).toBeNull();
+  });
+
+  it('没有 srt 字段时回退到词落点（demo / 外部对齐器兼容）', () => {
+    const legacy: Cue = { index: 0, fromFrame: 100, toFrame: 160, text: '第一条' };
+    const d = { words: WORDS, cues: [legacy], fps: FPS };
+    expect(cueInWindow(d, 120, 20)?.index).toBe(0);
+    expect(cueInWindow(d, 400, 20)).toBeNull();
+  });
+
+  it('无 cue → null（组件退回用词拼句的旧路径）', () => {
+    expect(cueInWindow(EMPTY_CAPTION, 0, 100)).toBeNull();
+  });
+});
+
+describe('caption · highlightSpan（在 SRT 原文里定位高亮词）', () => {
+  const text = '它把中底和外骨骼结合在了一起';
+  const words: WordTimestamp[] = [
+    { index: 0, word: '它把', startFrame: 0, endFrame: 10, confidence: 1 },
+    { index: 1, word: '中底', startFrame: 10, endFrame: 20, confidence: 1 },
+    { index: 2, word: '和外骨骼', startFrame: 20, endFrame: 30, confidence: 1 },
+  ];
+
+  it('按顺序逐词定位，重复字也不会错位', () => {
+    expect(highlightSpan(text, words, 1)).toEqual({ start: 2, end: 4 });
+    expect(highlightSpan(text, words, 2)).toEqual({ start: 4, end: 8 });
+  });
+
+  it('词与原文对不上（对齐漂移）→ null，宁可整句不高亮', () => {
+    const alien: WordTimestamp[] = [
+      { index: 0, word: '完全不同的词', startFrame: 0, endFrame: 10, confidence: 1 },
+    ];
+    expect(highlightSpan(text, alien, 0)).toBeNull();
+  });
+
+  it('active 越界 → null', () => {
+    expect(highlightSpan(text, words, -1)).toBeNull();
+    expect(highlightSpan(text, words, 9)).toBeNull();
   });
 });

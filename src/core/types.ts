@@ -193,6 +193,16 @@ export interface Cue {
   /** 该 cue 的末词 endFrame，含端点。 */
   toFrame: number;
   text: string;
+  /**
+   * SRT 原始时间（秒）—— **字幕显示时序的权威来源**（C2-6 补正，2026-10-18）。
+   *
+   * 🔴 为什么把它写进产物：`fromFrame`/`toFrame` 是**词落点**推出来的，
+   *    而词落点会漂（实测 cue 早 7.06 秒，词被 whisper 的合并分段带进了静音区）。
+   *    字幕「何时出现」应由**用户编辑过的 SRT** 决定，词只决定「哪个字在亮」。
+   *    ⚠️ 它**仍不参与任何校验判定**（B2-fix 的立场不变），只决定字幕的显示区间。
+   */
+  srtFromSec?: number;
+  srtToSec?: number;
 }
 
 /**
