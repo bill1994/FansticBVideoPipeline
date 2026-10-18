@@ -56,6 +56,14 @@ yarn-error.log*
 !.workbuddy/memory/
 !.workbuddy/skills/
 
+# ── 本机状态记忆（各机独立，不跨机同步）────────────────────────
+# MEMORY.md   = 跨机共享的项目知识（入库）
+# LOCAL.md    = 本机路径/素材/jobs 进度/本机环境坑（不记录）
+# 两机共写同一份 MEMORY.md 曾互相覆盖并写出「本机 jobs/ 空」这类假话，
+# 故按「共享知识 / 本机事实」拆分。详见 MEMORY.md 的 git 节。
+.workbuddy/memory/LOCAL.md
+.workbuddy/memory/local*.md
+
 # whisper.cpp 二进制与模型（M-1 第一步，体积大且可重新下载）
 # 见 tools/setup-whisper.mts
 whisper.cpp/

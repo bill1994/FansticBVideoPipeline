@@ -1,287 +1,158 @@
 # 项目长期记忆 — video pipeline
 
-## 身份
+> **本文件只放跨机成立的项目知识**。
+> 本机路径 / 素材 / `jobs/` 进度 / 本机环境坑 ⇒ 写 `.workbuddy/memory/LOCAL.md`（已 gitignore，各机独立）。
+> 真实数字见 `PROGRESS.md`，变更史见 `docs/changelog/`，裁决见 `docs/decisions/OPEN-DECISIONS.md` —— **本文件不复述它们**，只留「不读会踩坑」的判断。
 
-- **Remotion 视频动效叠加管线**：在实拍口播粗剪上叠 motion-graphic overlay。Node ≥22.19 / ESM / tsx，MIT。
-- **两工作区共用远端** `github.com/bill1994/FansticBVideoPipeline`（**PUBLIC**，main）。
-  `docs/proposals/` 与 `.workbuddy/memory/` 会随仓库公开。
+## 定位
+
+- Remotion 视频动效叠加管线：在实拍口播粗剪上叠 motion-graphic overlay。Node ≥22.19 / ESM / tsx / MIT。
+- 两工作区共用 **PUBLIC** 远端 `github.com/bill1994/FansticBVideoPipeline`（main）⇒ `docs/proposals/` 与 `.workbuddy/memory/` 随仓库公开。
 - 🔴 **定位 = 「被模型读取的 skill pipeline」**：模型即操作者，**仓库不调模型**；`03-storyboard/draft.json` 是模型产物的等价物。
-
-## 机器与工作区（🔴 本文件禁止写「本机」）
-
-本文件**已被两台机的提交共同修改过**，任何「本机…」的表述都会在另一台机上读成假话。一律写绝对路径。
-
-| 路径 | 素材 | 性质 |
-|---|---|---|
-| `G:\VideoPipeline` | ✅ `TestResources/` 3 段 mp4（`3月22日.mp4` 270M / `5月28日.mp4` 240M / `kukini.mp4` 681M）+ `10月6日.srt`；`jobs/` 4 个 | 10-14 从 E 盘迁入，**开发活跃机，唯一有素材的机器** |
-| `G:\WorkbuddyProject\VideoPipeline` | ❌ 无 `jobs/`、无素材 | 曾作长期记忆主维护机 |
-
-⚠️ **10-18 教训**：拉取后本文件被覆盖为 `WorkbuddyProject` 机视角，其中「本机 `jobs/` 空、素材在另一台机」两句在 `G:\VideoPipeline` 上**恰好相反**。已改为路径化表述 —— 后续同步别再写「本机」。
-
-`G:\VideoPipeline\jobs\` 实际进度（**没有任何 job 跑过 03/04/05**）：
-
-| job | 已有阶段 |
-|---|---|
-| `e2e-0322` / `e2e-0528` / `e2e-perceive` | `00-input` + `02-perceive` |
-| `real30` | `00-input` + `01-align` |
 
 ## 命令
 
 ```bash
-npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]  # align|perceive|storyboard|validate|render|init
-npm run typecheck && npm test   # tsc --noEmit / vitest 411 项 / 24 文件
+npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
+npm run typecheck && npm test
 ```
-demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` → `render`，`--jobs-dir examples`。
-预期 0 error / 2 warning（均 `W-F6-01`）。⚠️ 仅在**不重跑 storyboard** 时成立（见雷区）。
 
-## 结构
+demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` → `render`，`--jobs-dir examples`。
+⚠️ **阶段目录是不可变快照**：存在即跳过，改了对齐/感知代码后必须加 `--force`，否则白等。
+⚠️ **长任务别 `| tail`**：会把错误吞掉，失败时只剩「渲染失败」四个字。一律重定向到日志再 grep。
+
+## 结构（细节见 PROGRESS.md §二）
 
 | 路径 | 职责 |
 |------|------|
 | `src/cli.ts` | 唯一入口：参数解析 + 阶段分发 + 语义化退出码（0/1/2/…/6/130） |
-| `src/core/` | `types.ts` 契约 / `errors.ts`（**26 条**项级码）/ `exit-code.ts` / `config.ts` / `bake.ts` 锚点→帧 / `schedule.ts` 两道闸+地板+动态T / `io.ts` job 目录+不可变快照守卫 / `carrier-window.ts` **载体几何唯一真源** / `report.ts` / `srt.ts` / `zh-normalize.ts` |
-| `src/stages/` | `align`(后端选择)→`builtin-align`→`whisper-adapter`+`text-align`(DP)；`perceive`(后端选择)→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive`；`storyboard`/`validate`/`render` |
-| `src/validate/` | **18 项**构建期校验（纯 JSON→JSON）+ 2 条 extra（`W-D3-01`/`W-F6-01`）；`context.ts` 唯一读盘入口；`occlusion.ts` 消解唯一实现（含 `resolveScene` 单一入口） |
-| `src/templates/` | 声明：`builtin.ts` **11 个** / `registry.ts` 自检 / `types.ts` 双轴 family×scope |
-| `src/remotion/` | `index→Root→Overlay`(双栈) / `carrier.tsx` **时间表渲染**（不嵌套） / `carrier-synth.ts` **影子载体轨**（D4-t3） / `MotionItem`（全树唯一 `useCurrentFrame`）/ `carrier.tsx` / `caption.ts` / `tokens.ts` 颜色唯一来源 / `templates/` **9 个实现** |
-| `tests/` `tools/` | vitest **24 文件 / 411 项**；探针 16 个（probe-yunet / -regions / -shots / -saliency …） |
-| `docs/` `.workbuddy/skills/` | 规格/裁决/提案/评审/变更 + 五阶段执行期契约 |
+| `src/core/` | 契约 `types.ts` / 错误码 `errors.ts` / 锚点→帧 `bake.ts` / 两道闸+动态T `schedule.ts` / job 目录+快照守卫 `io.ts` / **载体几何唯一真源 `carrier-window.ts`** |
+| `src/stages/` | `align`→`builtin-align`→`whisper-adapter`+`text-align`(DP)；`perceive`→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive`；`storyboard`/`validate`/`render` |
+| `src/validate/` | 构建期校验（纯 JSON→JSON）+ `context.ts` 唯一读盘入口 + `occlusion.ts` 消解唯一实现（含 `resolveScene` 单一入口） |
+| `src/remotion/` | `carrier.tsx` **时间表渲染**（不嵌套）/ `carrier-synth.ts` **影子载体轨** / `MotionItem`（全树唯一 `useCurrentFrame`）/ `caption.ts`（字幕唯一入口）/ `tokens.ts`（颜色唯一来源） |
 
-## 当前状态（2026-10-18 · `b4935ba` · 工作区干净）
-
-六道闸「四道半」：`01-align` ✅ / `02-perceive` ✅（内置三通道：ffmpeg `scdet` → YuNet `face` → 人脸外扩 `handheld` → 无脸镜头显著性 `broll`；三素材 77 shot / 0 低置信）/ `03-storyboard` 🔶（管线通，不调模型）/ `04-validate` ✅ / `05-render` 🔶（**9/11** 模板有实现）。
-**硬阻断已拆**（未配 `PERCEIVER_CMD` 不再退出码 2）。
-
-- ✅ **计数**：18 项校验 / **411 单测 / 24 文件** / 11 声明 / 9 实现 / 26 条码 / 8 个占位值。
-- ✅ **通道方案 A 已落地**：`resolveScene(ctx)` 为消解单一入口，`render` 侧重算后用 `ctx.storyboard` 生成 props。
-- ✅ **P3 已接线**：tier2 真正写入 `carrier.params.window`（主体锚定），遮挡率按**施加后**重算 + 终判。
-- ✅ **P4 已重立 `W-D2-02`（第 18 项）**：判据换源为 `visibleRegion(params)`，该函数已认
-  `window`（分屏）与 `scale`（放大）**两种裁切源** ⇒ D2-2 撤回理由②已消解。
-- ✅ **split-frame 坐标系 bug 已修**（真渲抽帧抓出，见「真渲纪律」）。
-- ✅ **D4-t2 施工 4/4 完成**（P1 契约 → P2 实现 → P3 接线 → P4 重立）。
-- ✅ **10-18 拉取后复验**：typecheck 零输出 / 384 项全绿 /
-  `validate --job demo --jobs-dir examples` → `checked=18 项 + 2 条起草原生约束, warning=2`。
-
-## 🔴 四层假绿教训（本项目最贵的经验，务必记住）
+## 🔴 四层假绿教训（本项目最贵的经验）
 
 | 层 | 病 | 状态 |
 |---|---|---|
 | 1 | 算了却只拼进 `detail` 字符串 | 10-13 已修 |
-| 2 | 改了**内存对象**，跨进程无通道（`render` 独立进程重读 JSON） | 10-17 已修（方案 A） |
-| 3 | 施加了变换，但**未验证终态**（如载体施加后仍超预算却报成功） | 10-17 已修（补终判） |
+| 2 | 改了**内存对象**，跨进程无通道（`render` 独立进程重读 JSON） | 10-17 已修（通道方案 A） |
+| 3 | 施加了变换，但**未验证终态**（施加后仍超预算却报成功） | 10-17 已修（补终判） |
 | 4 | 组件单测 + 静态断言全绿，但**画面是错的**（CSS 坐标系） | 10-17 已修 |
 
 **判据：凡涉及「改变产物」的判定，都必须能回答「成片里哪儿变了」。**
 
-## 🔴「两处各写一套算法」—— 本项目第三次同款病（根治口诀）
+## 🔴 同一个概念只允许一个真源（已犯三次）
 
-**同一个概念只允许有一个真源。** 三次实例：
+| # | 症状 | 修法 |
+|---|---|---|
+| 1 | split-frame 分界线落在 0.75（偏差 25%） | `clip-path` 百分比**相对父容器**，而 `MotionItem` 已按 footprint 缩窄 ⇒ 组件内反向抵消；⚠️ 抵消量也相对父宽，**必须除以 footprint 尺寸** |
+| 2 | `params.scale=3.0` 判据按 3.0 算、渲染实际用 1.6 | 钳制常量只存在于组件里 ⇒ 上提 `core/carrier-window.ts`，两边共用 `clampScale()` |
+| 3 | 校验期顺序耦合（#12 改 footprint 后 #17 读到改后的值） | 明知并记录；`render` 侧复用同一份 `resolveScene` |
 
-| # | 症状 | 根因 | 修法 |
-|---|---|---|---|
-| 1 | split-frame 分界线落在 0.75（偏差 25%） | `clip-path` 百分比相对父容器，`MotionItem` 已按 footprint 缩窄 | 组件内反向抵消父级定位撑回满画面；⚠️ 抵消量也相对父宽，**必须除以 footprint 尺寸** |
-| 2 | `params.scale=3.0` 时判据按 3.0 算、渲染实际用 1.6 | 钳制常量只存在于 `punch-in.tsx` | 常量上提 `core/carrier-window.ts`，两边共用 `clampScale()` |
-| 3 | 校验期顺序耦合（#12 改写 footprint 后 #17 读到改后的值） | 校验项之间存在隐式顺序依赖 | 明知并记录；`render` 侧复用同一份 `resolveScene` |
-
-🔴 **发现手段**：跨层探针对账（渲染期实际值 vs 判据推算值）比单测更灵 ——
-`carrier-window.test.ts` 现导入 `punchInScale` 做跨模块对账。
+🔴 **发现手段**：跨层探针对账（渲染期实际值 vs 判据推算值）比单测更灵。
 🔴 **写断言前先跑一遍拿真实值**，别纯手算 —— 两次几何算错都伪装成「代码有 bug」。
 
 ## 🔴 真渲纪律（最高优先级）
 
-- 🔴 **「单测全绿 + 静态断言全绿」≠ 画面正确**。P2 的 10 项 split-frame 测试全绿，
-  真渲抽帧却量到分界落在 **0.75**（期望 0.5，偏差 25%）。
-- **根因**：`clip-path` / `position` 的百分比**相对父容器**，而 `MotionItem` 先按
-  `item.footprint` 撑出定位 div ⇒ 坐标系错位。`punch-in` 用 `transform: scale()`
-  相对自身算所以恰好正确 ⇒ **只有部分模板会露馅，更危险**。
-- **修法**：先反向抵消父级 footprint 定位撑回满画面。⚠️ 抵消量也相对父宽，
-  **必须除以 footprint 尺寸**：`-fp[0]/fp[2]`、`1/fp[2]`（第一版就漏了这个除法）。
-- **量测法**：`remotion still` 抽帧 + 纯 Node 解 PNG（zlib + PNG 反滤波）像素级量分界线。
-- 🔴 **探针脚本未入库**：`out/make-split-frame-probe.mjs` 在 `out/` 下，被 `.gitignore` 忽略
-  ⇒ 只存在于做过那次真渲的机器，换机重跑需重建探针（`out/frames/` 里的抽帧同理）。
-- 🔴 **「视频在不在」用像素判断，不用眼睛**：抽单像素比对即可 ——
-  根容器背景是 `0,0,0`，占位底是 `16,20,24`，素材画面是任意真实值。
-  10-18 就是靠这条区分出「视频没挂载」与「素材开头本来就黑」。
+- 🔴 **「单测全绿 + 静态断言全绿」≠ 画面正确**。split-frame 的 10 项测试全绿，真渲抽帧却量到分界在 0.75。`punch-in` 用 `transform: scale()` 相对自身算所以恰好正确 ⇒ **只有部分模板会露馅，更危险**。
+- **量测法**：`remotion still` 抽帧 + 纯 Node 解 PNG（zlib + PNG 反滤波）像素级量。
+- 🔴 **「视频在不在」用像素判断，不用眼睛**：根容器背景 `0,0,0`，占位底 `16,20,24`，素材画面是任意真实值。靠这条才区分出「视频没挂载」与「素材开头本来就黑」。
+- 🔴 **探针脚本多半未入库**（`out/` 被 gitignore）⇒ 换机重跑需重建。
 
-## 🔴 真素材端到端首跑（2026-10-18，`jobs/e2e-perceive`）—— 两个渲染层阻塞 bug
+## 🔴 三个渲染 bug：全是「两条链同时存在」才暴露（2026-10-18）
 
-详见 `docs/changelog/2026-10-18-真素材端到端首跑.md`。首次跑通 align→perceive→storyboard→validate→render，
-成片 6667 帧 / 219MB / **墙钟 21 分 06 秒**。抓出：
+真素材首跑前 `jobs/` 全停在 01/02，而 demo 是 `hasVideo:false` ⇒ **「有真实视频」这条路径从未被执行**。
 
-| # | bug | 症状 | 修法 |
-|---|---|---|---|
-| 1 | `<OffthreadVideo>` 的 src 路径 | 渲染到 2836 帧崩，**或全程黑帧且不报错** | Remotion 静态服务把 URL 映射到 **bundle 目录**；实测只有 `public/<name>` 命中 ⇒ `video: 'public/'+basename` + `--public-dir=<00-input>` |
-| 2 | `CarrierTrack` 把视频裁在轨道窗内 | 只要有一个载体类 item（如 `punch-in`），**其区间外整段视频消失**（6517 帧纯黑） | 窗口前 `[0,start)` / 窗口后 `[end,duration)` 补**无变换透传**，`CarrierTrack` 新增 `durationInFrames` |
+| # | 症状 | 修法 |
+|---|---|---|
+| 1 | 渲染到 2836 帧崩，**或全程黑帧且不报错** | Remotion 静态服务把 URL 映射到 **bundle 目录**，只有 `public/<name>` 命中 ⇒ `video:'public/'+basename` + `--public-dir=<00-input>` |
+| 2 | 有载体类 item 时**窗外整段视频消失**（6517 帧纯黑） | `CarrierTrack` 窗口前后补**无变换透传** |
+| 3 | 影子载体轨「加了等于没加」（SSIM 1.000000） | `<Sequence from>` 是**相对父级**偏移，嵌套后内层起点 9232 > 成片 6667 ⇒ 时间轴**拍平**成原子窗口 |
 
-🔴 **为什么这两个 bug 长期隐形**：demo job 是 `hasVideo: false`（走占位底）⇒
-**「有真实视频」这条代码路径从未被执行**；而 bug 2 让「视频没挂载」表现为**静默黑屏**，
-bug 1 的 404 只在视频真被挂载时才报 —— 两个 bug 互相遮蔽。
+🔴 **验证时要问「这套机制在**组合**下还成立吗」**，不能只验单条。
 
-✅ **方案 A 在画面上被证实**：起草 footprint `[0.3,0.34,...]` → tier1 平移至 `[0.10,0.54,...]`
-→ 成片里「值回票价？」**确实出现在左侧中部**。这是「报告改了、画面真改了」的第一次实拍证据。
+## 🔴 对齐：`alignedRatio` 结构上看不见时间空洞（`M-1d` / `M-1e`）
 
-## 🔴 对齐假绿：`alignedRatio` 结构上看不见时间空洞
-
-- 10-18 实测：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio = 1.000`），
-  但 cue3 整整 **早了 7.06 秒**，词被塞进 **7.08 秒静音**（`volumedetect` mean −58 dB）。
-- 根因两层：① whisper 吐出 **8.08–20.52s 的单一分段**，把 7 秒静音整个吞掉
-  （`builtin-align.ts` 调 whisper **没传 `-ml` / `-sow`**）；② `alignedRatio` 的定义是
-  「SRT 词对上 **token** 的比例」—— **衡量文本匹配，不衡量时间**，所以必然报 1.0。
-- ⇒ 与旧记录里「alignedRatio=1.0 却有 3240ms 空洞」是**同一结构性盲区**。
+- 实测：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio=1.000`），但某 cue 整整**早了 7.06 秒**，词被塞进 **6.74 秒真静音**（`volumedetect` −58dB）。
+- 根因两层：① whisper 把跨静音的文本压进一个长分段（8.14–20.46s）⇒ DP 只能平摊；② `alignedRatio` 的定义是「SRT 词对上 **token** 的比例」—— **衡量文本匹配，不衡量时间**，所以必然报 1.0。
+- 🔴 **whisper 参数路线已判死**：`-ml 32 -sow` 无效（分段不变）。
+- 正解（待裁决）：`ffmpeg silencedetect` 约束 DP，**禁止词入静音**。⚠️ 判据**不能拿 SRT 时间戳当基准**（违反 B2-fix）。
 - 损伤范围工具：`tools/probe-align-drift.mjs`（逐 cue 比对 SRT 起点与词落点，>1s 即报）。
-  kukini 48 条 cue 中 4 条超 1s（−7.06 / −1.33 / −1.40 / +1.06）。
-- ⏳ **未修**：属门控指标选型，按纪律先改裁决册。
 
-## 🔴 字幕：时间与文字都必须以 SRT 为准（2026-10-18 用户反馈驱动，C2-6 补正）
+## 🔴 字幕：时间 / 文字 / 高亮都必须以 SRT 为准（`C2-6`）
 
-用户原话：「字幕拆开后看得不连贯，能不能按我给的 SRT 那样拆，那时我已经编辑好拆分的字幕」。
+用户原话：「字幕拆开后看得不连贯，能不能按我给的 SRT 那样拆」。
 
-**先核事实再动手**：`cues[]` 的**文本**与 SRT 逐字比对 **0 差异**（48 条、切分一致）——
-「怎么拆」本来就是 SRT 的；错的是**时间**，以及**文字来源**。
+**先核事实**：`cues[]` 文本与 SRT 逐字比对 **0 差异** —— 「怎么拆」本来就是 SRT 的，错的是时间与文字来源。
 
 | 层 | 病 | 修法 |
 |---|---|---|
-| 时间 | `outCues` 帧区间取**词落点**（whisper 把 7s 静音并进一个分段 ⇒ 词平摊在静音里，cue 早 7.06s） | `Cue` 增 `srtFromSec/srtToSec`（类型早声明、产物里从未写入），`cue:N` 锚点改取 SRT 时间 |
-| 文字 | `karaoke-word` 用「窗口内落进的词」拼句 | 改取 **`cue.text`**；词只经 `highlightSpan` 在原文里定位高亮 |
+| 时间 | 帧区间取**词落点**（词平摊在静音里 ⇒ 早 7.06s） | `Cue` 增 `srtFromSec/srtToSec`；`cue:N` 锚点改取 SRT 时间 |
+| 文字 | 用「窗口内落进的词」拼句 | 改取 **`cue.text`**；词只经 `highlightSpan` 定位高亮 |
+| 高亮 | 由词时驱动，漂了就缺 | `highlightWords`：覆盖率 **≥0.8 不动，<0.8 按「顺序 + 字数权重」重铺**回 SRT 窗口 |
 
-🔴 **两层必须一起改**：只改时间不改文字，窗口里会落进**别的句子**的词 ⇒ 错得更离谱。
-降级语义：词对不上原文 ⇒ `highlightSpan` 返 null ⇒ **整句不高亮**，但内容仍对。
-**宁可不高亮，不显示错句子。**
+🔴 **时间与文字必须一起改**：只改时间不改文字，窗口里会落进**别的句子**的词 ⇒ 错得更离谱。
+降级：词对不上原文 ⇒ **整句不高亮，但内容仍对**。宁可不高亮，不显示错句子。
 
-⚠️ 不违反 B2-fix：SRT 时间戳**仍不参与任何校验判定**，只决定显示区间。
-效果：`W-C3-01` 49→4、`W-C4-01` 7→6、validate 57→**11 warning**（0 error）。
+🔴 **边界语义在三个地方各写了一遍**（bake 时长 / `wordsInWindow` / cue 数据本身），必须同口径：
+cue 时长用**半开区间** `[from, toFrame)`；`wordsInWindow` 用**严格大于**。两处错一次，字幕就串上一句的句尾。
 
-⚠️ **`align` 有不可变快照**：目录存在就跳过，必须 `--force` 才会重跑（否则你会以为改了代码没生效）。
+## 🔴 载体轨：不能嵌套，时间轴必须拍平
 
-### 高亮：漂移时按 SRT 窗口重铺词（`M-1e` 的显示层对策）
+- `<Sequence from={x}>` 是**相对父级**偏移 ⇒ `reduce` 嵌套包裹会让内层起点累加，直接超出成片长度。补 `from={0}` 无效。
+- 修法：`composeCarrierTimeline(tracks, total)` 取所有载体 item 起止帧作切点切成**原子窗口**，每窗最多挂一个变换；`CarrierTimeline` 外层 `from={0}`、逐窗 `from={w.from}`。
+- 副产品：首轮「载体窗外视频消失」在结构上不可能复发。
+- ⚠️ **边界**：两载体时间真重叠时取「数组靠前者优先」，外层变换在该窗被丢弃。要「放大 + 分屏」同时生效**应先立裁决**。
 
-`highlightWords`：词落点与本 cue 的 SRT 窗口覆盖率 **≥0.8 不动**；**<0.8 按「顺序 + 字数权重」重铺**回该窗口。
-只影响高亮定位，`01-align` 产物不回写。依据：词时不可信，但**顺序/归属/SRT 窗口**三者可信。
-
-🔴 **whisper 参数路线已判死**：`-ml 32 -sow` 对「跨静音长分段」无效
-（默认与加参都是 `8.14–20.46s`），而 `silencedetect` 证实那段是 **6.74 秒真静音**（−40dB）。
-kukini 48 条 cue 中 **8 条**覆盖率 <0.8（最低 18%）。产物层的正解是**用 silencedetect 约束 DP**
-（禁止词入静音），待 `M-1e` 校准。
-
-### 判据对字幕的敏感性（已大幅缓解，仍有残留）
-
-改成「字幕时间按 SRT」之前，cue 化后是 **0 error / 104 warning**，103 条属**判据适用范围**问题：
-
-| 码 | 曾报 | 现在 | 说明 |
-|---|---|---|---|
-| `W-C3-01` 起点恰在词边界 | 49 | **4** | 字幕时间改用 SRT 后不再压在词边界上，自然消失 |
-| `W-C4-01` footprint 相交 | 54 | **6** | 半开区间消掉相邻 cue 的 1 帧重叠 |
-
-⇒ **两条都不必再改判据**：它们是「用词落点当时序」的副产品，时序改对后自己退了。
-教训：**先怀疑数据口径，再怀疑判据**。
-
-建议**收窄适用范围**（字幕家族 / 同轨相邻 item 豁免），但改判据须先走登记册，**本轮只记不改**。
-
-## 🔴 载体轨不能嵌套（2026-10-18 第二轮真渲抓到的第三个 bug）
-
-**症状**：影子载体轨单独存在时完美分屏；一旦外层还有 `punch-in` 载体轨，**加了等于没加**
-（SSIM `1.000000`，像素完全一致）。
-
-**根因**：`<Sequence from={x}>` 是**相对父级**偏移时间。`CarrierChain` 原本 `reduce` 嵌套包裹，
-内层起点 = 父层偏移(2744) + 自身 `fromFrame`(6488) = 9232 > 成片长度 6667 ⇒ 永不渲染。
-补 `from={0}` 无效 —— 偏移发生在每一个 `<Sequence>` 上，而变换必须包住视频就只能嵌套。
-
-**修法（已实装）**：把时间轴**拍平**。`composeCarrierTimeline(tracks, total)` 取所有载体 item
-起止帧作切点切成**原子窗口**，每窗最多挂一个变换；`CarrierTimeline` 外层 `from={0}` 零偏移、
-逐窗 `from={w.from}`，有变换套 `MotionItem`、否则原样透传。
-副产品：首轮那个「载体窗外视频消失」的 bug 在结构上不可能复发（单测断言逐段相接、无缝无叠）。
-
-⚠️ **边界**：两载体时间**真重叠**时取「数组靠前者（更内层）优先」，外层变换在该窗被丢弃。
-取确定性降级而非叠乘。需要「放大 + 分屏」同时生效**应先立裁决**。
-
-🔴 **教训（第三次同款）**：「组件单测全绿 + 像素证据齐」仍可能只覆盖**单条链**。
-本轮三个 bug 全是「两条路径/两条链同时存在时才暴露」——
-**验证时要问「这套机制在**组合**下还成立吗」**，不能只验单条。
-
-## 占位值（🔴 勿当结论；8 个，通道通了 ⇒ 优先级上升）
+## 占位值 8 个（🔴 勿当结论）
 
 `ALIGN_GATE` 0.60/30% + `alignedRatioMin` 0.8（**须一并校准**）；闸2 分档 0.8/0.5；`DENSITY.maxItemsPerCue=3`（却能直接产 error）；
 `PERCEIVE.safeAreaTopRatio=0.6`；`HANDHELD_EXPANSION` 宽3×/高2.5×；显著性 `targetAreaRatio=0.35`；`CARRIER_RATIO_DEFAULT=0.5`；
-`MIN_VISIBLE_RATIO=0.5`（D4-t2 派生，**判据已于 P4 实装**，但阈值未校准 ⇒ `W-D2-02` 只能是 warning 档）。
-`CARRIER_FALLBACK` 全局表**已删**（P1）⇒ 未声明载体报 `E-D4-01`。
+`MIN_VISIBLE_RATIO=0.5`（判据已实装，阈值未校准 ⇒ `W-D2-02` 只能 warning 档）。
 
-## 裁决状态
-
-- **D-A** ✅ `typography/center-emphasis@1.0` 已实装（首个遮挡型）。
-- **D-B2** ✅ 选 C（批量真渲度量表）⏳ 未做；阻塞：缺图像量测管线（该机 ffmpeg 无 `eq`、无 PIL）。
-- **M-2** ✅ 全 Node（onnxruntime-node）+ RTMO-S 起步；**M-4** ✅ 不接受 VLM 替代检测 ⇒ **face fail-closed 至今零实现**（只做 `lowConfidence` 标记）。
-- **D4-t2** ✅ 裁决（10-17）：Q1 逐 item 显式 `carrier`、**废全局 map**；Q3 **cover 裁切分屏 + 主体锚定窗口**（中心 = shot `safeArea` 中心，`ratio` 钳 0.3–0.7，`side` 只决定视频显在哪侧；裁切窗校验期算好写入 `params.window`）。派生 `visibleRegion(params)` ⇒ `W-D2-02` 判据 = `|safeArea∩window|/|safeArea| ≥ 0.5`。
-- ⚠️ 10-17 曾把 `W-D2-02` 补成第 18 项、**当日撤回**，10-17 晚又以新判据重新入册。教训：**「规格写了」≠「我读懂了」** —— carrier 类 `footprint` 是**视频位置**不是 overlay 位置。
-- ⚠️ **裁决总数不要再引用**：旧记录一处写「44 RESOLVED」、另一处写「48」，两者相互矛盾且未核
-  （登记册状态列有三种格式混排，机械计数得 38–45 区间）。**只引 OPEN 清单**即可。
-
-## 下次开工点
-
-**真素材端到端已两轮**：首轮（`2026-10-18-真素材端到端首跑.md`）修了两个阻塞 bug；
-第二轮（`2026-10-18-cue字幕与影子载体轨.md`）做了 cue 化字幕 + 影子载体轨 + 拍平载体时间轴。
-成片在 `jobs/e2e-perceive/05-render/out.mp4`。下一步：
-
-1. **静音-词一致性门控**（`M-1d`，已登待决）：`alignedRatio` 只看文本匹配，
-   cue3 早 7.06s 仍报 1.000。判据要用 `silencedetect`，**不能拿 SRT 时间戳当基准**。
-   ⚠️ 字幕已不再受害于漂移（时间取 SRT），但**卡拉OK高亮仍会缺席** —— 修好对齐才能亮起来。
-3. **占位值校准（8 个）** —— 尤其 `MIN_VISIBLE_RATIO=0.5`（挡着 `W-D2-02` 升 error）。
-4. 剩余 2 个模板（`pointer-callout` / `whip-pan`）→ 11/11。
-5. **组合场景验证模板**：本轮三个 bug 全是「单链正常、双链同时存在才暴露」⇒
-   往后每个新机制都要问「和已有机制**同时**启用时还成立吗」。
-
-其余待办：face fail-closed（M-4 定案未落）、`D-B2` 度量表、根 `SKILL.md`、
-D6 参数决策档案与 `PLACEHOLDER` 追踪表。
-
-**实测基准（F4）**：6667 帧 1080p60 → 墙钟 **21 分 06 秒**，成片 219 MB。
+⚠️ **「占位值有几个」曾有三个口径**（MEMORY 8 / PROGRESS 7 / 代码 `PLACEHOLDER` 标记仅 3 处）—— 根因是**代码没有统一标记机制**（D6.4 待做）。在此之前引用数量须注明口径。
 
 ## P1–P4 定下的口径（后续别推翻）
 
-- 🔴 **`visibleRegion` 必须认两种裁切源**：`window`（split-frame 分屏）与 `scale > 1`
-  （punch-in 放大裁边）⇒ 可见区 `[(1-1/s)/2, (1-1/s)/2, 1/s, 1/s]`。
-  只实现 window 那一支 = D2-2 撤回理由②「对放大完全漏报」原样留着。
-- 🔴 **两者并存时取交集**（`intersectRects`），不是「window 优先」—— 后者会静默忽略 scale 的裁边 ⇒ 漏报。
-- 🔴 **scale 必须过 `clampScale()`**（`[1.0, 1.6]`，常量在 `core/`），否则判据比渲染更狠 ⇒ 误报。
-- ⚠️ **scale 分支取目标值（最坏帧），非当前帧** —— `punchInScale` 有进出场，中段帧 scale 小于目标值。
-  方向**保守**（可能误报、不会漏报），**已拍板保持现状**。
-- ⚠️ scale 可见区是**纯几何推导**（占位底铺满画面，真渲量不到黑边），真实素材下须复核。
+- 🔴 `visibleRegion` **必须认两种裁切源**：`window`（分屏）与 `scale > 1`（放大裁边）。只实现 window 一支 = 对放大完全漏报。
+- 🔴 两者并存取**交集**，不是「window 优先」—— 后者静默忽略 scale 裁边。
+- 🔴 `scale` 必须过 `clampScale()`（`[1.0, 1.6]`，常量在 `core/`），否则判据比渲染更狠 ⇒ 误报。
+- ⚠️ scale 分支取**目标值（最坏帧）**，非当前帧 —— 方向保守（可能误报、不会漏报），已拍板保持。
 - 查 shot `safeArea` 按**时间相交**，不按「item 起始帧落在 shot 内」—— item 可横跨两个 shot。
-- `W-D2-02` 与 `W-D4-01` 的码串都沿用旧值保登记册可追溯，**语义以代码注释为准**。
-- `W-D2-02` 的类归属（「载体可见性类」）**未经登记册裁决**，变更须走 `OPEN-DECISIONS.md`。
-- 改写**只在内存 + 由 render 侧重算**传递，不落新阶段产物（`guardSnapshot` 本就禁止 04 写 03）；
-  `render` 必须用 `ctx.storyboard` 而非单独 `readJson`，否则改写又蒸发。
-- 🔴 **`resolveScene` 必须在 render 侧跑一次**，且**幂等**（已在预算内不重复平移）。
-- 消解逻辑**唯一一份**在 `validate/occlusion.ts`，render 复用而非复制 ⇒ 校验与渲染几何逐位一致。
-  分叉会让报告对成片说谎。
-- 🔴 **施加 ≠ 成功**：tier2 必须有终判（施加后按展示条重算遮挡率），否则应报 `E-D2-01` 而非谎称成功。
+- 🔴 消解只在内存里改写 + **由 `render` 侧重算**传递，不落新阶段产物（`guardSnapshot` 禁 04 写 03）；`render` 必须用 `ctx.storyboard`，否则改写又蒸发。
+- 🔴 **`resolveScene` 必须在 render 侧跑一次且幂等**；消解逻辑唯一一份在 `validate/occlusion.ts`，render **复用而非复制** —— 分叉会让报告对成片说谎。
+- 🔴 **施加 ≠ 成功**：tier2 必须有终判（施加后按展示条重算遮挡率）。
 - `window` **刻意不进 `paramsSchema`** —— 校验期写入的系统字段，进表模型就能填它。
-- 载体几何**只此一份实现**（`core/carrier-window.ts`），validate 与 remotion 都从它取。
-- split-frame **刻意无进出场**（窗口随帧变化会动摇 `W-D2-02` 的判据）⇒ 渲染测试用
-  `STATIC_LAYOUT_TEMPLATES` 具名豁免 + 两条反向断言。
-
-## 文档真源层级（冲突时以此裁决）
-
-乐享 KB（唯一活文档，给人读）> `docs/decisions/OPEN-DECISIONS.md`（**裁决真源**；OPEN 仅 `C2-2` 阈值实测、`C2-3` BGM 分离倾向不做）> `docs/spec/SPEC-*.md`（v0.7）> `docs/changelog/` > `docs/proposals/`（未裁决前不含结论）。
-另：`PROGRESS.md`（真实数字 + 后续计划）、`CONTRIBUTING.md`（接手 3 分钟：裁决册 > PROGRESS > 其他）。
+- split-frame **刻意无进出场**（窗口随帧变化会动摇判据）⇒ 渲染测试用具名豁免 + 反向断言。
+- ⚠️ `W-D2-02` / `W-D4-01` 码串沿用旧值保可追溯，**语义以代码注释为准**；类归属变更须走裁决册。
 
 ## 约定 / 雷区
 
-- **帧是真相**：模型只写锚点 `{anchor:"word:37", offset:"-8f"}`，烘焙器解析成帧；**负偏移＝抢拍合法**（下界是锚定词所在 cue 起点，C2-5a）。
-- **新增字段/令牌/配置后立刻问「谁读它」** —— 10-15 一天撞见三例（`occludesSubject`/`handoffIn`/`DUR.exit`）。
-- **推进实现后回头改计划书状态**：每完成一条 D 项，先更新 `docs/proposals/2026-10-14-后续提升优化计划书.md` 文首状态横幅。
-- **改文档计数时区分活计数与条目身份**（「当前 16 项」要改，「第 16 项」不能改）。历史档案（changelog / memory 日志 / reviews / SPEC 版本历史行）保留原数字不动。
-- 增补校验项**须先改裁决册**；新错误码同时进 `errors.ts` 的 `CODES`。**`CODES` 键名不可与已删配置同名**（会误导），但错误码字符串要保留以保可追溯。
+- **帧是真相**：模型只写锚点 `{anchor:"word:37", offset:"-8f"}`，烘焙器解析成帧；锚点语法 `word:N` / `cue:N` / `abs:<帧|秒s>`。**负偏移＝抢拍合法**（下界是锚定词所在 cue 起点，C2-5a）。
+- **新增字段/令牌/配置后立刻问「谁读它」** —— 一天撞见三例（`occludesSubject` / `handoffIn` / `DUR.exit`）。零消费者的字段要**先判能否从别处推导**，再决定补实现还是删。
+- **推进实现后回头改计划书状态**：每完成一条 D 项，更新 `docs/proposals/2026-10-14-后续提升优化计划书.md` 文首横幅。
+- **改文档计数时区分活计数与条目身份**（「当前 16 项」要改，「第 16 项」不能改）。历史档案（changelog / memory 日志 / reviews / SPEC 版本历史）保留原数字。
+- 增补校验项**须先改裁决册**；新错误码同时进 `errors.ts` 的 `CODES`。**`CODES` 键名不可与已删配置同名**，但错误码字符串要保留以保可追溯。
 - 确定性红线：全树仅 `MotionItem` 读时钟；禁 `Date.now()`/`Math.random()`（用 `mulberry32`）/CSS animation/`<Series>`/显式 z-index。
-- 🔴 **demo 夹具坑**：`draft.json` 曾带 `highlightColor` 而模板声明刻意不含 ⇒ 手改下游快照能骗过 validate，重跑 storyboard 就红（已修）。**别手改下游快照。**
-- 🔴 环境铁律：pip **阿里源**（清华源 TLS 挂）；npm 大包「curl 下 tgz → cache add → 离线装」；`onnxruntime-node@1.30.0` 实测 **288MB**；模型落 `perceive-models/`（gitignore，换机重下，sha256 `ebafce4e…`）。参照 venv `~/.workbuddy/binaries/python/envs/default`。
-- `PROGRESS.md §七` 的 ffmpeg `EBUSY` 在 `G:\VideoPipeline` **不复现**（ffmpeg 9.0.2 gyan.dev）⇒ 特定安装方式问题，勿当通用坑。
+- 🔴 **demo 夹具坑**：手改下游快照能骗过 validate，重跑 storyboard 就红。**别手改下游快照。**
+- 长文本溢出：`whiteSpace: nowrap` + 模型可填长文本 ⇒ 溢出**既不折行也不缩放**，而校验全是结构判定看不出来。真实阈值约 13–14 中文字（`stat-card` 更窄）。当前依赖模型遵守 SKILL.md 字数建议 —— **这是纪律，不是强制**。
 - Git Bash：`python -c` 传含反引号多行串会失败 → 写临时 `.py`；git 输出中文路径需 `core.quotepath=false`。
+
+## 真源层级（冲突时以此裁决）
+
+`docs/decisions/OPEN-DECISIONS.md`（**裁决真源**）> `docs/spec/SPEC-*.md`（v0.7）> `docs/changelog/` > `docs/proposals/`（未裁决前不含结论）。
+OPEN 清单：`C2-2` 阈值实测 / `C2-3` BGM 分离倾向不做 / `M-1d` 静音-词门控 / `M-1e` whisper 漂移对策 / `M-4` 未落。
+⚠️ **裁决总数别引用**（历史上 44 / 48 两个口径互相矛盾，机械计数得 38–45 区间）—— 只引 OPEN 清单。
+另：`PROGRESS.md` = 真实数字 + 计划；`CONTRIBUTING.md` = 接手 3 分钟（裁决册 > PROGRESS > 其他）。
 
 ## git
 
-- 仓库级 noreply 身份（`29155565+bill1994@…`）；`gh auth setup-git` 做凭证，**别用 GCM**。
-- 🔴 **代理只走环境变量 `HTTP_PROXY`/`HTTPS_PROXY`，勿写死端口**（宿主每会话换端口）；直接 `git push`。曾用 `-c http.proxy=127.0.0.1:4436` 连续 5 次失败而 curl 却通 —— **别用 curl 通推断 git 通**。偶发 502 → 重试即通。
+- 仓库级 noreply 身份；`gh auth setup-git` 做凭证，**别用 GCM**（wincredman 校验会失败）。
+- 🔴 **代理只走环境变量 `HTTP_PROXY`/`HTTPS_PROXY`，勿写死端口**（宿主每会话换端口）。曾用 `-c http.proxy=…:4436` 连续 5 次失败而 curl 却通 —— **别用 curl 通推断 git 通**。偶发 502 → 重试即通。
 - 双工作区并行提交会产生「同内容不同 hash」重复提交：先建 `backup/pre-pull-<date>`，`git diff` 为空再 `reset --hard origin/main`。
-- 两边都写 `.workbuddy/memory/` 日期日志 ⇒ **拉取时查同名日志冲突并合并**（先例 10-12/13/15）。
-- 🔴 **`MEMORY.md` 名义上「只本机维护」，实际上已被远端提交过** —— 10-18 拉取即被另一台机视角整体覆盖。
-  故：① 内容一律**路径化**、不写「本机」；② 拉取前先 `git log --oneline -- .workbuddy/memory/MEMORY.md`
-  看它是否被动过；③ 改完若要留，就得提交（否则下次 ff 又被覆盖）。
+- 🔴 **`.workbuddy/memory/` 的两类内容别混**（2026-10-18 结构性修复）：
+  **项目知识**（本文件）跨机共享；**本机状态**（`LOCAL.md`，已 gitignore）各机独立。
+  此前两者混在 `MEMORY.md` 里 ⇒ 两台机互相覆盖，还写出「本机 `jobs/` 空」这种在另一台机上恰好相反的话。
+- 🔴 **改完记忆立刻提交**：不提交就是等着下次 `ff` 被覆盖。
+- 两边都写同日日志 ⇒ 每条记录**开头标注执行机绝对路径**，冲突时人工合并（先例 10-12/13/15）。
