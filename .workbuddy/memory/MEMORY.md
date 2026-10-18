@@ -15,6 +15,7 @@
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
 npm run typecheck && npm test
+npm run placeholders            # 占位值计数 + 重新生成 PARAM-DECISIONS.md（--check 只校验）
 ```
 
 demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` → `render`，`--jobs-dir examples`。
@@ -26,10 +27,17 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 | 路径 | 职责 |
 |------|------|
 | `src/cli.ts` | 唯一入口：参数解析 + 阶段分发 + 语义化退出码（0/1/2/…/6/130） |
-| `src/core/` | 契约 `types.ts` / 错误码 `errors.ts` / 锚点→帧 `bake.ts` / 两道闸+动态T `schedule.ts` / job 目录+快照守卫 `io.ts` / **载体几何唯一真源 `carrier-window.ts`** |
+| `src/core/` | 契约 `types.ts` / 错误码 `errors.ts` / 锚点→帧 `bake.ts` / 两道闸+动态T `schedule.ts` / job 目录+快照守卫 `io.ts` / **载体几何唯一真源 `carrier-window.ts`** / **占位值唯一真源 `placeholders.ts`** |
 | `src/stages/` | `align`→`builtin-align`→`whisper-adapter`+`text-align`(DP)；`perceive`→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive`；`storyboard`/`validate`/`render` |
 | `src/validate/` | 构建期校验（纯 JSON→JSON）+ `context.ts` 唯一读盘入口 + `occlusion.ts` 消解唯一实现（含 `resolveScene` 单一入口） |
 | `src/remotion/` | `carrier.tsx` **时间表渲染**（不嵌套）/ `carrier-synth.ts` **影子载体轨** / `MotionItem`（全树唯一 `useCurrentFrame`）/ `caption.ts`（字幕唯一入口）/ `tokens.ts`（颜色唯一来源） |
+
+## 当前状态（2026-10-18）
+
+**六道闸全通，真素材可端到端出片**（kukini 6667 帧 / 218MB / 墙钟 ≈21 分钟）。
+`03-storyboard` 管线通但仍**不调模型**（模型即操作者）；`05-render` 模板 **9/11**。
+剩下的不是「能不能出」，而是**质量**：`M-1d` 对齐产物层漂移 / 占位值校准 / 剩 2 个模板。
+真实数字与待办见 `PROGRESS.md`（§五 是当前主战场）。
 
 ## 🔴 四层假绿教训（本项目最贵的经验）
 
@@ -105,13 +113,17 @@ cue 时长用**半开区间** `[from, toFrame)`；`wordsInWindow` 用**严格大
 - 副产品：首轮「载体窗外视频消失」在结构上不可能复发。
 - ⚠️ **边界**：两载体时间真重叠时取「数组靠前者优先」，外层变换在该窗被丢弃。要「放大 + 分屏」同时生效**应先立裁决**。
 
-## 占位值 8 个（🔴 勿当结论）
+## 占位值：8 项 / 12 个数值（🔴 唯一口径在代码里）
 
-`ALIGN_GATE` 0.60/30% + `alignedRatioMin` 0.8（**须一并校准**）；闸2 分档 0.8/0.5；`DENSITY.maxItemsPerCue=3`（却能直接产 error）；
-`PERCEIVE.safeAreaTopRatio=0.6`；`HANDHELD_EXPANSION` 宽3×/高2.5×；显著性 `targetAreaRatio=0.35`；`CARRIER_RATIO_DEFAULT=0.5`；
-`MIN_VISIBLE_RATIO=0.5`（判据已实装，阈值未校准 ⇒ `W-D2-02` 只能 warning 档）。
+**别再手数**：`src/core/placeholders.ts` 是唯一真源，`npm run placeholders` 输出计数并生成
+`docs/decisions/PARAM-DECISIONS.md`（该文档**由代码渲染，禁止手改**；`--check` 可校验是否分叉）。
 
-⚠️ **「占位值有几个」曾有三个口径**（MEMORY 8 / PROGRESS 7 / 代码 `PLACEHOLDER` 标记仅 3 处）—— 根因是**代码没有统一标记机制**（D6.4 待做）。在此之前引用数量须注明口径。
+- 粒度定义：**一项 = 一个需要独立做出的校准决定**（同进同退的几个数算一项）；「数值个数」是另一口径，引用须说明。
+- 历史教训：`MEMORY 8 / PROGRESS 7 / 代码标记 3 处` 三方互不相等 —— 根因是**没人规定粒度和收录判据**。
+  详见 `PARAM-DECISIONS.md` §五「明确排除」：`DUR` 是"已调优待复核"不是占位，
+  `MATCH_MIN_SIMILARITY` 是实测校准过的**正面样板**，两者都曾被误计入。
+- 优先级最高的三个：`density`（**唯一占位值却直接产 error**，且无编辑 UI）/ `min-visible`（卡着 `W-D2-02` 升 error）/
+  `align-gate` + `confidence-bands`（必须同批）。
 
 ## P1–P4 定下的口径（后续别推翻）
 
