@@ -22,6 +22,7 @@ const DEFAULT_RENDER_PROPS: RenderProps = {
     noMotionRanges: [],
   },
   stacks: { background: [], overlay: [] },
+  carrierTracks: [],
 };
 
 /**

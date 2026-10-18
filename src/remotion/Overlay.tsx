@@ -4,7 +4,7 @@ import { MotionItem } from './MotionItem.tsx';
 import type { Storyboard, StoryboardTrack } from '../core/types.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { isCarrierScope, getScopeOf } from './scope.ts';
-import { CarrierTrack } from './carrier.tsx';
+import { CarrierTimeline } from './carrier.tsx';
 
 /**
  * 渲染 props —— 由 `05-render/render-props.json` 经 `--props` 注入。
@@ -22,6 +22,14 @@ export type RenderProps = {
   hasVideo: boolean;
   storyboard: Storyboard;
   stacks: { background: string[]; overlay: string[] };
+  /**
+   * 影子载体轨（D4-t3）—— 由「叠加 item 上的 `carrier` 声明」在 render 侧合成。
+   *
+   * 🔴 它**不在** `storyboard.tracks` 里：`storyboard` 必须保持模型产物的原貌，
+   *    否则 `03-storyboard/storyboard.json` 与渲染输入就会说两套话。
+   *    缺省 `[]` ⇒ 与旧行为完全等价（无 carrier 声明时什么都不合成）。
+   */
+  carrierTracks?: StoryboardTrack[];
   /**
    * 字幕数据（词级时间戳 + cue），来自 `01-align/words.json`。
    *
@@ -89,15 +97,16 @@ const CarrierChain: FC<{
   durationInFrames: number;
   children: ReactNode;
 }> = ({ carriers, caption, durationInFrames, children }) => {
-  return carriers.reduce<ReactNode>((inner, track) => {
-    return (
-      <AbsoluteFill data-carrier={track.id}>
-        <CarrierTrack track={track} caption={caption} durationInFrames={durationInFrames}>
-          {inner}
-        </CarrierTrack>
-      </AbsoluteFill>
-    );
-  }, children);
+  // 🔴 2026-10-18：不再逐轨嵌套 —— 嵌套会叠加 `<Sequence>` 的时间偏移，
+  //   让内层载体静默失效（详见 `carrier.tsx` 的 `composeCarrierTimeline` 文件头）。
+  //   改为「先把多条轨合并成一张绝对时间表，再逐窗渲染」，视频任一时刻只渲染一次。
+  return (
+    <AbsoluteFill data-carrier-chain={carriers.length > 0 ? carriers.length : undefined}>
+      <CarrierTimeline tracks={carriers} caption={caption} durationInFrames={durationInFrames}>
+        {children}
+      </CarrierTimeline>
+    </AbsoluteFill>
+  );
 };
 
 export const Overlay: FC<RenderProps> = ({
@@ -106,9 +115,12 @@ export const Overlay: FC<RenderProps> = ({
   hasVideo,
   durationInFrames,
   caption,
+  carrierTracks,
 }) => {
   const cap = caption ?? EMPTY_CAPTION;
-  const carriers: StoryboardTrack[] = [];
+  // 🔴 D4-t3 ②：影子轨**恒为最内层**（紧贴视频）⇒ 必须排在真实载体轨之前。
+  //   `CarrierChain` 用 reduce 依次包裹，数组第一个元素最贴近 children。
+  const carriers: StoryboardTrack[] = [...(carrierTracks ?? [])];
   const overlays: { track: StoryboardTrack; trackIndex: number }[] = [];
 
   storyboard.tracks.forEach((track, trackIndex) => {

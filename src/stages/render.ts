@@ -24,6 +24,7 @@ import { buildContext } from '../validate/context.ts';
 import { resolveScene } from '../validate/occlusion.ts';
 import { isCarrierScope } from '../templates/types.ts';
 import { toCaptionData } from '../remotion/caption.ts';
+import { SHADOW_TRACK_PREFIX, synthesizeCarrierTracks } from '../remotion/carrier-synth.ts';
 
 export interface RenderOptions {
   jobId: string;
@@ -178,6 +179,21 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     `双栈分离：背景链 ${stacks.background.length} 项（串联） / 叠加栈 ${stacks.overlay.length} 项（并列）`,
   );
 
+  // ── 影子载体轨（D4-t3，2026-10-18）────────────────────────────
+  // 🔴 为什么必须在这里合成：`validate` 把 tier2 的 `window` 写进**叠加 item** 的
+  //   `carrier.params`，而渲染层是按 **track 的 motion scope** 划分载体轨的 ——
+  //   没有这一层转换，载体档「算了、写了、报告说生效」，画面却分毫未动。
+  //   裁决要点：不新增组件、不改双栈、影子轨恒为最内层、**不落盘**。
+  const carrierTracks = synthesizeCarrierTracks(storyboard);
+  if (carrierTracks.length > 0) {
+    const n = carrierTracks.reduce((acc, t) => acc + t.items.length, 0);
+    log.info(
+      `影子载体轨：${carrierTracks.length} 条 / ${n} 段 ` +
+        `（${carrierTracks.map((t) => t.id.replace(SHADOW_TRACK_PREFIX, '')).join(', ')}）` +
+        ` —— 由叠加 item 的 carrier 声明合成，仅进渲染 props，不落 storyboard。`,
+    );
+  }
+
   /**
    * 字幕数据通道 —— `01-align/words.json`。
    *
@@ -221,6 +237,7 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     hasVideo: fs.existsSync(videoAbs),
     storyboard,
     stacks,
+    carrierTracks,
     ...(caption ? { caption } : {}),
   });
 

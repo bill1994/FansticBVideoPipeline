@@ -64,6 +64,7 @@ describe('#1 时序校验 E-C2-5-01（区间下界 = 锚定词所在 cue 的起�
     wordIndex: 5,
     wordStartFrame: 200,
     wordEndFrame: 219,
+    cueIndex: -1,
     fromFrame,
   });
 

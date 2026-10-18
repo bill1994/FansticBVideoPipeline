@@ -282,11 +282,13 @@ export interface BakeRecord {
   itemIndex: number;
   anchor: string;
   offset: string;
-  /** 锚点解析到的词序号。 */
+  /** 锚点解析到的词序号。`cue:` / `abs:` 锚点为 -1。 */
   wordIndex: number;
-  /** 该词的区间，来自 01-align。 */
+  /** 该词的区间，来自 01-align。非 `word:` 锚点为 -1。 */
   wordStartFrame: number;
   wordEndFrame: number;
+  /** 锚点解析到的 cue 序号（C2-6）。`word:` / `abs:` 锚点为 -1。 */
+  cueIndex: number;
   fromFrame: number;
 }
 

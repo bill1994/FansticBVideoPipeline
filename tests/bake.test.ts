@@ -53,7 +53,37 @@ describe('resolveAnchor', () => {
   });
 
   it('未知锚点语法 → ConfigError', () => {
-    expect(() => resolveAnchor('cue:3', undefined, WORDS, FPS)).toThrow(ConfigError);
+    expect(() => resolveAnchor('xx:3', undefined, WORDS, FPS)).toThrow(ConfigError);
+  });
+
+  // ── C2-6：cue:N 锚点（2026-10-18）────────────────────────────
+  // 字幕按 cue 切分时，模型不该手算「显示多少帧」；cue 锚点一次给出起点 + 长度。
+  it('cue:1 + (-4f) → 起点前移且时长扣掉偏移量', () => {
+    const cues = [{ index: 1, fromFrame: 300, toFrame: 399, text: '示例句' }];
+    const r = resolveAnchor('cue:1', '-4f', WORDS, FPS, cues);
+    expect(r.fromFrame).toBe(296);
+    expect(r.cueIndex).toBe(1);
+    // toFrame 含端点 ⇒ 时长 = 399 - 296 + 1 = 104（不是 100）
+    expect(r.cueDurationInFrames).toBe(104);
+    // 与 word 锚点互斥：不能把 cue 序号误记成词序号
+    expect(r.wordIndex).toBeNull();
+    expect(r.wordStartFrame).toBeNull();
+  });
+
+  it('cue:0 无 offset → 时长恰为 cue 跨度（含端点）', () => {
+    const cues = [{ index: 0, fromFrame: 0, toFrame: 149, text: 'A' }];
+    const r = resolveAnchor('cue:0', undefined, WORDS, FPS, cues);
+    expect(r.fromFrame).toBe(0);
+    expect(r.cueDurationInFrames).toBe(150);
+  });
+
+  it('cue 序号不存在 → ConfigError，且提示可改用 word/abs', () => {
+    const cues = [{ index: 0, fromFrame: 0, toFrame: 149, text: 'A' }];
+    expect(() => resolveAnchor('cue:9', undefined, WORDS, FPS, cues)).toThrow(/改用 word/);
+  });
+
+  it('cue 序号非法（非整数）→ ConfigError', () => {
+    expect(() => resolveAnchor('cue:abc', undefined, WORDS, FPS, [])).toThrow(ConfigError);
   });
 });
 
@@ -151,5 +181,69 @@ describe('bake', () => {
       ],
     };
     expect(() => bake(bad, WORDS, FPS)).toThrow(ConfigError);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// C2-6：cue:N 锚点（2026-10-18）
+//
+// 立法意图：模型**只写「覆盖哪条字幕」**，不写「显示多少帧」。
+// 48 条 cue 手算 48 次时长，正是铁律 2（写锚点、不手算帧）要禁的事。
+// ─────────────────────────────────────────────────────────────
+describe('bake · cue:N 锚点（C2-6）', () => {
+  const CUES = [
+    { index: 0, fromFrame: 0, toFrame: 59, text: '第一句' },
+    { index: 1, fromFrame: 60, toFrame: 149, text: '第二句' },
+  ];
+
+  const cueDraft = (extra: Record<string, unknown> = {}): Storyboard => ({
+    meta: { fps: FPS, anchorMode: 'word', alignmentConfidence: 0.9 },
+    tracks: [
+      {
+        id: 'caption-bar',
+        layer: 90,
+        items: [
+          {
+            _author: { anchor: 'cue:1' },
+            fromFrame: Number.NaN,
+            durationInFrames: Number.NaN,
+            motion: 'caption/karaoke-word@1.0',
+            footprint: [0.1, 0.86, 0.8, 0.1],
+            ...extra,
+          },
+        ],
+      },
+    ],
+    noMotionRanges: [],
+  });
+
+  it('不写 durationInFrames 时，时长取 cue 自身跨度（含端点）', () => {
+    const { storyboard, report } = bake(cueDraft(), WORDS, FPS, CUES);
+    const it0 = storyboard.tracks[0]!.items[0]!;
+    expect(it0.fromFrame).toBe(60);
+    expect(it0.durationInFrames).toBe(90); // 149 - 60 + 1
+    expect(report.records[0]!.cueIndex).toBe(1);
+    expect(report.records[0]!.wordIndex).toBe(-1);
+  });
+
+  it('显式 durationInFrames 仍优先（沿用时长来源第 1 条）', () => {
+    const { storyboard } = bake(cueDraft({ durationInFrames: 12 }), WORDS, FPS, CUES);
+    expect(storyboard.tracks[0]!.items[0]!.durationInFrames).toBe(12);
+  });
+
+  it('模板 minVisibleInFrames 是下限，不会把 cue 长度压小', () => {
+    const shortCues = [{ index: 0, fromFrame: 0, toFrame: 2, text: '嗯' }];
+    const draft = cueDraft();
+    (draft.tracks[0]!.items[0]!._author as { anchor: string }).anchor = 'cue:0';
+    const { storyboard } = bake(draft, WORDS, FPS, shortCues);
+    // karaoke-word 的 minVisibleInFrames = 12 > cue 跨度 3
+    expect(storyboard.tracks[0]!.items[0]!.durationInFrames).toBe(
+      getTemplate('caption/karaoke-word@1.0').minVisibleInFrames,
+    );
+  });
+
+  it('cue 锚点解析后 _author 仍被剥离（锚点用完即弃）', () => {
+    const { storyboard } = bake(cueDraft(), WORDS, FPS, CUES);
+    expect(storyboard.tracks[0]!.items[0]!._author).toBeUndefined();
   });
 });

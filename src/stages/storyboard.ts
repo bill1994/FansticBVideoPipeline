@@ -154,7 +154,13 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   };
 
   // ── 烘焙：锚点 → 帧，随后剥离 _author ───────────────────────
-  const { storyboard, report } = bake(withDecision as unknown as Storyboard, aligned.words, source.fps);
+  // `cues` 必须一起传：`cue:N` 锚点（C2-6）靠它取起点与**隐式时长**。
+  const { storyboard, report } = bake(
+    withDecision as unknown as Storyboard,
+    aligned.words,
+    source.fps,
+    aligned.cues ?? [],
+  );
 
   // 起草稿专用字段不落盘：`sim_max` / `confidence` 是闸1/闸2 的**输入**，
   // 结论已经写进 `decision`，把它们留在最终产物里等于往契约里塞临时状态。

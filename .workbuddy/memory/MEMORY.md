@@ -29,7 +29,7 @@
 
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]  # align|perceive|storyboard|validate|render|init
-npm run typecheck && npm test   # tsc --noEmit / vitest 384 项 / 23 文件
+npm run typecheck && npm test   # tsc --noEmit / vitest 411 项 / 24 文件
 ```
 demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` → `render`，`--jobs-dir examples`。
 预期 0 error / 2 warning（均 `W-F6-01`）。⚠️ 仅在**不重跑 storyboard** 时成立（见雷区）。
@@ -43,8 +43,8 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 | `src/stages/` | `align`(后端选择)→`builtin-align`→`whisper-adapter`+`text-align`(DP)；`perceive`(后端选择)→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive`；`storyboard`/`validate`/`render` |
 | `src/validate/` | **18 项**构建期校验（纯 JSON→JSON）+ 2 条 extra（`W-D3-01`/`W-F6-01`）；`context.ts` 唯一读盘入口；`occlusion.ts` 消解唯一实现（含 `resolveScene` 单一入口） |
 | `src/templates/` | 声明：`builtin.ts` **11 个** / `registry.ts` 自检 / `types.ts` 双轴 family×scope |
-| `src/remotion/` | `index→Root→Overlay`(双栈) / `MotionItem`（全树唯一 `useCurrentFrame`）/ `carrier.tsx` / `caption.ts` / `tokens.ts` 颜色唯一来源 / `templates/` **9 个实现** |
-| `tests/` `tools/` | vitest **23 文件 / 384 项**；探针 16 个（probe-yunet / -regions / -shots / -saliency …） |
+| `src/remotion/` | `index→Root→Overlay`(双栈) / `carrier.tsx` **时间表渲染**（不嵌套） / `carrier-synth.ts` **影子载体轨**（D4-t3） / `MotionItem`（全树唯一 `useCurrentFrame`）/ `carrier.tsx` / `caption.ts` / `tokens.ts` 颜色唯一来源 / `templates/` **9 个实现** |
+| `tests/` `tools/` | vitest **24 文件 / 411 项**；探针 16 个（probe-yunet / -regions / -shots / -saliency …） |
 | `docs/` `.workbuddy/skills/` | 规格/裁决/提案/评审/变更 + 五阶段执行期契约 |
 
 ## 当前状态（2026-10-18 · `b4935ba` · 工作区干净）
@@ -52,7 +52,7 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 六道闸「四道半」：`01-align` ✅ / `02-perceive` ✅（内置三通道：ffmpeg `scdet` → YuNet `face` → 人脸外扩 `handheld` → 无脸镜头显著性 `broll`；三素材 77 shot / 0 低置信）/ `03-storyboard` 🔶（管线通，不调模型）/ `04-validate` ✅ / `05-render` 🔶（**9/11** 模板有实现）。
 **硬阻断已拆**（未配 `PERCEIVER_CMD` 不再退出码 2）。
 
-- ✅ **计数**：18 项校验 / **384 单测 / 23 文件** / 11 声明 / 9 实现 / 26 条码 / 8 个占位值。
+- ✅ **计数**：18 项校验 / **411 单测 / 24 文件** / 11 声明 / 9 实现 / 26 条码 / 8 个占位值。
 - ✅ **通道方案 A 已落地**：`resolveScene(ctx)` 为消解单一入口，`render` 侧重算后用 `ctx.storyboard` 生成 props。
 - ✅ **P3 已接线**：tier2 真正写入 `carrier.params.window`（主体锚定），遮挡率按**施加后**重算 + 终判。
 - ✅ **P4 已重立 `W-D2-02`（第 18 项）**：判据换源为 `visibleRegion(params)`，该函数已认
@@ -132,14 +132,37 @@ bug 1 的 404 只在视频真被挂载时才报 —— 两个 bug 互相遮蔽�
   kukini 48 条 cue 中 4 条超 1s（−7.06 / −1.33 / −1.40 / +1.06）。
 - ⏳ **未修**：属门控指标选型，按纪律先改裁决册。
 
-## ⚠️ 已知未解：tier2 写的 `window` 在渲染层没有消费者
+## ⚠️ 已知未解：两条判据对「cue 化字幕」过敏
 
-`validate` 把 `window` 写进**叠加 item** 的 `carrier.params`（且显式只对 `isOverlayScope` 生效）；
-而渲染层按 `item.motion` 的 scope 划分载体轨，`MotionItem` **完全不读 `item.carrier`**；
-唯一读 `carrierParamsOf` 的 `split-frame.tsx` 只在 motion 本身是 `carrier/split-frame` 时运行。
-**两条路径不相交** ⇒ 自动载体退让目前改变不了画面。
-需裁决：让 `MotionItem` 对带 `carrier` 的叠加 item 施加包围变换，还是要求载体档必须是独立 track。
-（tier2 本身工作正常：人工补 `carrier` 后它如实报 `carrier-insufficient`，第三层假绿护栏有效。）
+cue 化后 `validate` 是 **0 error / 104 warning**，其中 103 条属**判据适用范围**问题：
+
+| 码 | 条数 | 为什么是误报 |
+|---|---|---|
+| `W-C3-01` 起点恰在词边界 | 49（48 条来自字幕） | 字幕**本就该对齐语音**；该码的立法意图是「机械对齐读起来像机器」，用在字幕上反了 |
+| `W-C4-01` footprint 相交 | 54 | 相邻 cue 的 caption item 差 1 帧（`toFrame` 含端点，相邻 cue 的 `fromFrame` 等于上一条 `toFrame`） |
+
+建议**收窄适用范围**（字幕家族 / 同轨相邻 item 豁免），但改判据须先走登记册，**本轮只记不改**。
+
+## 🔴 载体轨不能嵌套（2026-10-18 第二轮真渲抓到的第三个 bug）
+
+**症状**：影子载体轨单独存在时完美分屏；一旦外层还有 `punch-in` 载体轨，**加了等于没加**
+（SSIM `1.000000`，像素完全一致）。
+
+**根因**：`<Sequence from={x}>` 是**相对父级**偏移时间。`CarrierChain` 原本 `reduce` 嵌套包裹，
+内层起点 = 父层偏移(2744) + 自身 `fromFrame`(6488) = 9232 > 成片长度 6667 ⇒ 永不渲染。
+补 `from={0}` 无效 —— 偏移发生在每一个 `<Sequence>` 上，而变换必须包住视频就只能嵌套。
+
+**修法（已实装）**：把时间轴**拍平**。`composeCarrierTimeline(tracks, total)` 取所有载体 item
+起止帧作切点切成**原子窗口**，每窗最多挂一个变换；`CarrierTimeline` 外层 `from={0}` 零偏移、
+逐窗 `from={w.from}`，有变换套 `MotionItem`、否则原样透传。
+副产品：首轮那个「载体窗外视频消失」的 bug 在结构上不可能复发（单测断言逐段相接、无缝无叠）。
+
+⚠️ **边界**：两载体时间**真重叠**时取「数组靠前者（更内层）优先」，外层变换在该窗被丢弃。
+取确定性降级而非叠乘。需要「放大 + 分屏」同时生效**应先立裁决**。
+
+🔴 **教训（第三次同款）**：「组件单测全绿 + 像素证据齐」仍可能只覆盖**单条链**。
+本轮三个 bug 全是「两条路径/两条链同时存在时才暴露」——
+**验证时要问「这套机制在**组合**下还成立吗」**，不能只验单条。
 
 ## 占位值（🔴 勿当结论；8 个，通道通了 ⇒ 优先级上升）
 
@@ -160,23 +183,22 @@ bug 1 的 404 只在视频真被挂载时才报 —— 两个 bug 互相遮蔽�
 
 ## 下次开工点
 
-**D4-t2 已 4/4 完成**；**真素材端到端已首跑成功（2026-10-18）** —— 见上节，
-成片在 `jobs/e2e-perceive/05-render/out.mp4`。下一步按这个顺序：
+**真素材端到端已两轮**：首轮（`2026-10-18-真素材端到端首跑.md`）修了两个阻塞 bug；
+第二轮（`2026-10-18-cue字幕与影子载体轨.md`）做了 cue 化字幕 + 影子载体轨 + 拍平载体时间轴。
+成片在 `jobs/e2e-perceive/05-render/out.mp4`。下一步：
 
-1. **字幕按 cue 切**（最影响观感）：本次用「大窗口」起草 ⇒ 一条 item 覆盖 8–31 秒 ⇒
-   出现 3–5 行文字墙。`caption/karaoke-word` 渲染的是**窗口内全部词**，
-   故 **caption item 必须一条 cue 一个**（48 cue → 48 item）。SKILL.md 缺这条约束。
-2. **补两项回归测试**：`CarrierTrack` 窗口外透传、`render` 的 video 路径 ——
-   目前只有像素级人工证据，无自动化断言。
-3. **tier2 消费者裁决**（见上节）—— 否则「自动载体退让」永远只是报告里的数字。
-4. **占位值校准（8 个）** —— 尤其 `MIN_VISIBLE_RATIO=0.5`（挡着 `W-D2-02` 升 error）；
-   本次 `ALIGN_GATE` 全过但成片有 7 秒错位，是校准 `alignedRatioMin` 的直接反例。
-5. 剩余 2 个模板（`pointer-callout` / `whip-pan`）→ 11/11。
+1. **两条判据收窄适用范围**（见上）—— 否则 104 条 warning 会把真信号淹掉。
+2. **静音-词一致性门控**（`M-1d`，已登待决）：`alignedRatio` 只看文本匹配，
+   cue3 早 7.06s 仍报 1.000。判据要用 `silencedetect`，**不能拿 SRT 时间戳当基准**。
+3. **占位值校准（8 个）** —— 尤其 `MIN_VISIBLE_RATIO=0.5`（挡着 `W-D2-02` 升 error）。
+4. 剩余 2 个模板（`pointer-callout` / `whip-pan`）→ 11/11。
+5. **组合场景验证模板**：本轮三个 bug 全是「单链正常、双链同时存在才暴露」⇒
+   往后每个新机制都要问「和已有机制**同时**启用时还成立吗」。
 
 其余待办：face fail-closed（M-4 定案未落）、`D-B2` 度量表、根 `SKILL.md`、
 D6 参数决策档案与 `PLACEHOLDER` 追踪表。
 
-**本次实测基准（F4 首条）**：6667 帧 1080p60 → 墙钟 **21 分 06 秒**，成片 219 MB。
+**实测基准（F4）**：6667 帧 1080p60 → 墙钟 **21 分 06 秒**，成片 219 MB。
 
 ## P1–P4 定下的口径（后续别推翻）
 
