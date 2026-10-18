@@ -15,6 +15,7 @@
 ```bash
 npm run pipeline -- <stage> --job <id> [--jobs-dir <dir>]   # align|perceive|storyboard|validate|render|init
 npm run typecheck && npm test
+npm run doctor                  # 7 项环境自检（换机第一步；fail 都带具体做法）
 npm run placeholders            # 占位值计数 + 重新生成 PARAM-DECISIONS.md（--check 只校验）
 ```
 
@@ -27,7 +28,7 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 | 路径 | 职责 |
 |------|------|
 | `src/cli.ts` | 唯一入口：参数解析 + 阶段分发 + 语义化退出码（0/1/2/…/6/130） |
-| `src/core/` | 契约 `types.ts` / 错误码 `errors.ts` / 锚点→帧 `bake.ts` / 两道闸+动态T `schedule.ts` / job 目录+快照守卫 `io.ts` / **载体几何唯一真源 `carrier-window.ts`** / **占位值唯一真源 `placeholders.ts`** |
+| `src/core/` | 契约 `types.ts` / 错误码 `errors.ts` / 锚点→帧 `bake.ts` / 两道闸+动态T `schedule.ts` / job 目录+快照守卫 `io.ts`（**`writeStageJson` 是唯一写盘入口**）/ **载体几何唯一真源 `carrier-window.ts`** / **占位值唯一真源 `placeholders.ts`** / 环境自检 `doctor.ts` |
 | `src/stages/` | `align`→`builtin-align`→`whisper-adapter`+`text-align`(DP)；`perceive`→`builtin-perceive`→`shot-detect`(ffmpeg scdet)+`yunet`+`region-derive`；`storyboard`/`validate`/`render` |
 | `src/validate/` | 构建期校验（纯 JSON→JSON）+ `context.ts` 唯一读盘入口 + `occlusion.ts` 消解唯一实现（含 `resolveScene` 单一入口） |
 | `src/remotion/` | `carrier.tsx` **时间表渲染**（不嵌套）/ `carrier-synth.ts` **影子载体轨** / `MotionItem`（全树唯一 `useCurrentFrame`）/ `caption.ts`（字幕唯一入口）/ `tokens.ts`（颜色唯一来源） |
@@ -37,7 +38,22 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 **六道闸全通，真素材可端到端出片**（kukini 6667 帧 / 218MB / 墙钟 ≈21 分钟）。
 `03-storyboard` 管线通但仍**不调模型**（模型即操作者）；`05-render` 模板 **9/11**。
 剩下的不是「能不能出」，而是**质量**：`M-1d` 对齐产物层漂移 / 占位值校准 / 剩 2 个模板。
-真实数字与待办见 `PROGRESS.md`（§五 是当前主战场）。
+真实数字与待办见 `PROGRESS.md`（§五 是当前主战场）。当前 **449 单测 / 27 文件 / 18 项校验**。
+
+## 🔴「定义了 ≠ 生效」的第五次：守卫函数存在但没人调
+
+`validate/occlusion.ts` 的架构论证写着「`io.ts` 的不可变快照守卫（`guardSnapshot` 会直接拒绝
+04 阶段回写 03）」—— 而 `guardSnapshot` **这个函数从来不存在**，同作用的
+`assertNotWritingUpstream` **零调用**（连测试都没有）。结论侥幸对（方案 A 本身绕开了写回），
+但**论证前提是假的**。
+
+🔴 **判据升级**：不只看「字段有没有消费者」，还要看**注释/文档里声称承重的机制**是否真的接线。
+本项目的五次同款：`occludesSubject`（补实现）、`handoffIn`（删）、`DUR.exit`（补）、
+字号真源（上提）、快照守卫（接线）。
+
+✅ 已于 10-18 修复：`writeStageJson()` 成为**所有 stage 落盘的唯一入口**，
+内含 `assertNotWritingUpstream`；`tests/stage-io.test.ts` 断言「越权时**一个字节都不落盘**」
+（不是写完再抛）。
 
 ## 🔴 四层假绿教训（本项目最贵的经验）
 
