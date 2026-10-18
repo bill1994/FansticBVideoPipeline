@@ -89,7 +89,13 @@ function isCue(v: unknown): v is Cue {
  */
 export function wordsInWindow(data: CaptionData, fromFrame: number, durationInFrames: number): WordTimestamp[] {
   const end = fromFrame + durationInFrames;
-  return data.words.filter((w) => w.startFrame < end && w.endFrame >= fromFrame);
+  // 🔴 右端用**严格大于**（2026-10-18 第二轮真渲修正）：
+  //   对齐产物里相邻 cue 的分界满足 `cues[i].toFrame === cues[i+1].fromFrame`，
+  //   而词是连续铺满的 ⇒ 上一句的**末词 endFrame 恰好等于**本句的 fromFrame。
+  //   用 `>=` 会把这个末词也算进本句，成片里每条字幕头部都多一个上一句的字
+  //   （实测露出「的是 Spiridon Cage 的中底配置」，那个「的是」属于上一句）。
+  //   改成 `>` 只排除「恰好在边界上收尾」的词，仍保留「跨越边界的词」（避免缺字）。
+  return data.words.filter((w) => w.startFrame < end && w.endFrame > fromFrame);
 }
 
 /**
