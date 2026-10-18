@@ -111,8 +111,15 @@ export function resolveAnchor(
       wordStartFrame: null,
       wordEndFrame: null,
       cueIndex: c.index,
-      // `toFrame` 含端点 ⇒ 时长 +1；再扣掉 offset 造成的起点前移/后移
-      cueDurationInFrames: c.toFrame - (c.fromFrame + off) + 1,
+      // 🔴 **半开区间 [from, toFrame)**（2026-10-18 第二轮真渲修正）。
+      //   首版写成 `toFrame - fromFrame + 1`（按 `Cue.toFrame 含端点` 的字面理解），
+      //   结果与 `wordsInWindow` 的闭区间判定叠加出两个可见问题：
+      //     ① 相邻 caption item 差 1 帧 ⇒ 该帧两条字幕同时渲染，且 `W-C4-01` 报 54 条相交；
+      //     ② 成片里每条字幕都多出一个邻句的字（实测「的是 … 前」）。
+      //   对齐产物里 `cues[i].toFrame === cues[i+1].fromFrame`，说明它本就是**分界点**
+      //   而非「末词末帧」⇒ 当**半开区间**才是对这份数据的正确读法。
+      //   丢掉的只有末句 1/60 秒，肉眼不可见；换来相邻字幕不重叠、不多字。
+      cueDurationInFrames: c.toFrame - (c.fromFrame + off),
     };
   }
 

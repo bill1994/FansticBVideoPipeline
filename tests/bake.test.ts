@@ -63,18 +63,18 @@ describe('resolveAnchor', () => {
     const r = resolveAnchor('cue:1', '-4f', WORDS, FPS, cues);
     expect(r.fromFrame).toBe(296);
     expect(r.cueIndex).toBe(1);
-    // toFrame 含端点 ⇒ 时长 = 399 - 296 + 1 = 104（不是 100）
-    expect(r.cueDurationInFrames).toBe(104);
+    // 半开区间 [from, toFrame) ⇒ 时长 = 399 - 296 = 103
+    expect(r.cueDurationInFrames).toBe(103);
     // 与 word 锚点互斥：不能把 cue 序号误记成词序号
     expect(r.wordIndex).toBeNull();
     expect(r.wordStartFrame).toBeNull();
   });
 
-  it('cue:0 无 offset → 时长恰为 cue 跨度（含端点）', () => {
+  it('cue:0 无 offset → 时长恰为 cue 跨度（半开区间）', () => {
     const cues = [{ index: 0, fromFrame: 0, toFrame: 149, text: 'A' }];
     const r = resolveAnchor('cue:0', undefined, WORDS, FPS, cues);
     expect(r.fromFrame).toBe(0);
-    expect(r.cueDurationInFrames).toBe(150);
+    expect(r.cueDurationInFrames).toBe(149);
   });
 
   it('cue 序号不存在 → ConfigError，且提示可改用 word/abs', () => {
@@ -217,11 +217,11 @@ describe('bake · cue:N 锚点（C2-6）', () => {
     noMotionRanges: [],
   });
 
-  it('不写 durationInFrames 时，时长取 cue 自身跨度（含端点）', () => {
+  it('不写 durationInFrames 时，时长取 cue 自身跨度（半开区间）', () => {
     const { storyboard, report } = bake(cueDraft(), WORDS, FPS, CUES);
     const it0 = storyboard.tracks[0]!.items[0]!;
     expect(it0.fromFrame).toBe(60);
-    expect(it0.durationInFrames).toBe(90); // 149 - 60 + 1
+    expect(it0.durationInFrames).toBe(89); // 149 - 60（半开区间）
     expect(report.records[0]!.cueIndex).toBe(1);
     expect(report.records[0]!.wordIndex).toBe(-1);
   });
