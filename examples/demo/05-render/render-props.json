@@ -38,6 +38,7 @@
         "toFrame": 838
       }
     ],
+    "fps": 30,
     "words": [
       {
         "confidence": 0.42,
@@ -461,6 +462,7 @@
       }
     ]
   },
+  "carrierTracks": [],
   "durationInFrames": 900,
   "fps": 30,
   "hasVideo": false,
@@ -689,5 +691,5 @@
       }
     ]
   },
-  "video": "../00-input/raw.mp4"
+  "video": "public/raw.mp4"
 }
