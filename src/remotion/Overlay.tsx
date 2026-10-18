@@ -82,15 +82,17 @@ const TrackSequence: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ t
  * 每层用 `CarrierTrack` 做**分段包裹**（item 段包裹 / 间隙段透传），
  * 见 `carrier.tsx` 的文件头：为什么必须分段、以及重叠的降级语义。
  */
-const CarrierChain: FC<{ carriers: StoryboardTrack[]; caption: CaptionData; children: ReactNode }> = ({
-  carriers,
-  caption,
-  children,
-}) => {
+const CarrierChain: FC<{
+  carriers: StoryboardTrack[];
+  caption: CaptionData;
+  /** 🔴 必须传：载体轨只覆盖部分时间轴，轨道窗口之外仍需透传视频（见下）。 */
+  durationInFrames: number;
+  children: ReactNode;
+}> = ({ carriers, caption, durationInFrames, children }) => {
   return carriers.reduce<ReactNode>((inner, track) => {
     return (
       <AbsoluteFill data-carrier={track.id}>
-        <CarrierTrack track={track} caption={caption}>
+        <CarrierTrack track={track} caption={caption} durationInFrames={durationInFrames}>
           {inner}
         </CarrierTrack>
       </AbsoluteFill>
@@ -102,6 +104,7 @@ export const Overlay: FC<RenderProps> = ({
   storyboard,
   video,
   hasVideo,
+  durationInFrames,
   caption,
 }) => {
   const cap = caption ?? EMPTY_CAPTION;
@@ -128,7 +131,11 @@ export const Overlay: FC<RenderProps> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       {/* 背景链：载体类，串联 */}
-      <CarrierChain carriers={carriers} caption={cap}>
+      <CarrierChain
+        carriers={carriers}
+        caption={cap}
+        durationInFrames={durationInFrames}
+      >
         {hasVideo && video ? (
           <AbsoluteFill>
             <OffthreadVideo src={video} />

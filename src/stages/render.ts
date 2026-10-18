@@ -206,7 +206,16 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     jobId: opts.jobId,
     fps: source.fps,
     durationInFrames: source.durationInFrames,
-    video: path.relative(outDir, videoAbs).replaceAll('\\', '/'),
+    // 🔴 2026-10-18 实测修正：**不能传 `../00-input/x.mp4`，也不能只传文件名**。
+    //   `<OffthreadVideo src>` 由 Remotion 的静态服务器解析，而该服务器把 URL 路径
+    //   映射到 **bundle 目录**（`--public-dir` 的内容被复制进 `bundle/public/`）。
+    //   实测三种写法：
+    //     `../00-input/kukini.mp4` → 404（`bundle/00-input/...`）
+    //     `kukini.mp4`             → 404（`bundle/kukini.mp4`）
+    //     `public/kukini.mp4`      → ✅ 命中
+    //   demo job 一直是 `hasVideo: false`（走占位底分支），**这条路径从未被走过**，
+    //   缺陷直到第一次用真素材渲染才暴露。
+    video: `public/${path.basename(source.video)}`,
     // 素材不存在时渲染占位底，而不是让 OffthreadVideo 去解一个空 src。
     // demo job 没有真实视频，靠这条也能把「双栈 / z 序 / 时间映射」结构跑出来。
     hasVideo: fs.existsSync(videoAbs),
@@ -229,6 +238,8 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     'Overlay',
     outVideo,
     `--props=${propsFile}`,
+    // 素材目录作为静态根：props 里 `video` 只写文件名，Remotion 按 publicDir 解析。
+    `--public-dir=${path.join(base, STAGES.input)}`,
     '--gl=angle',
     '--log=verbose',
   ];

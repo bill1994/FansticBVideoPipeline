@@ -99,8 +99,47 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 - **量测法**：`remotion still` 抽帧 + 纯 Node 解 PNG（zlib + PNG 反滤波）像素级量分界线。
 - 🔴 **探针脚本未入库**：`out/make-split-frame-probe.mjs` 在 `out/` 下，被 `.gitignore` 忽略
   ⇒ 只存在于做过那次真渲的机器，换机重跑需重建探针（`out/frames/` 里的抽帧同理）。
-- ⚠️ 那次真渲用的是占位底（当时机器无素材）⇒ **验证的是几何不是观感**。
-  真正素材在 `G:\VideoPipeline\TestResources\`，端到端观感尚未验证。
+- 🔴 **「视频在不在」用像素判断，不用眼睛**：抽单像素比对即可 ——
+  根容器背景是 `0,0,0`，占位底是 `16,20,24`，素材画面是任意真实值。
+  10-18 就是靠这条区分出「视频没挂载」与「素材开头本来就黑」。
+
+## 🔴 真素材端到端首跑（2026-10-18，`jobs/e2e-perceive`）—— 两个渲染层阻塞 bug
+
+详见 `docs/changelog/2026-10-18-真素材端到端首跑.md`。首次跑通 align→perceive→storyboard→validate→render，
+成片 6667 帧 / 219MB / **墙钟 21 分 06 秒**。抓出：
+
+| # | bug | 症状 | 修法 |
+|---|---|---|---|
+| 1 | `<OffthreadVideo>` 的 src 路径 | 渲染到 2836 帧崩，**或全程黑帧且不报错** | Remotion 静态服务把 URL 映射到 **bundle 目录**；实测只有 `public/<name>` 命中 ⇒ `video: 'public/'+basename` + `--public-dir=<00-input>` |
+| 2 | `CarrierTrack` 把视频裁在轨道窗内 | 只要有一个载体类 item（如 `punch-in`），**其区间外整段视频消失**（6517 帧纯黑） | 窗口前 `[0,start)` / 窗口后 `[end,duration)` 补**无变换透传**，`CarrierTrack` 新增 `durationInFrames` |
+
+🔴 **为什么这两个 bug 长期隐形**：demo job 是 `hasVideo: false`（走占位底）⇒
+**「有真实视频」这条代码路径从未被执行**；而 bug 2 让「视频没挂载」表现为**静默黑屏**，
+bug 1 的 404 只在视频真被挂载时才报 —— 两个 bug 互相遮蔽。
+
+✅ **方案 A 在画面上被证实**：起草 footprint `[0.3,0.34,...]` → tier1 平移至 `[0.10,0.54,...]`
+→ 成片里「值回票价？」**确实出现在左侧中部**。这是「报告改了、画面真改了」的第一次实拍证据。
+
+## 🔴 对齐假绿：`alignedRatio` 结构上看不见时间空洞
+
+- 10-18 实测：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio = 1.000`），
+  但 cue3 整整 **早了 7.06 秒**，词被塞进 **7.08 秒静音**（`volumedetect` mean −58 dB）。
+- 根因两层：① whisper 吐出 **8.08–20.52s 的单一分段**，把 7 秒静音整个吞掉
+  （`builtin-align.ts` 调 whisper **没传 `-ml` / `-sow`**）；② `alignedRatio` 的定义是
+  「SRT 词对上 **token** 的比例」—— **衡量文本匹配，不衡量时间**，所以必然报 1.0。
+- ⇒ 与旧记录里「alignedRatio=1.0 却有 3240ms 空洞」是**同一结构性盲区**。
+- 损伤范围工具：`tools/probe-align-drift.mjs`（逐 cue 比对 SRT 起点与词落点，>1s 即报）。
+  kukini 48 条 cue 中 4 条超 1s（−7.06 / −1.33 / −1.40 / +1.06）。
+- ⏳ **未修**：属门控指标选型，按纪律先改裁决册。
+
+## ⚠️ 已知未解：tier2 写的 `window` 在渲染层没有消费者
+
+`validate` 把 `window` 写进**叠加 item** 的 `carrier.params`（且显式只对 `isOverlayScope` 生效）；
+而渲染层按 `item.motion` 的 scope 划分载体轨，`MotionItem` **完全不读 `item.carrier`**；
+唯一读 `carrierParamsOf` 的 `split-frame.tsx` 只在 motion 本身是 `carrier/split-frame` 时运行。
+**两条路径不相交** ⇒ 自动载体退让目前改变不了画面。
+需裁决：让 `MotionItem` 对带 `carrier` 的叠加 item 施加包围变换，还是要求载体档必须是独立 track。
+（tier2 本身工作正常：人工补 `carrier` 后它如实报 `carrier-insufficient`，第三层假绿护栏有效。）
 
 ## 占位值（🔴 勿当结论；8 个，通道通了 ⇒ 优先级上升）
 
@@ -121,17 +160,23 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 
 ## 下次开工点
 
-**D4-t2 已 4/4 完成**，下一步两条线：
+**D4-t2 已 4/4 完成**；**真素材端到端已首跑成功（2026-10-18）** —— 见上节，
+成片在 `jobs/e2e-perceive/05-render/out.mp4`。下一步按这个顺序：
 
-1. **占位值校准（8 个）** —— 尤其 `MIN_VISIBLE_RATIO=0.5`，校准后 `W-D2-02` 才能升 error。
-2. **真素材端到端验证** —— 素材在 `G:\VideoPipeline\TestResources\`，但 `jobs/` 里 4 个 job
-   **全部只跑到 01/02，没有一个跑过 03/04/05**。这是最容易出第四层假绿的环节：
-   需要拿真素材产出 `storyboard` → `validate` → `render` → **抽帧看画面**。
+1. **字幕按 cue 切**（最影响观感）：本次用「大窗口」起草 ⇒ 一条 item 覆盖 8–31 秒 ⇒
+   出现 3–5 行文字墙。`caption/karaoke-word` 渲染的是**窗口内全部词**，
+   故 **caption item 必须一条 cue 一个**（48 cue → 48 item）。SKILL.md 缺这条约束。
+2. **补两项回归测试**：`CarrierTrack` 窗口外透传、`render` 的 video 路径 ——
+   目前只有像素级人工证据，无自动化断言。
+3. **tier2 消费者裁决**（见上节）—— 否则「自动载体退让」永远只是报告里的数字。
+4. **占位值校准（8 个）** —— 尤其 `MIN_VISIBLE_RATIO=0.5`（挡着 `W-D2-02` 升 error）；
+   本次 `ALIGN_GATE` 全过但成片有 7 秒错位，是校准 `alignedRatioMin` 的直接反例。
+5. 剩余 2 个模板（`pointer-callout` / `whip-pan`）→ 11/11。
 
-⚠️ 老记录说此步「受阻于本机 jobs/ 空、素材在另一台机」—— 在 `G:\VideoPipeline` 上**该阻塞不成立**，
-素材就在手边，缺的只是没跑过。
+其余待办：face fail-closed（M-4 定案未落）、`D-B2` 度量表、根 `SKILL.md`、
+D6 参数决策档案与 `PLACEHOLDER` 追踪表。
 
-其余待办：第 4/5 批模板（`pointer-callout` 主体框已就绪 / `whip-pan` 无阻塞）、face fail-closed、`D-B2` 度量表、根 `SKILL.md`、F4 渲染基准量化。
+**本次实测基准（F4 首条）**：6667 帧 1080p60 → 墙钟 **21 分 06 秒**，成片 219 MB。
 
 ## P1–P4 定下的口径（后续别推翻）
 

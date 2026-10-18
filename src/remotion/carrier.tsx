@@ -102,38 +102,72 @@ export function splitCarrierSegments(track: StoryboardTrack): CarrierSegment[] {
 /**
  * 一条载体 track 的渲染：外层 `<Sequence>` 把绝对帧转成轨道内相对帧
  * （与叠加侧的 `TrackSequence` 同构），内层按段渲染。
+ *
+ * 🔴 **2026-10-18 实测修正（第一份真素材成片）**：原实现把 **整条链**套在一个
+ *   `<Sequence from={start} durationInFrames={end-start}>` 里 —— 于是**轨道窗口之外
+ *   children（=视频）根本不被挂载**，成片在窗口外是纯黑（根容器的 `backgroundColor:'black'`）。
+ *   文件头那句「视频必须全程可见」的意图是对的，实现漏了窗口外的两段。
+ *
+ *   为什么会一直没被发现：demo job 是 `hasVideo: false`（走占位底），黑底 vs 占位底
+ *   在结构测试里无差别；而 `punch-in` 这种载体类只要出现一次（footage-transform），
+ *   就会把**它自己区间之外的整段视频抹掉**。像素采样实测：载体窗内 197/207/214（有画面），
+ *   窗外 0/0/0（纯黑）—— 这正是「单测全绿、画面全错」的第四层假绿。
+ *
+ *   修法：窗口前 `[0, start)` 与窗口后 `[end, duration)` 各补一段**无变换的透传**，
+ *   保证「任一时刻恰好渲染一份 children、零或一层变换」这条不变量在**整条时间轴**上成立。
  */
 export const CarrierTrack: FC<{
   track: StoryboardTrack;
   caption: CaptionData;
+  /** 整条 composition 的长度。缺省时退化为旧行为（只渲染轨道窗口内）。 */
+  durationInFrames?: number;
   children: ReactNode;
-}> = ({ track, caption, children }) => {
+}> = ({ track, caption, durationInFrames, children }) => {
   if (track.items.length === 0) return null;
   const start = Math.min(...track.items.map((i) => i.fromFrame));
   const end = Math.max(...track.items.map((i) => i.fromFrame + i.durationInFrames));
   const segments = splitCarrierSegments(track);
+  const total = durationInFrames ?? end;
+
+  const head = start > 0 ? Math.min(start, total) : 0;
+  const tailStart = Math.min(end, total);
+  const tail = total > tailStart ? total - tailStart : 0;
 
   return (
-    <Sequence from={start} durationInFrames={end - start}>
-      {segments.map((seg) =>
-        seg.item ? (
-          <Sequence key={`${seg.from}-${seg.index}`} from={seg.from} durationInFrames={seg.length}>
-            <MotionItem
-              trackId={track.id}
-              itemIndex={seg.index}
-              item={seg.item}
-              caption={caption}
-            >
+    <>
+      {/* 窗口前：无变换透传（视频必须全程可见）。 */}
+      {head > 0 ? (
+        <Sequence from={0} durationInFrames={head}>
+          {children}
+        </Sequence>
+      ) : null}
+      <Sequence from={start} durationInFrames={end - start}>
+        {segments.map((seg) =>
+          seg.item ? (
+            <Sequence key={`${seg.from}-${seg.index}`} from={seg.from} durationInFrames={seg.length}>
+              <MotionItem
+                trackId={track.id}
+                itemIndex={seg.index}
+                item={seg.item}
+                caption={caption}
+              >
+                {children}
+              </MotionItem>
+            </Sequence>
+          ) : (
+            <Sequence key={`${seg.from}-gap`} from={seg.from} durationInFrames={seg.length}>
+              {/* 间隙：无变换，原样透传（视频必须全程可见）。 */}
               {children}
-            </MotionItem>
-          </Sequence>
-        ) : (
-          <Sequence key={`${seg.from}-gap`} from={seg.from} durationInFrames={seg.length}>
-            {/* 间隙：无变换，原样透传（视频必须全程可见）。 */}
-            {children}
-          </Sequence>
-        ),
-      )}
-    </Sequence>
+            </Sequence>
+          ),
+        )}
+      </Sequence>
+      {/* 窗口后：无变换透传。 */}
+      {tail > 0 ? (
+        <Sequence from={tailStart} durationInFrames={tail}>
+          {children}
+        </Sequence>
+      ) : null}
+    </>
   );
 };
