@@ -44,6 +44,9 @@
 
 ## 快速开始
 
+> **换了一台新电脑？** 先看 [`docs/SETUP.md`](docs/SETUP.md)（ffmpeg / whisper / 模型 / 自检），
+> 再回来跑下面的流程。装完用 `npm run doctor` 确认 —— 它会一次说清缺什么、怎么补。
+
 ```bash
 # 需要 Node.js 22.19+ / 24+
 npm install

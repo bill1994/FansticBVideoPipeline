@@ -354,7 +354,24 @@ kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18
 A 渲染期自适应 / B 构建期校验（需先改登记册）。
 **当前依赖模型遵守 SKILL.md 的字数建议 —— 这是纪律，不是强制。**
 
-### 7. ⛔ 明确不做的
+### 7. ⚠️ 零消费者导出 13 个（2026-10-18 审计）
+
+`src/` 里导出了、但 **src/tests/tools 都没有任何引用**的符号。
+
+⚠️ 这不等于「都该删」：其中 5 个是**查询 API**（给外部脚本/人用的入口），
+其余 8 个疑似历史遗留。**已删 2 个明确重复的**（`validateJob` / `reportPath`），剩下的待逐个判断：
+
+| 类别 | 符号 | 判断 |
+|---|---|---|
+| 错误码查询 | `CodeKey` / `isErrorCode` / `codesForItem` | 保留：`tools/` 与将来的 06-review UI 会用到 |
+| 模板元信息 | `parseMotionId` / `listTemplates` | 保留：`getTemplate` 之外的另一条查询路径 |
+| 内部辅助 | `targetRef` / `normalizeFrame` / `fillParent` / `loadAligned` / `dtwToMs` / `BUILTIN_WHISPER_VERSION` / `budgetSnapshot` / `scopeOf` | **待判**：可能只是"写的时候顺手 export" |
+
+🔴 **同款病的第五次**：`assertNotWritingUpstream` 曾在此表里 —— 而它不只是"没人用"，
+是**该用的人没接线**（见 §四 上级条目）。判这 13 个时先问一句：
+**它是"没人需要的导出"，还是"本该被调用的守卫"？**
+
+### 8. ⛔ 明确不做的
 
 | 项 | 理由 |
 |----|------|
@@ -417,6 +434,8 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 模型 | `whisper.cpp/ggml-base.bin`（148MB） | ⚠️ 走 `tools/setup-whisper.mts`，含 hf-mirror 自动降级 |
 | 换机 | ✅ whisper 路径按「仓库根相对」解析 | 2026-10-15 修（D7）：`WHISPER_CPP_PATH` 可覆盖；`src/` 零盘符路径有单测兜底 |
 | 渲染静态目录 | `--public-dir=<job>/00-input` | **2026-10-18 新增**：`<OffthreadVideo>` 的 src 由 Remotion 静态服务解析到 **bundle 目录**，实测只有 `public/<name>` 这种写法命中；`render` 阶段已自动带上该参数 |
+| 环境自检 | `npm run doctor` | **2026-10-18 新增**（D7.6）：7 项检查（Node / ffmpeg / ffprobe / whisper 二进制 / 模型名是否与运行时默认一致 / YuNet / 参数档案），每条 fail 都带可执行的 ↳ 做法 |
+| 换机文档 | `docs/SETUP.md` | **2026-10-18 新增**（D7.4）：从零到跑通 + 故障排查，含「模型名两个默认值」这个真坑 |
 
 ---
 
@@ -427,10 +446,11 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        432 项全过（25 文件）   ← 318 → 328 → 359 → 364 → 374 → 384 → 403 → 404
+单测        449 项全过（27 文件）   ← 318 → 328 → 359 → 364 → 374 → 384 → 403 → 404
                                        → 407 → 411（cue 锚点 / 影子载体轨 / 时间表）
-                                       → 417（字幕按 SRT）→ 420（高亮重铺）→ 432（占位值注册表）
-测试文件    25 个（24 个测试 + 1 个共享夹具 tests/_ctx.ts）
+                                       → 417（字幕按 SRT）→ 420（高亮重铺）
+                                       → 432（占位值注册表）→ 438（阶段写盘守卫）→ 449（doctor）
+测试文件    27 个（26 个测试 + 1 个共享夹具 tests/_ctx.ts）
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
 登记册      47 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算；+C2-6 / +D4-t3）
@@ -488,8 +508,14 @@ Node 子进程报 EBUSY，真实 exe 全路径同样）。**未改 `extractAudio
 ```bash
 npm install
 
+# 0. 环境自检（换机必跑；每条 ❌ 后面都跟了具体做法）
+npm run doctor
+
 # 一次性准备 whisper（M-1 第一步）
-node --experimental-strip-types tools/setup-whisper.mts
+node --experimental-strip-types tools/setup-whisper.mts base
+# ⚠️ setup 脚本默认装 base，而运行时默认找 small ——
+#    用 base 就必须 export WHISPER_MODEL=base，否则 align 找不到模型。
+#    doctor 会检查这一项。详见 docs/SETUP.md §4。
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json

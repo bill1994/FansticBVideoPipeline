@@ -37,6 +37,19 @@ function expectedSize(model: string): number | null {
   return sizes[model] ?? null;
 }
 
+/** 收尾提示：装完的模型名与**运行时默认**不一致时，必须当面说清。 */
+function finish(): void {
+  console.log('DONE');
+  if (MODEL !== 'small') {
+    console.log(
+      `\n⚠️  运行时默认模型是 small（src/stages/builtin-align.ts），本次装的是 ${MODEL}。` +
+        `\n   跑 align 前请设 WHISPER_MODEL=${MODEL}，或用 small 重装：` +
+        `\n     node --experimental-strip-types tools/setup-whisper.mts small` +
+        `\n   （npm run doctor 会检查这一项）\n`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   console.log(`[1/2] 安装 whisper.cpp ${CPP_VERSION}`);
   console.log('      Windows 走预编译二进制（≤1.6.0），不需要 cmake / Python');
@@ -55,7 +68,7 @@ async function main(): Promise<void> {
   try {
     const r2 = await downloadWhisperModel({ folder: FOLDER, model: MODEL as never, printOutput: true });
     console.log(`      alreadyExisted = ${r2.alreadyExisted}`);
-    console.log('DONE');
+    finish();
     return;
   } catch (e) {
     console.log(`      官方源失败：${(e as Error).message}`);
@@ -65,9 +78,16 @@ async function main(): Promise<void> {
   if (!fs.existsSync(FOLDER)) fs.mkdirSync(FOLDER, { recursive: true });
   const url = mirrorUrl(MODEL);
   console.log(`      GET ${url}`);
-  execFileSync('curl', ['-L', '-f', '--retry', '3', '-m', '1800', '-o', bin, url], {
-    stdio: 'inherit',
-  });
+  // 🔴 必须断点续传：huggingface / hf-mirror 都可能在传到一半时断，
+  //    而 `-o` 不带 `-C -` 会**从头重下**（2026-10-18 实测：141MB 的 base
+  //    在 900 秒超时后白下了 38MB，重试从 0 开始）。hf-mirror 还会间歇返 502，
+  //    靠 `--retry-all-errors` 扛过去。
+  const resume = fs.existsSync(bin) ? ['-C', '-'] : [];
+  execFileSync(
+    'curl',
+    ['-L', '-f', '--retry', '5', '--retry-all-errors', ...resume, '-m', '1800', '-o', bin, url],
+    { stdio: 'inherit' },
+  );
 
   const size = fs.statSync(bin).size;
   const want = expectedSize(MODEL);
@@ -75,7 +95,7 @@ async function main(): Promise<void> {
     throw new Error(`模型大小不符：实际 ${size}，期望 ${want}。请删除 ${bin} 后重试。`);
   }
   console.log(`      OK ${size} 字节`);
-  console.log('DONE');
+  finish();
 }
 
 main().catch((e: unknown) => {

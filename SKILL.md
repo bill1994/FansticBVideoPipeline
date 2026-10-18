@@ -1,0 +1,104 @@
+---
+name: remotion-overlay-pipeline
+description: >-
+  在已拍摄、已粗剪、**没有任何文字与特效**的实拍口播视频上，叠加 motion-graphic overlay
+  （字幕条 / 大字强调 / 数字卡 / 分屏 / 推近等），产出可直接发布的成片。
+  当用户给出「口播视频 + 一份编辑好的 SRT」，想要字幕、动效、版式装饰时使用。
+  本仓库是**被模型读取的管线**：你（模型）是操作者，仓库本身不调用任何大模型。
+  五阶段：align → perceive → storyboard → validate → render。
+---
+
+# Remotion Overlay Pipeline —— 编排层
+
+> **这是入口。** 各阶段怎么做，看 `.workbuddy/skills/<stage>/SKILL.md`；
+> 环境怎么装，看 `docs/SETUP.md`；为什么这么设计，看 `docs/decisions/OPEN-DECISIONS.md`。
+
+## 什么时候用
+
+✅ 用：实拍口播 + 人工校对过的 SRT，要在画面上加字幕/动效，且**没有剪辑软件时间线可操作**。
+❌ 不用：需要换画面/重剪（这不管剪辑）；需要 AI 配音/数字人；素材里已烧字幕。
+
+## 动手前必须确认的三件事
+
+| 要确认 | 为什么 |
+|---|---|
+| **SRT 是用户编辑过的真值** | 文字权威归 SRT，时间由音频重新推导。SRT 不对，后面全错 |
+| **素材是「已粗剪拼接、无任何文字」** | 管线只叠加，不改剪辑 |
+| **`jobs/<id>/00-input/` 里放视频 + SRT，`source.json` 填好 fps 与 durationInFrames** | 阶段目录是不可变快照，缺上游直接报错，不会猜 |
+
+环境没装的先跑 `npm run doctor`，它一次说清缺什么。
+
+## 五阶段
+
+```
+00-input ──▶ 01-align ──▶ 02-perceive ──▶ 03-storyboard ──▶ 04-validate ──▶ 05-render
+ 素材       词级时间戳      主体区域         动效草案           构建期校验       成片
+                                      （模型填表）                        └─ 有 error 必须停
+```
+
+| 阶段 | 命令 | 产物 | 谁来做 |
+|---|---|---|---|
+| `align` | `npm run pipeline -- align --job <id>` | `words.json`（词级时间戳）+ `align-report.json` | 机器（whisper + DP） |
+| `perceive` | `npm run pipeline -- perceive --job <id>` | `shots.json` + `regions.json` | 机器（scdet + YuNet + 显著性） |
+| `storyboard` | `npm run pipeline -- storyboard --job <id> --draft <draft.json>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `draft.json` |
+| `validate` | `npm run pipeline -- validate --job <id>` | `validate-report.json`（18 项 + 2 条 extra） | 机器 |
+| `render` | `npm run pipeline -- render --job <id>` | `out.mp4` | 机器（Remotion） |
+
+### 各阶段什么时候该停
+
+- **`align` 门控不过**（`alignedRatio` / 均值置信度 / 低置信占比）→ 退出码 2。**不要绕过**：先查 SRT 与音频是否真的对得上。
+- **`validate` 有 error** → 必须停，回 `storyboard` 改 `draft.json` 重跑。warning 不拦。
+- **`render` 报 fullscreen 未确认** → 读 `06-review/confirmed.json` 的 `acknowledgedFullscreen`，这是人工闸，**不要替用户填**。
+
+## 三条铁律（写在代码里，不靠自觉）
+
+### 1. 帧是真相，你不写帧
+
+只写**锚点**，烘焙器算帧：
+
+```json
+{ "anchor": "word:37", "offset": "-8f" }
+```
+
+| 锚点 | 含义 |
+|---|---|
+| `word:N` | 第 N 个词（`01-align/words.json` 的索引） |
+| `cue:N` | 第 N 条 SRT 字幕（**字幕类优先用它**，时间取 SRT） |
+| `abs:<帧>` 或 `abs:<秒s>` | 绝对位置 |
+
+`offset` 负值 = 抢拍，合法（下界是锚定词所在 cue 的起点）。
+
+### 2. 你只填表，不写样式
+
+`draft.json` 里每条的 `params` 只填模板声明的键。**禁止**写坐标、帧号、颜色、CSS、`window`。
+`window` 是校验期写入的系统字段，填了会被拒。
+
+### 3. 确定性
+
+禁 `Date.now()` / `Math.random()` / CSS animation。全树只有 `MotionItem` 读时钟。
+你要"随机"效果时用固定的种子值。
+
+## 常见失败与处置
+
+| 现象 | 多半是 | 做法 |
+|---|---|---|
+| `validate` 报 `E-C2-5-01` | 锚点落在词区间外 | 换锚点，别加 offset 硬凑 |
+| `validate` 报 `E-C2-5-02`（密度） | 一个 cue 塞了太多条 | 拆到相邻 cue；⚠️ 该阈值仍是占位值 |
+| `validate` 报 `E-C4-01`（footprint 相交） | 两条同组动效时间重叠 | 错开或换不同组 |
+| `validate` 报 `W-D2-01`（遮挡） | 叠加压到主体 | 已自动平移消解；仍超预算才需改 footprint |
+| 字幕内容对但高亮不亮 | `words.json` 词时与 SRT 窗口偏离 >20% | **已知缺陷**（`M-1d`/`M-1e`）。显示层已兜底：宁可不高亮，不显示错句子 |
+| 渲染全黑 | 视频没挂载，或素材开头本来就黑 | 抽单像素判断：容器底 `0,0,0` / 占位底 `16,20,24` |
+
+## 两条操作纪律
+
+- 🔴 **阶段目录是不可变快照**：存在即跳过。改了上游代码后必须加 `--force`，否则你会白等十几分钟。
+- 🔴 **长任务别 `| tail`**：错误会被吞掉。重定向到日志文件再 `grep`。
+
+## 数字从哪查（别凭记忆）
+
+| 想知道 | 查 |
+|---|---|
+| 校验项 / 单测 / 模板实现数 / 成片基准 | `PROGRESS.md` §七 |
+| 哪些阈值还是占位值、怎么校准 | `docs/decisions/PARAM-DECISIONS.md`（`npm run placeholders` 生成） |
+| 某个"为什么这么设计" | `docs/decisions/OPEN-DECISIONS.md`（裁决唯一真源） |
+| 还没解决的问题 | `PROGRESS.md` §四 / `OPEN-DECISIONS.md` 的 OPEN 清单 |
