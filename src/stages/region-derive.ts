@@ -18,28 +18,17 @@
  */
 
 import type { Footprint } from '../core/types.ts';
+import {
+  HANDHELD_EXPANSION,
+  SALIENCY_TARGET_AREA_RATIO,
+} from '../core/config.ts';
 
 /**
- * 人脸框 → 手持物/上半身区域的外扩参数。
- *
- * ⚠️ 【实现期拟定，文档未规定】SPEC / 登记册只说 handheld 是「手持讲解物品」，
- *    未规定如何从人脸推导。这两个系数是**占位值**，须用真实素材继续校准。
- *
- * 取值依据（2026-10-17 实测 `3月22日.mp4` s2：人物中景、双手扶着鞋）：
- *    人脸框 [0.427, 0.062, 0.135, 0.298]，手与鞋落在 y≈0.75–0.85。
- *    · 高度系数 **2.0 时框底到 0.658** ⇒ **手和鞋的下半部分露在框外**（抽帧目视确认）。
- *    · 按「头顶 0.062 → 上半身底 0.75」反推，需 (0.75-0.062)/0.298 ≈ **2.3**，
- *      故取 **2.5** 留余量。
- *    · ⚠️ 不宜再大：handheld 的预算只有 20%，框越大同样大小的 overlay 占比越小，
- *      保护会形同虚设（见文件头「与 occlusionRatio 口径相容」一节）。
- *    宽度系数 3.0 实测已能覆盖双手。
+ * `HANDHELD_EXPANSION` / `SALIENCY_TARGET_AREA_RATIO` 已于 2026-10-18 上提到
+ * `core/config.ts`（D6.4：占位值注册表要引用真源，`core` 不能反向依赖 `stages`）。
+ * 这里 re-export 保持既有 import 路径不变（`tests/region-derive.test.ts` 等）。
  */
-export const HANDHELD_EXPANSION = {
-  /** 新宽度 = 人脸宽 × 此系数（居中扩展）。 */
-  widthRatio: 3,
-  /** 新高度 = 人脸高 × 此系数（从人脸顶部向下延伸）。 */
-  heightRatio: 2.5,
-} as const;
+export { HANDHELD_EXPANSION, SALIENCY_TARGET_AREA_RATIO };
 
 /** 裁到 [0,1] 并保证边框不出界。 */
 function clampBox(x: number, y: number, w: number, h: number): Footprint {
@@ -105,7 +94,7 @@ export function saliencyBox(
 ): SaliencyResult | null {
   const cols = opts.gridCols ?? 16;
   const rows = opts.gridRows ?? 9;
-  const targetAreaRatio = opts.targetAreaRatio ?? 0.35;
+  const targetAreaRatio = opts.targetAreaRatio ?? SALIENCY_TARGET_AREA_RATIO;
   const maxAreaRatio = opts.maxAreaRatio ?? 0.6;
   const minEnergy = opts.minEnergy ?? 2.0;
 

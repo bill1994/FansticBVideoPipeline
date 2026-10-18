@@ -26,7 +26,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "studio": "remotion studio src/remotion/index.ts",
-    "render:video": "remotion render src/remotion/index.ts Overlay out/video.mp4 --gl=angle"
+    "render:video": "remotion render src/remotion/index.ts Overlay out/video.mp4 --gl=angle",
+    "placeholders": "tsx tools/list-placeholders.mts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.534",

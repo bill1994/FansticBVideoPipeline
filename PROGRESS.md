@@ -278,21 +278,26 @@ kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18
 > 折成**影子载体轨**接进背景链；并规定**只在 `params.window` 存在时合成**
 > （声明 ≠ 生效，否则 tier1 已解决的情况会莫名切画面）。
 
-### 3. ⚠️ 占位数值：**8 个待实测**（2026-10-18 口径复核；此前记为 7，漏了 `CARRIER_RATIO_DEFAULT`）
+### 3. ⚠️ 占位数值：**8 项 / 12 个数值**（唯一口径见 `docs/decisions/PARAM-DECISIONS.md`）
 
-| 项 | 当前值 | 状态 |
-|----|--------|------|
-| 对齐门控 | 均值 < 0.60 或低置信词 > 30% → 阻断 | 🔴 待实测 |
-| `alignedRatioMin` | 0.8 | 🔴 PLACEHOLDER，须与上一项**一并**校准 |
-| 每 cue item 数 | 3 | 🔴 PLACEHOLDER，却直接产 error |
-| `DUR.enter/exit` | 0.16 / 0.22 | 🔶 第二轮调优后的取值（expo-out / cubic-in）；**仍待真实素材校准** |
-| `PERCEIVE.safeAreaTopRatio` | 0.6 | 🔴 PLACEHOLDER（SPEC 只写"取 bbox 上部"，无精确比例；0.6 取自 talkcraft 口径） |
-| `HANDHELD_EXPANSION` | 宽 3× / 高 2.5× | 🔴 PLACEHOLDER：高度由 s2 实测反推（手与鞋在 0.75–0.85），只对当前构图成立 |
-| 显著性 `targetAreaRatio` | 0.35 | 🔴 PLACEHOLDER：三素材目视可接受，未做量化 |
-| `MIN_VISIBLE_RATIO`（D4-t2 派生） | 0.5 | 🔴 PLACEHOLDER：**判据已于 P4 实装**（`W-D2-02` 第 18 项），阈值本身仍未在真实素材校准 |
+> 🔴 **本节的表格已移除（2026-10-18，D6.4）** —— 手抄的表必然漂移。
+> 本节此前那张表同时犯了四个错：把 `DUR.enter/exit` 混进来（它是"已调优、待复核"，不是占位值）、
+> 把 `ALIGN_GATE` 拆成两行、漏掉 `CONFIDENCE_BANDS` 与 `CARRIER_RATIO_DEFAULT`
+> ⇒ 标题写「7」、表里 8 行、`MEMORY.md` 又按分组数出 8，**三方互不相等**。
+>
+> 现唯一口径：`npm run placeholders` 输出「8 项 / 12 个数值」，
+> 明细**由代码生成**到 `docs/decisions/PARAM-DECISIONS.md`（真源 `src/core/placeholders.ts`）。
+> 口径定义：**一项 = 一个需要独立做出的校准决定**（同进同退的几个数算一项）；
+> 「数值个数」是另一口径，引用时必须说明指的是哪个。
 
-> **`DENSITY.maxItemsPerCue = 3` 是个未校准的占位值，却会阻断真实素材**，
-> 而项目没有编辑 UI，用户只能手改 JSON。这是「过度严格」最现实的伤害点。
+按「现在最该动」排序的三个（其余见生成文档）：
+
+| 项 id | 为什么优先 |
+|---|---|
+| `density` | 🔴 **唯一「占位值却直接产 error」**：偏严会阻断真实素材，而项目没有 storyboard 编辑 UI，用户只能手改 JSON |
+| `min-visible` | 卡着 `W-D2-02` 从 warning 升 error |
+| `align-gate` + `confidence-bands` | 必须**同批**校准，分开调会留下一道看着齐全、实则测不到的门 |
+
 
 ### 4. ⚠️ `p` 不是可信度
 
@@ -422,10 +427,10 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        420 项全过（24 文件）   ← 318 → 328 → 359 → 364 → 374 → 384 → 403 → 404
+单测        432 项全过（25 文件）   ← 318 → 328 → 359 → 364 → 374 → 384 → 403 → 404
                                        → 407 → 411（cue 锚点 / 影子载体轨 / 时间表）
-                                       → 417（字幕按 SRT）→ 420（高亮重铺）
-测试文件    24 个（23 个测试 + 1 个共享夹具 tests/_ctx.ts）
+                                       → 417（字幕按 SRT）→ 420（高亮重铺）→ 432（占位值注册表）
+测试文件    25 个（24 个测试 + 1 个共享夹具 tests/_ctx.ts）
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
 登记册      47 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算；+C2-6 / +D4-t3）
@@ -437,8 +442,8 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
             首个遮挡型模板 center-emphasis 落地（D-A）
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
 字幕通道    words.json 已接入 props，且字幕的**时间/文字/高亮全部以 SRT 为准**（C2-6）
-占位数值    8 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio /
-            HANDHELD_EXPANSION / targetAreaRatio / CARRIER_RATIO_DEFAULT / MIN_VISIBLE_RATIO）
+占位数值    8 项 / 12 个数值 —— **唯一口径：`npm run placeholders`**
+            明细由代码生成到 docs/decisions/PARAM-DECISIONS.md（真源 src/core/placeholders.ts）
 手感表      docs/templates/2026-10-15-参数手感表.md（已建）
 成片基准    6667 帧 1080p60 → 墙钟 20–22 分钟 / 218 MB（F4 首条，待多次取样）
 ```
@@ -462,8 +467,10 @@ render      218 MB / 20–22 分钟
 > （`ConfigError` → 退出码 2，与 `handoffTo` 指向不存在 track 同类），**不占 18 项名额**。
 > 加校验项须先改登记册，而本次改的是契约不是清单。
 >
-> ⚠️ **占位值「有几个」曾有三个口径**（MEMORY 8 / 本文 7 / 代码里 PLACEHOLDER 标记仅 3 处），
-> 根因是**代码没有统一的占位值标记机制**。现统一按 8 计，但**标记机制仍未建**（D6.4 待做）。
+> ⚠️ **占位值「有几个」曾有三个口径**（MEMORY 8 / 本文 7 / 代码里 `PLACEHOLDER` 标记仅 3 处），
+> 根因是**代码没有统一的标记机制**。**2026-10-18 已建**（D6.4）：
+> `src/core/placeholders.ts` 为唯一真源，`npm run placeholders` 渲染本页引用的数字与明细文档。
+> 计数与口径定义见该文件头，别在这里另起一套数法。
 
 ### 已知环境问题（非项目 bug）
 
