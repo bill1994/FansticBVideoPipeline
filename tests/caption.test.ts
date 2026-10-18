@@ -12,6 +12,7 @@ import {
   cueInWindow,
   EMPTY_CAPTION,
   highlightSpan,
+  highlightWords,
   nextCueAt,
   toCaptionData,
   wordsInWindow,
@@ -201,5 +202,57 @@ describe('caption · highlightSpan（在 SRT 原文里定位高亮词）', () =>
   it('active 越界 → null', () => {
     expect(highlightSpan(text, words, -1)).toBeNull();
     expect(highlightSpan(text, words, 9)).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 高亮词的重分配（词落点漂了，但顺序与归属可信）
+//
+// 背景：whisper 把跨静音的文本压进一个长分段，9 个词被放进 6.74 秒真静音里
+// （-ml/-sow 都改不动）。字幕内容已按 SRT 修好，但**高亮**仍缺 ——
+// 这里按「顺序 + 字数权重」把词重铺回该 cue 的 SRT 窗口，只影响高亮定位。
+// ─────────────────────────────────────────────────────────────
+describe('caption · highlightWords（漂移时按 SRT 窗口重铺）', () => {
+  const FPS = 30;
+  const words: WordTimestamp[] = [
+    { index: 0, word: '它把', startFrame: 0, endFrame: 20, confidence: 1 },
+    { index: 1, word: '中底', startFrame: 20, endFrame: 40, confidence: 1 },
+    { index: 2, word: '和外骨骼', startFrame: 40, endFrame: 60, confidence: 1 },
+  ];
+
+  it('覆盖率 < 0.8 → 重铺到 SRT 窗口内，且保持顺序、首尾对齐窗口', () => {
+    const drifted: Cue = {
+      index: 0,
+      fromFrame: 0,
+      toFrame: 60,
+      text: '它把中底和外骨骼',
+      srtFromSec: 10,
+      srtToSec: 13,
+    };
+    const got = highlightWords(drifted, words, FPS);
+    expect(got.map((w) => w.word)).toEqual(['它把', '中底', '和外骨骼']);
+    expect(got[0]!.startFrame).toBe(300); // 10s × 30
+    expect(got.at(-1)!.endFrame + 1).toBe(390); // 13s × 30
+    // 单调不减：重铺不能打乱朗读顺序
+    for (let i = 1; i < got.length; i += 1) {
+      expect(got[i]!.startFrame).toBeGreaterThanOrEqual(got[i - 1]!.endFrame);
+    }
+  });
+
+  it('覆盖率够（≥0.8）→ 原样返回，不把好数据"修"坏', () => {
+    const good: Cue = {
+      index: 0,
+      fromFrame: 0,
+      toFrame: 60,
+      text: '它把中底和外骨骼',
+      srtFromSec: 0,
+      srtToSec: 2,
+    };
+    const got = highlightWords(good, words, FPS);
+    expect(got.map((w) => w.startFrame)).toEqual([0, 20, 40]);
+  });
+
+  it('无 cue（旧数据）→ 原样返回传入的词', () => {
+    expect(highlightWords(null, words, FPS)).toBe(words);
   });
 });

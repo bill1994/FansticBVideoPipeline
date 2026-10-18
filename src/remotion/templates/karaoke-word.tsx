@@ -24,7 +24,13 @@
  */
 
 import type { CSSProperties } from 'react';
-import { activeWordIndex, cueInWindow, highlightSpan, wordsInWindow } from '../caption.ts';
+import {
+  activeWordIndex,
+  cueInWindow,
+  highlightSpan,
+  highlightWords,
+  wordsInWindow,
+} from '../caption.ts';
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
 import { bool, footprintStyle, type TemplateComponent } from './contract.tsx';
 
@@ -49,9 +55,13 @@ const ACTIVE: CSSProperties = {
 
 export const KaraokeWord: TemplateComponent = ({ frame, durationInFrames, item, caption }) => {
   // item 自身在成片里的绝对区间 —— 字幕数据与之同坐标系。
-  const words = wordsInWindow(caption, item.fromFrame, durationInFrames);
-  const active = activeWordIndex(words, item.fromFrame + frame);
   const cue = cueInWindow(caption, item.fromFrame, durationInFrames);
+  // 🔴 高亮用的词：有 cue 时按 **cue 归属 + SRT 窗口**取（词落点漂了就按字数权重重铺），
+  //    没有 cue（旧数据）才退回「窗口内的词」。见 `caption.ts` 的 `highlightWords`。
+  const words = cue
+    ? highlightWords(cue, caption.words, caption.fps)
+    : wordsInWindow(caption, item.fromFrame, durationInFrames);
+  const active = activeWordIndex(words, item.fromFrame + frame);
   const boxed = bool(item.params, 'boxed');
 
   // 与其余 4 个模板共用同一套进出场（2026-10-15 统一，见 tokens.ts 补记）
