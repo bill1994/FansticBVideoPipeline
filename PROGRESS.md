@@ -1,6 +1,6 @@
 # 项目进度 — Remotion 视频动效叠加管线
 
-> 最近更新：2026-10-17
+> 最近更新：2026-10-18
 > 状态标记：✅ 完成 / 🔶 进行中 / ⛔ 明确不做 / ❌ 未做
 
 ---
@@ -8,11 +8,11 @@
 ## 一句话
 
 在**已拍摄、已粗剪拼接、无任何文字与特效**的实拍口播视频上，自动叠加
-motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
-（whisper 时间 + SRT 文字，真实素材实测通过），**模板真实实现已落地 8 个**
-（含首批唯一遮挡型 `center-emphasis`、背景链 `punch-in`、fullscreen `noise-grain`）
-—— 「渲染出来是个灰框」这个致命问题**已解除**，第二轮打磨（缓动/进出场）已落地；
-距「可发布成片」还差：perceive 接入 + 真实素材调参。
+motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 6667 帧 / 48 cue）
+跑通全部五阶段并产出成片**（218MB，墙钟 ≈20 分钟）。过程中修掉三个渲染层阻塞 bug
+（视频路径、载体轨裁剪视频、载体轨嵌套叠加时间偏移），并把**字幕的时间、文字、高亮
+全部改为以用户编辑的 SRT 为准**（`C2-6`）。**模板真实实现 9/11**（余 `pointer-callout` / `whip-pan`）。
+距「可直接发布」还差：对齐漂移的产物层修复（`M-1d` / `M-1e`）、占位值校准（8 个）、剩余 2 个模板。
 
 ---
 
@@ -23,13 +23,15 @@ motion-graphic overlay。五阶段管线骨架已跑通，`01-align` 已全通
 | 闸 | 状态 | 说明 |
 |----|------|------|
 | `00-input` 放素材 | ✅ | — |
-| `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。真实素材实测 `alignedRatio=1.0`、8/8 cue、72 词、0 空洞/0 重叠/0 倒序 |
-| `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**：kukini 15 shot（face 8 / handheld 8 / broll 7）、3月22日 29（13 / 13 / 16）、5月28日 33（13 / 13 / 20）—— 合计 77 shot，**0 低置信** |
-| `03-storyboard` 起草 | 🔶 | 管线通；「本仓库不内置模型调用」，用户须手写 `sim_max`/`confidence` |
-| `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比，P4 重立）+ **2 条起草原生约束**（`W-D3-01` fullscreen 确认 / `W-F6-01` 主体未确），0 error / 2 warning（demo）。⚠️ #18「安全区未被包住」曾于 10-17 增补、同日撤回（判据不成立，见 D2-2） |
-| `05-render` 渲染 | 🔶 | **模板已不再是灰框** —— 9 个有真实实现（含两个背景链：放大式 `punch-in` / 裁切分屏式 `split-frame`）；第二轮打磨（缓动/进出场）已落地；质感与配比待真实素材调校 |
+| `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。kukini 实测 `alignedRatio=1.0`、均值置信度 0.9113、低置信 3.19%。⚠️ **已知缺陷**：whisper 会把跨静音的文本压进一个长分段（实测 8.39–15.13s 是 6.74 秒真静音，却被放进 9 个词），词时整体偏移最多 **7.06 秒**；字幕已不受影响（时间取 SRT），但**词级高亮**靠显示层重铺兜底（`M-1d` / `M-1e` 待决） |
+| `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**合计 77 shot（kukini 15 / 3月22日 29 / 5月28日 33），**0 低置信**（`real30` 尚未跑 perceive，不计入） |
+| `03-storyboard` 起草 | ✅ | 管线通；模型只写 `motion` / `footprint` / `params`（禁写帧与坐标）。锚点支持 `word:N` / **`cue:N`（C2-6，字幕专用）** / `abs:`。kukini 实测：7 轨 / 55 条锚点 / 闸1 阈值 T=0.800 |
+| `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比）+ **2 条起草原生约束**；kukini 实测 **0 error / 11 warning**（demo 0 error / 2 warning）。tier1 平移消解、tier2 载体档均已真实施加 |
+| `05-render` 渲染 | ✅ | 9 个模板有真实实现；**真素材成片已产出**（kukini 6667 帧 / 218MB / 墙钟 20–22 分钟）。通道方案 A 在画面上被证实：校验期平移的 footprint 确实改变了成片位置 |
 
-**结论：六道闸过了四道半 —— 硬阻断已解除。「出片」不再是"走不到渲染"，而是"能走完但未打磨"。**
+**结论：六道闸全部打通，真素材可端到端出片。** 剩下的不是「能不能出」，而是
+「字幕/对白精度、参数手感、剩下 2 个模板」这类**质量**问题。
+
 
 ---
 
@@ -186,6 +188,26 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 **当前实际价值**：守住「**明显超长**」量级（`tag-float` 40 字、`stat-card` 20 字必报），
 对 CJK 大字判定接近可信；⚠️ 挡不住粗体数字/圆角容器的轻微溢出。
 
+### 3.1.6 🔴 真素材端到端首跑（✅ 2026-10-18）—— 抓出 3 个渲染层 bug
+
+详见 `docs/changelog/2026-10-18-真素材端到端首跑.md` 与 `docs/changelog/2026-10-18-cue字幕与影子载体轨.md`。
+
+**为什么此前一直没暴露**：`jobs/` 下 4 个 job 全停在 01/02，而 demo job 是 `hasVideo: false`
+（走占位底）⇒ **「有真实视频」这条代码路径从未被执行过**。
+
+| # | bug | 症状 | 修法 |
+|---|---|---|---|
+| 1 | `<OffthreadVideo>` 的 src 路径 | 渲染到 2836 帧崩，**或全程黑帧且不报错** | 静态服务把 URL 映射到 bundle 目录，实测只有 `public/<name>` 命中 ⇒ `video: 'public/'+basename` + `--public-dir=<00-input>` |
+| 2 | 载体轨把视频裁在自己的时间窗内 | 只要有一个载体类 item（如 `punch-in`），**其区间外整段视频消失**（6517 帧纯黑） | `CarrierTrack` 窗口前后补**无变换透传** |
+| 3 | 载体轨**嵌套**会叠加时间偏移 | 影子载体轨单独存在时分屏正常；一旦外层还有 `punch-in`，**加了等于没加**（SSIM `1.000000`） | 把时间轴**拍平**：`composeCarrierTimeline` 切成原子窗口，`CarrierTimeline` 逐窗渲染，视频任一时刻只渲一次 |
+
+🔴 **三个 bug 的共同点**：**两条路径/两条链同时存在时才暴露**。
+验证时要问「这套机制在**组合**下还成立吗」，不能只验单条。
+
+**字幕线（同轮，用户反馈驱动，`C2-6`）**：拆分粒度本就来自用户的 SRT（逐字比对 0 差异），
+错的是三处 —— ① 时间取词落点（漂 7.06s）；② 文字用「窗口内的词」拼（时间一对齐就拼错句）；
+③ 高亮由词时驱动（漂了就缺）。现统一为：**时间用 SRT、文字用 `cue.text`、高亮按字数权重重铺**。
+
 ### 3.2 三条硬规则的代码化
 
 | 规则 | 实现方式 |
@@ -233,20 +255,30 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 - **`DUR` 动画配比仍是 PLACEHOLDER**：文档只规定 `minVisibleInFrames`，未规定配比。
   第二轮已给出可用取值（见 §四 3），但**仍待真实素材调校**。
 
-### 2. 🔴 tier2 载体退让是空操作
+### 2. 🔴 对齐：词级时间会漂，最多 7.06 秒（`M-1d` / `M-1e` 待决）
 
-`occlusion.ts` 的两级退让原本都只抑制报错、不改数据（已修 tier1）。
-tier2（自动切 carrier）**仍是空操作**，现在出 `W-D4-01` 诚实告警。
+**现象**：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio=1.000`），
+但某条 cue 的词被放进 **6.74 秒真静音**（8.39–15.13s，`volumedetect` 实测 −58dB），偏差 **−7.06s**。
+kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18%）。
 
-原三个阻塞点：
-- ✅ `StoryboardItem` 无处承载「已切载体、画面要缩进哪个框」—— **2026-10-17 P1 已解决**：新增 `carrier?: { template, params }`
-- ✅ `CARRIER_FALLBACK` 按 motion 索引，**放不下逐 item 几何**—— **已废除**（裁决 Q2：逐 item 显式声明，废全局表）
-- ✅ `split-frame` 现已能表达「把这条 motion 挪出这张人脸」—— P2 实现模板 + P3 接线 + P4 重立 `W-D2-02` 均已完成（🔴 阈值未校准，且真素材端到端未验）
+**根因两层**：① whisper 把跨静音的文本压进一个长分段（`8.14–20.46s`），DP 只能把词平摊；
+② `alignedRatio` 的定义是「SRT 词对上 **token** 的比例」—— **衡量文本匹配，不衡量时间**，必然报 1.0。
 
-**修复须先在登记册立一条承载字段的裁决** —— ✅ 已立（`D4-t2`，2026-10-17）。
-⚠️ P1 只立契约 + 加引用合法性结构检查，**tier2 仍不施加任何变换**（声明了也照出 `W-D4-01`）。
+**已判死**：加 `-ml 32 -sow` **无效**（分段仍是 `8.14–20.46s`），已登记 `M-1e`。
 
-### 3. ⚠️ 占位数值：**7 个从未实测**（2026-10-17 由 4 增到 7）
+**已缓解**：字幕完全不受影响（时间/文字/高亮都改以 SRT 为准，见 §3.1.6）——
+但这是**显示层**兜底，产物层的词时依旧错。
+
+**正解（待裁决）**：用 `ffmpeg silencedetect` 约束 DP，**禁止把词放进静音段**。
+需先定「静音阈值 / 最短时长」，并用 2–3 条素材验证「不会把正常短停顿误判成静音」。
+
+> **原第 2 项「tier2 载体退让是空操作」已于 2026-10-18 修复**（裁决 `D4-t3`）：
+> `validate` 写的 `window` 原本在渲染层无消费者（`MotionItem` 不读 `item.carrier`，
+> 而唯一读它的 `split-frame` 只在 motion 本身是载体时运行）。现由 `carrier-synth.ts`
+> 折成**影子载体轨**接进背景链；并规定**只在 `params.window` 存在时合成**
+> （声明 ≠ 生效，否则 tier1 已解决的情况会莫名切画面）。
+
+### 3. ⚠️ 占位数值：**8 个待实测**（2026-10-18 口径复核；此前记为 7，漏了 `CARRIER_RATIO_DEFAULT`）
 
 | 项 | 当前值 | 状态 |
 |----|--------|------|
@@ -341,21 +373,24 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | 4 | ~~契约字段审计~~ | `occludesSubject` 补实现 / `handoffIn` 删除（问题 9） | ✅ 2026-10-15 |
 | 5 | ~~接入 perceive（face 通道）~~ | 内置后端上线：镜头切分（ffmpeg `scdet`，阈值 10 实测无漏检/无过检）+ YuNet 人脸检测 → shot 级并集 → `safeArea`（主体 bbox 上部 60%）。未配 `PERCEIVER_CMD` 不再退出码 2。真实素材实测 15 shot / 12 有主体 | ✅ 2026-10-17 |
 | 5b | ~~补 `handheld` / `broll` 两通道~~ | **handheld**：人脸框外扩成「上半身＋手部」区域，**不做物体检测** —— 主讲解物品是鞋子而 COCO 80 类无 shoe，且用户判断「只要上半身不被遮挡」即够；**broll**：仅无脸镜头用经典显著性（零模型），框不到即退让；有脸 shot 不产 broll（实测会框到背景噪声）。⚠️ `HANDHELD_EXPANSION` 与显著性 `targetAreaRatio` 均为占位值 | ✅ 2026-10-17 |
-| 6 | **修 tier2 载体退让** | ✅ **已裁决**（`D4-t2`，2026-10-17）：`item.carrier` 字段 + 逐 item 声明 + **cover 裁切分屏（窗口以主体为锚）**。施工四步：**P1 ✅ 契约 + 结构校验** → **P2 ✅ `split-frame.tsx` + `core/carrier-window.ts`（含 `visibleRegion`）** → **P3 ✅ tier2 真正接线**（通道方案 A：render 侧重算 + 写入 `carrier.params.window`）→ **P4 ✅ 以 `visibleRegion` 重立 `W-D2-02`** | ✅ 施工完成（4/4） |
+| 6 | ~~修 tier2 载体退让~~ | **D4-t2**（10-17）定契约与几何，**D4-t3**（10-18）补上「渲染层没人消费 `carrier`」这一环：`carrier-synth.ts` 折成影子载体轨。真渲验证：分屏 + 主体锚定成立 | ✅ 2026-10-18 |
+| 7 | ~~真素材端到端出片~~ | kukini 6667 帧跑通五阶段；抓出 3 个渲染层 bug（视频路径 / 载体轨裁视频 / 载体轨嵌套偏移） | ✅ 2026-10-18 |
+| 8 | ~~字幕按 SRT 切分与定时~~ | `cue:N` 锚点（C2-6）；时间/文字/高亮全部改以 SRT 为准 | ✅ 2026-10-18 |
 
 > ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
 > 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
 > 内置后端上线后这条路通了。剩余缺口不再是「无路可走」，而是**感知覆盖不全**：
 > `handheld`（手持讲解物品）与 `broll`（B-roll 主体）两通道未实现（见 5b）。
 
-### 阶段 2 · 补齐质量
+### 阶段 2 · 补齐质量（当前主战场）
 
-| # | 事项 | 说明 |
-|---|------|------|
-| 7 | **C2-2 阈值实测** | 需真实素材；顺带校准 `alignedRatioMin` |
-| 8 | **渲染基准量化（F4）** | 应在模板打磨后做 —— 现在量的是第一轮水平，会系统性偏小 |
-| 9 | **复核 `DENSITY.maxItemsPerCue`** | 未校准的占位值当 error 用，伤害真实用户 |
-| 10 | **其余 5 个模板** | 按计划书 §4.6 分批（批次 2 不依赖任何外部条件） |
+| # | 事项 | 说明 | 状态 |
+|---|------|------|------|
+| 9 | **对齐产物层修漂移** | 用 `silencedetect` 约束 DP，禁止词入静音段。显示层已兜底，产物层未修（`M-1d` / `M-1e`） | ❌ 待裁决（需 2–3 条素材校准阈值） |
+| 10 | **占位值校准（8 个）** | 尤其 `MIN_VISIBLE_RATIO=0.5`（挡着 `W-D2-02` 升 error）与 `DENSITY.maxItemsPerCue`（占位值却产 error） | ❌ 待做（现在有 4 条素材可用） |
+| 11 | **剩余 2 个模板** | `annotation/pointer-callout`（主体框已就绪）/ `transition/whip-pan`（fullscreen 闸已实装），**无外部阻塞** → 11/11 | ❌ 待做 |
+| 12 | **渲染基准量化（F4）** | 已有首条：6667 帧 1080p60 → **墙钟 20–22 分钟 / 218MB**。待多次取样取中位数 | 🔶 1/3 |
+| 13 | **组合场景验证模板** | 今天 3 个 bug 全是「单链正常、双链同时存在才暴露」⇒ 每个新机制都要问「和已有机制**同时**启用时还成立吗」 | 🔶 已成纪律 |
 
 ### 阶段 3 · 可选评估
 
@@ -376,30 +411,59 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | whisper.cpp | `1.5.5`（首个支持 `t_dtw` 的版本） | Windows 走预编译二进制，**无需 cmake / Python** |
 | 模型 | `whisper.cpp/ggml-base.bin`（148MB） | ⚠️ 走 `tools/setup-whisper.mts`，含 hf-mirror 自动降级 |
 | 换机 | ✅ whisper 路径按「仓库根相对」解析 | 2026-10-15 修（D7）：`WHISPER_CPP_PATH` 可覆盖；`src/` 零盘符路径有单测兜底 |
+| 渲染静态目录 | `--public-dir=<job>/00-input` | **2026-10-18 新增**：`<OffthreadVideo>` 的 src 由 Remotion 静态服务解析到 **bundle 目录**，实测只有 `public/<name>` 这种写法命中；`render` 阶段已自动带上该参数 |
 
 ---
 
 ## 七、当前真实数字
 
+> 复核日期：**2026-10-18**（全部为当场可复算的命令输出，不是转述）
+
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）
 错误码      26 条（E-*/W-*，+W-DB-01）
-单测        384 项全过（23 文件）           ← … → 318 → 328（P1 契约）→ 359（P2）→ 364（P3）→ 374（P4）→ 384（复核 visibleRegion 修三处缺陷）
-契约字段    occludesSubject 已补实现；handoffIn 已删除；`item.carrier` 已立契约（D4-t2 P1）← 前两者此前零消费
-登记册      44 条表格行含 RESOLVED（`grep '^|.*RESOLVED'` 可复算；+D4-t2；D2-2 为 REVERTED）；OPEN：C2-2（待实测）/ C2-3（倾向不做）
-模板        11 个声明 / 9 个实现            ← 0 → 5 → 7 → 8 → 9（批次 2 + D-A + D4-t2 的 P2；剩余 2 个，见 §四 1）
-背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）  ← 机制：src/remotion/carrier.tsx（分段包裹）
-遮挡判定    首个遮挡型模板 center-emphasis 落地  ← 此前 10/10 模板 0 触发（D-A）
+单测        420 项全过（24 文件）   ← 318 → 328 → 359 → 364 → 374 → 384 → 403 → 404
+                                       → 407 → 411（cue 锚点 / 影子载体轨 / 时间表）
+                                       → 417（字幕按 SRT）→ 420（高亮重铺）
+测试文件    24 个（23 个测试 + 1 个共享夹具 tests/_ctx.ts）
+契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
+            anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
+登记册      47 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算；+C2-6 / +D4-t3）
+            OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d / M-1e（对齐漂移）/ M-4 未落
+模板        11 个声明 / 9 个实现      ← 剩余 pointer-callout、whip-pan（均无外部阻塞）
+背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）
+            机制：src/remotion/carrier.tsx **时间表渲染**（不再嵌套）+ carrier-synth.ts 影子载体轨
+遮挡判定    tier1 平移 + tier2 载体档**都真实施加**（真渲验证：分屏 + 主体锚定成立）
+            首个遮挡型模板 center-emphasis 落地（D-A）
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
-字幕通道    words.json 已接入 props         ← 此前渲染期无人读它
-占位数值    7 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio / HANDHELD_EXPANSION / targetAreaRatio / MIN_VISIBLE_RATIO）← 详见 §四 3
+字幕通道    words.json 已接入 props，且字幕的**时间/文字/高亮全部以 SRT 为准**（C2-6）
+占位数值    8 个（对齐门控 ×2 / 每 cue item 数 / 闸2 分档 / safeAreaTopRatio /
+            HANDHELD_EXPANSION / targetAreaRatio / CARRIER_RATIO_DEFAULT / MIN_VISIBLE_RATIO）
 手感表      docs/templates/2026-10-15-参数手感表.md（已建）
-测试文件    22 个（+1 共享夹具 tests/_ctx.ts，`vitest` 不计入文件数）
+成片基准    6667 帧 1080p60 → 墙钟 20–22 分钟 / 218 MB（F4 首条，待多次取样）
+```
+
+**真素材端到端实测（kukini，2026-10-18）**：
+
+```
+素材        1920×1080 / 59.94fps / 6667 帧 / 48 条 cue（110.9s）
+align       alignedRatio 1.000 / 均值置信度 0.9113 / 低置信 3.19%（门控通过）
+            已知缺陷：词时最多漂 7.06s（8 条 cue 覆盖率 <0.8）
+perceive    15 shot（8 有 safeArea / 7 无脸走 broll）
+storyboard  7 轨 / 55 条锚点 / 闸1 T=0.800
+validate    18 项 + 2 条原生约束 → 0 error / 11 warning
+                49→4  W-C3-01（字幕起点恰在词边界；改用 SRT 时间后自然消退）
+                54→6  W-C4-01（footprint 相交；半开区间消掉相邻 cue 的 1 帧重叠）
+                1     W-D2-01（tier1 平移消解 handheld 遮挡 25.1% → 9.3%）
+render      218 MB / 20–22 分钟
 ```
 
 > ⚠️ **D4-t2 的 P1 没有新增校验项**：`item.carrier` 的引用合法性属**结构错误**
 > （`ConfigError` → 退出码 2，与 `handoffTo` 指向不存在 track 同类），**不占 18 项名额**。
 > 加校验项须先改登记册，而本次改的是契约不是清单。
+>
+> ⚠️ **占位值「有几个」曾有三个口径**（MEMORY 8 / 本文 7 / 代码里 PLACEHOLDER 标记仅 3 处），
+> 根因是**代码没有统一的占位值标记机制**。现统一按 8 计，但**标记机制仍未建**（D6.4 待做）。
 
 ### 已知环境问题（非项目 bug）
 
@@ -425,12 +489,26 @@ npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/d
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
+# 真素材全流程（示例：jobs/e2e-perceive）
+npm run pipeline -- align      --job e2e-perceive     # 约 14 分钟（whisper small）
+npm run pipeline -- perceive   --job e2e-perceive
+npm run pipeline -- storyboard --job e2e-perceive --draft jobs/e2e-perceive/03-storyboard/draft.json
+npm run pipeline -- validate   --job e2e-perceive
+npm run pipeline -- render     --job e2e-perceive     # 约 20–22 分钟（6667 帧 1080p60）
+
 npm run typecheck
 npm test
 ```
 
 > `align` / `perceive` 未配置外部模型时**直接退出码 2**，绝不伪造结果 ——
 > 一条静默产出的错误 storyboard，比一次显式失败危险得多。
+
+🔴 **阶段目录是不可变快照**：已存在的阶段会**跳过**（`align` 会打印「沿用」）。
+改了对齐/感知代码后必须加 **`--force`** 才会重跑 —— 否则你会以为代码没生效。
+（2026-10-18 踩过：改完 `builtin-align` 重跑，`words.json` 时间戳纹丝不动，白等 14 分钟。）
+
+🔴 **长任务别用 `| tail`**：`npm run pipeline -- render | tail -20` 会把错误吞掉，
+失败时只能看到「渲染失败」四个字。一律重定向到日志文件再 `grep`。
 
 ---
 
