@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { ALIGN_GATE, STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
-import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
+import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { AlignReport, AlignWords, Cue, SourceManifest, WordTimestamp } from '../core/types.ts';
 import { runBuiltinAlign } from './builtin-align.ts';
@@ -234,8 +234,23 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
     );
   }
 
-  writeJson(wordsFile, { fps: aligned.fps, words: aligned.words, cues: aligned.cues } satisfies AlignWords);
-  writeJson(reportFile, report);
+  // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.align,
+    target: STAGES.align,
+    file: 'words.json',
+    data: { fps: aligned.fps, words: aligned.words, cues: aligned.cues } satisfies AlignWords,
+    jobsDir: opts.jobsDir,
+  });
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.align,
+    target: STAGES.align,
+    file: 'align-report.json',
+    data: report,
+    jobsDir: opts.jobsDir,
+  });
 
   return { report, gatePassed: g.gatePassed };
 }

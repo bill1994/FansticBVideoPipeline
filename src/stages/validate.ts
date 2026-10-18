@@ -5,9 +5,8 @@
  * warning 不阻断。
  */
 
-import path from 'node:path';
 import { StageBlockedError } from '../core/exit-code.ts';
-import { jobDir, stageDir, writeJson } from '../core/io.ts';
+import { writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import { formatSummary, type ValidateReport } from '../core/report.ts';
 import { buildContext, runValidation } from '../validate/index.ts';
@@ -30,19 +29,20 @@ export function runValidateStage(opts: ValidateOptions): ValidateOutcome {
   const ctx = buildContext(opts.jobId, opts.jobsDir);
   const report = runValidation(ctx);
 
-  const reportFile = path.join(
-    stageDir(opts.jobId, STAGES.validate, opts.jobsDir),
-    'validate-report.json',
-  );
-  writeJson(reportFile, report);
+  // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
+  //   04 阶段写 03 会在**落盘之前**被拦下（见 tests/stage-io.test.ts）。
+  const reportFile = writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.validate,
+    target: STAGES.validate,
+    file: 'validate-report.json',
+    data: report,
+    jobsDir: opts.jobsDir,
+  });
 
   process.stdout.write(`${formatSummary(report)}\n`);
   if (!report.ok) {
     log.error('有 error → 阻断，不进渲染。走人工返修回路（见 docs/spec 与 validate Skill）。');
   }
   return { report, reportFile };
-}
-
-export function reportPath(jobId: string, jobsDir?: string): string {
-  return path.join(jobDir(jobId, jobsDir), STAGES.validate, 'validate-report.json');
 }

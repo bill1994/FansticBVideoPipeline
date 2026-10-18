@@ -399,8 +399,13 @@ export function checkBrollOcclusion(ctx: ValidateContext): ReportItem[] {
  * 「只拼进 detail 字符串」那版假绿之后，**残留的第二层假绿**。
  *
  * **为什么选 render 侧重算（A）而不是落一份 resolved storyboard（B）**：
- *   - 不新增阶段产物文件 ⇒ 不必改 SPEC §1 的阶段契约，也不必扩展 `io.ts` 的
- *     不可变快照守卫（`guardSnapshot` 会直接拒绝 04 阶段回写 03 的产物）；
+ *   - 不新增阶段产物文件 ⇒ 不必改 SPEC §1 的阶段契约，也不必让 04 阶段回写 03 目录
+ *     （那是被禁的）。⚠️ **2026-10-18 更正**：本行原写「`io.ts` 的不可变快照守卫
+ *     （`guardSnapshot` 会直接拒绝 04 阶段回写 03）」，两处都不实 ——
+ *     `guardSnapshot` 这个函数**从来不存在**，真正同作用的 `assertNotWritingUpstream`
+ *     当时**零调用**（结论侥幸成立，但论证的前提是假的）。
+ *     现守卫已接进 `writeStageJson()`，04 写 03 会在**落盘之前**抛 `ConfigError`，
+ *     见 `tests/stage-io.test.ts`；
  *   - 消解逻辑仍是**唯一一份**（就是本文件），render 不复制几何代码；
  *   - 代价：render 依赖 validate 的几何模块 —— 这是**有意的依赖**，
  *     因为「校验时判的几何」与「渲染时用的几何」必须逐位一致，

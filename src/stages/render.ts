@@ -16,7 +16,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { REMOTION_VERSION, STAGES } from '../core/config.ts';
 import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
-import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
+import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { ValidateReport } from '../core/report.ts';
 import type { SourceManifest } from '../core/types.ts';
@@ -216,9 +216,15 @@ export function runRender(opts: RenderOptions): RenderOutcome {
   const caption = hasWords ? toCaptionData(readJson<unknown>(wordsFile)) : undefined;
 
   fs.mkdirSync(outDir, { recursive: true });
-  const propsFile = path.join(outDir, 'render-props.json');
   const videoAbs = path.join(base, STAGES.input, source.video);
-  writeJson(propsFile, {
+  // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
+  const propsFile = writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.render,
+    target: STAGES.render,
+    file: 'render-props.json',
+    jobsDir: opts.jobsDir,
+    data: {
     jobId: opts.jobId,
     fps: source.fps,
     durationInFrames: source.durationInFrames,
@@ -239,6 +245,7 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     stacks,
     carrierTracks,
     ...(caption ? { caption } : {}),
+    },
   });
 
   if (opts.dryRun) {

@@ -11,7 +11,7 @@
 import path from 'node:path';
 import { STAGES } from '../core/config.ts';
 import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
-import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
+import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import { bake } from '../core/bake.ts';
 import { computeThreshold, decide, routingFloor, maxReview } from '../core/schedule.ts';
@@ -187,8 +187,23 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     noMotionRanges: storyboard.noMotionRanges,
   };
 
-  writeJson(path.join(outDir, 'storyboard.json'), baked);
-  writeJson(path.join(outDir, 'bake-report.json'), report);
+  // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.storyboard,
+    target: STAGES.storyboard,
+    file: 'storyboard.json',
+    data: baked,
+    jobsDir: opts.jobsDir,
+  });
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.storyboard,
+    target: STAGES.storyboard,
+    file: 'bake-report.json',
+    data: report,
+    jobsDir: opts.jobsDir,
+  });
   log.done(
     `storyboard.json 已烘焙：${baked.tracks.length} 轨 / ${report.records.length} 条锚点解析记录`,
   );

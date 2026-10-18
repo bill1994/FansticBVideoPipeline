@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_FRAME_INTERVAL_SEC, STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
-import { exists, jobDir, readJson, stageDir, writeJson } from '../core/io.ts';
+import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { PerceiveRegion, PerceiveResult, RegionKind, Shot, SourceManifest } from '../core/types.ts';
 import { OCCLUSION_BUDGET } from '../core/config.ts';
@@ -172,8 +172,23 @@ export async function runPerceive(opts: PerceiveOptions): Promise<PerceiveOutcom
       frameIntervalSec: interval,
     });
 
-    writeJson(shotsFile, builtin.shots);
-    writeJson(regionsFile, builtin.regions);
+    // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
+    writeStageJson({
+      jobId: opts.jobId,
+      self: STAGES.perceive,
+      target: STAGES.perceive,
+      file: 'shots.json',
+      data: builtin.shots,
+      jobsDir: opts.jobsDir,
+    });
+    writeStageJson({
+      jobId: opts.jobId,
+      self: STAGES.perceive,
+      target: STAGES.perceive,
+      file: 'regions.json',
+      data: builtin.regions,
+      jobsDir: opts.jobsDir,
+    });
   }
 
   const shots = readJson<Shot[]>(path.join(dir, 'shots.json'));

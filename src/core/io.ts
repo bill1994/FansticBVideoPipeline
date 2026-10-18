@@ -37,20 +37,55 @@ export function ensureJobDirs(jobId: string, jobsDir: string = DEFAULT_JOBS_DIR)
 }
 
 /**
- * 不可变快照守卫：写某个阶段的产物前，确认它不早于上游读入的阶段。
- * `writesTo` 必须 >= `readsFrom` 中最新的一级。
+ * 不可变快照守卫：本阶段不得写**更早**的阶段目录。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 2026-10-18 修正（审计发现）
+ * ─────────────────────────────────────────────────────────────
+ * 本函数自 2026-10-13 起存在，但**零调用** —— 而 `validate/occlusion.ts` 的
+ * 架构论证里却写着「`io.ts` 的不可变快照守卫（`guardSnapshot` 会直接拒绝
+ * 04 阶段回写 03 的产物）」。两处都不对：
+ *   ① `guardSnapshot` 这个函数名**从来不存在**；
+ *   ② 真正同作用的函数（就是本函数）**没有任何人调用**。
+ * 结论侥幸成立（方案 A 本身绕开了"落 resolved storyboard"这条路），
+ * 但**论证的前提是假的**。这是「文档说它承重、代码里没人读」的第五次复发。
+ *
+ * 现在本函数是 `writeStageJson()` 的必经之路 —— 唯一执行点，
+ * 见 `tests/stage-io.test.ts`（含「越权时一个字节都不落盘」的反向断言）。
+ *
+ * @param writesTo 写入目标所在的阶段
+ * @param self 发起写入的本阶段
  */
-export function assertNotWritingUpstream(
-  writesTo: StageName,
-  readsFrom: StageName[],
-): void {
-  for (const r of readsFrom) {
-    if (stageIndex(writesTo) < stageIndex(r)) {
-      throw new ConfigError(
-        `不可变快照被破坏：本阶段写 ${writesTo}，却引用了更晚的 ${r}。下游不得回写上游。`,
-      );
-    }
+export function assertNotWritingUpstream(writesTo: StageName, self: StageName): void {
+  if (stageIndex(writesTo) < stageIndex(self)) {
+    throw new ConfigError(
+      `不可变快照被破坏：${self} 阶段试图写更早的 ${writesTo}。下游不得回写上游。`,
+    );
   }
+}
+
+/**
+ * 写阶段产物的**唯一入口** —— 所有 stage 的落盘都必须走这里。
+ *
+ * 为什么不让各 stage 自己 `writeJson(path.join(stageDir(...)))`：
+ * 那样「防回写」就只能靠自觉，而自觉已经在 2026-10-18 被证明是空的。
+ * 把守卫放进写入入口，越权写在**落盘之前**就被拦（不是写完再抛）。
+ */
+export function writeStageJson<T>(opts: {
+  jobId: string;
+  /** 发起写入的本阶段。 */
+  self: StageName;
+  /** 写入目标的阶段目录。 */
+  target: StageName;
+  /** 相对阶段目录的文件名（可含子目录）。 */
+  file: string;
+  data: T;
+  jobsDir?: string;
+}): string {
+  assertNotWritingUpstream(opts.target, opts.self);
+  const file = path.join(stageDir(opts.jobId, opts.target, opts.jobsDir), opts.file);
+  writeJson(file, opts.data);
+  return file;
 }
 
 export function readJson<T>(file: string): T {

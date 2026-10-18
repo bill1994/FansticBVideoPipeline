@@ -112,10 +112,9 @@ export function runValidation(ctx: ValidateContext): ValidateReport {
   return buildReport(ctx.jobId, items, DOCUMENTED_CHECK_ITEMS.length, [...EXTRA_CHECKS]);
 }
 
-/** 从 job 目录直接跑一遍（读磁盘 → 纯函数）。 */
-export function validateJob(jobId: string, jobsDir?: string): ValidateReport {
-  return runValidation(buildContext(jobId, jobsDir));
-}
+// 注：曾有 `validateJob(jobId)` = `runValidation(buildContext(...))` 的便利包装，
+// 2026-10-18 审计发现与 `stages/validate.ts#runValidateStage` 重复且零调用，已删。
+// 要「读磁盘 + 校验」请用 `runValidateStage`（它还会落 04 阶段产物并过快照守卫）。
 
 export { buildContext };
 export type { ValidateContext };
