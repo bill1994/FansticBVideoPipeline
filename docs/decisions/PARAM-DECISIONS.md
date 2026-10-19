@@ -8,8 +8,8 @@
 
 | 口径 | 数量 | 说明 |
 |---|---|---|
-| 占位值**项数** | **8** | 一个"需要独立做出的校准决定"算一项 |
-| 占位值**数值个数** | **12** | 一项可含多个数（如对齐门控 3 个） |
+| 占位值**项数** | **9** | 一个"需要独立做出的校准决定"算一项 |
+| 占位值**数值个数** | **16** | 一项可含多个数（如对齐门控 3 个） |
 | 明确排除的拟定值 | 5 | 见 §五，写清为什么不收 |
 
 🔴 **引用数量时必须注明口径**：说「8 个占位值」指的是**项数**；说「12 个数值」指的是**数值个数**。此前 `MEMORY.md` / `PROGRESS.md` / 代码标记三方各数一套，就是因为没定粒度。
@@ -26,6 +26,7 @@
 | `saliency-target` | 显著性目标框面积 | 实现期拟定 | `targetAreaRatio` = **0.35** | `core/config.ts` · `SALIENCY_TARGET_AREA_RATIO` | — |
 | `carrier-ratio` | 载体缺省占比 | 实现期拟定 | `CARRIER_RATIO_DEFAULT` = **0.5** | `core/carrier-window.ts` · `CARRIER_RATIO_DEFAULT` | — |
 | `min-visible` | 主体最低可见比 | 文档初值 | `MIN_VISIBLE_RATIO` = **0.5** | `core/carrier-window.ts` · `MIN_VISIBLE_RATIO` | `W-D2-02` 从 warning 升 error |
+| `silence-thresholds` | 静音检测与 SRT 一致性校验阈值 | 实现期拟定 | `noiseDb` = **-40**<br>`minDurationSec` = **0.5**<br>`longSilenceSec` = **1**<br>`overlapToleranceSec` = **0.5** | `core/config.ts` · `SILENCE` | `M-1d` 判据升 error；`M-1f` Q2 的告警可用性 |
 
 ## 三、逐项详情
 
@@ -105,6 +106,17 @@
 - **越界后果**：偏严 → 正常分屏被判「主体被切走」，`W-D2-02` 满屏；偏松 → 主体被切掉一半仍报通过。
 - **当前卡着**：`W-D2-02` 从 warning 升 error
 - **必须一起校准**：`carrier-ratio`（分开调会留下一道看着齐全、实则测不到的门）
+
+### `silence-thresholds` · 静音检测与 SRT 一致性校验阈值
+
+- **类别**：实现期拟定
+- **真源**：`src/core/config.ts#SILENCE`
+- **当前值**：`noiseDb` = **-40**；`minDurationSec` = **0.5**；`longSilenceSec` = **1**；`overlapToleranceSec` = **0.5**
+- **当前值从哪来**：文档与裁决册均未给数值（`M-1d` / `M-1f` 为 OPEN）。kukini 单条素材实测：`noise=-40dB / d=0.5` 下全片仅 3 段静音（6.736s 大空洞 + 0.53s / 0.57s 句中换气）；SRT 留白 7.083s vs 实测 6.736s，差 0.35s ⇒「长静音」取 1.0s 以排除换气。
+- **怎么校准**：补齐 3月22日 / 5月28日 的 SRT 后，三条素材各跑一次 align，对比 `silentWordRatio` 与「SRT↔静音不吻合」的告警条数：① 不吻合告警应**只在真错位时**出现（句中换气绝不能被当错位）；② `longSilenceSec` 需保证各素材的正常换气都不超过它；③ `noiseDb` 若素材底噪偏高需上调。
+- **越界后果**：`noiseDb` 偏大（阈值过高）→ 正常语音尾音被判静音 → 词时误重铺、误告警；偏小 → 真静音漏检 → `M-1d` 失守。`longSilenceSec` 偏小 → 句中换气被当错位 → 满屏警告（用户会学会忽略警告）；偏大 → 大错位漏检。`overlapToleranceSec` 偏小 → 边界轻微不齐就报警；偏大 → 真错位放过。
+- **当前卡着**：`M-1d` 判据升 error；`M-1f` Q2 的告警可用性
+- **必须一起校准**：`align-gate`（分开调会留下一道看着齐全、实则测不到的门）
 
 ## 四、已校准的样板：`MATCH_MIN_SIMILARITY = 0.35`
 

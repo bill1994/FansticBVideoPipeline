@@ -24,6 +24,8 @@ import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.t
 import { log } from '../core/log.ts';
 import type { AlignReport, AlignWords, Cue, SourceManifest, WordTimestamp } from '../core/types.ts';
 import { runBuiltinAlign } from './builtin-align.ts';
+import { detectSilences } from '../core/silence.ts';
+import { checkSrtAudioAgreement } from '../core/word-timeline.ts';
 
 /** 低置信词判定：低于整体均值的一半与固定下限的较小者，取保守侧。 */
 const LOW_CONFIDENCE_ABS = 0.5;
@@ -203,13 +205,69 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
    */
   const useBuiltin = !process.env.ALIGNER_CMD;
   let aligned: ExternalAligned;
+  /** 内置后端的产物（带 `M-1d`/`M-1f` 字段）；外部后端时为 null。 */
+  let builtin: ReturnType<typeof runBuiltinAlign> | null = null;
+
+  /**
+   * 🔴 `M-1d` / `M-1f`：探测静音区间。
+   *
+   * 用 `01-align/audio.wav`（上一步刚抽好，不重复抽）。**这一步是铺词的开关** ——
+   * 没有独立音频证据就不改产物（见 `builtin-align.ts` 内的说明）。
+   */
+  log.stage('align', '探测静音区间（silencedetect）');
+  const silences = detectSilences(wavPath);
+  log.info(
+    silences.length > 0
+      ? `静音区间 ${silences.length} 段：${silences
+          .map(([a, b]) => `${a.toFixed(2)}-${b.toFixed(2)}s(${(b - a).toFixed(2)}s)`)
+          .join(', ')}`
+      : '未探测到静音区间 —— 本次**跳过** SRT 一致性校验与词时重铺（缺独立证据不改产物）。',
+  );
+
   if (useBuiltin) {
-    const builtin = runBuiltinAlign(wavPath, srtPath, alignDir, source.fps, {
+    const builtinResult = runBuiltinAlign(wavPath, srtPath, alignDir, source.fps, {
       model: process.env.WHISPER_MODEL,
       language: 'zh',
       durationInFrames: source.durationInFrames,
+      silences,
     });
-    aligned = builtin;
+    builtin = builtinResult;
+    aligned = builtinResult;
+
+    /**
+     * 🔴 `M-1f` Q2：SRT 窗口与音频静音的**一致性校验**。
+     *
+     * ⚠️ 目的**不是**「防范 SRT 不可信」（那条铁律已撤回），
+     *    而是捕获用户手编 SRT 时的划错 —— 划歪了要报 warning，
+     *    而不是静默产出错高亮。
+     *
+     * 判据取自**音频**，不是 SRT 自证。
+     */
+    const mismatch = checkSrtAudioAgreement(builtinResult.cues, silences);
+    if (mismatch) {
+      log.warn(
+        `SRT 时间轴与音频静音段不吻合（M-1f Q2）：\n      ${mismatch}\n` +
+          `  判据来自 silencedetect（音频侧）。若确认 SRT 无误，可忽略本条。\n` +
+          `  若 SRT 划错了，请修正后重跑：--force`,
+      );
+    }
+
+    /**
+     * 🔴 `M-1d` 判据落报告：词落在静音里的时长占比。
+     * ⚠️ 阈值尚未校准（OPEN）⇒ **只报告不阻断**。
+     */
+    if (builtinResult.silentWordRatio !== null) {
+      log.info(
+        `silentWordRatio = ${(builtinResult.silentWordRatio * 100).toFixed(2)}%` +
+          `（M-1d 判据；正常素材应 ≈0）。重铺 ${builtinResult.reweighedCues} 条 cue 的词时。`,
+      );
+      if (builtinResult.silentWordRatio > 0.02) {
+        log.warn(
+          `仍有 ${(builtinResult.silentWordRatio * 100).toFixed(2)}% 的词时落在静音里` +
+            `（超过 2% 观察线）。可能原因：whisper 分段错误、或 SRT 与音频整体错位。`,
+        );
+      }
+    }
   } else {
     aligned = runExternalAligner(wavPath, srtPath, path.join(alignDir, 'aligner-raw.json'), source.fps);
   }
@@ -229,6 +287,11 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
     // 会让「未测量」看起来像「测过了且完美」。此处如实记 0，
     // 并在下方显式告警 —— 见 M-1c 的必填理由。
     alignedRatio: g.alignedRatio ?? 0,
+    // 🔴 `M-1d` / `M-1f`：落盘才不是零消费者字段（项目已栽过
+    // `occludesSubject` / `handoffIn` / `DUR.exit` 三次「定义了没人读」）。
+    // 外部后端（ALIGNER_CMD）不产出这两个字段 ⇒ 如实记 null / 0，不伪造。
+    silentWordRatio: builtin?.silentWordRatio ?? null,
+    reweighedCues: builtin?.reweighedCues ?? 0,
     thresholds: g.thresholds,
   };
   if (g.alignedRatio === null) {

@@ -232,7 +232,10 @@ describe('caption · highlightWords（漂移时按 SRT 窗口重铺）', () => {
     const got = highlightWords(drifted, words, FPS);
     expect(got.map((w) => w.word)).toEqual(['它把', '中底', '和外骨骼']);
     expect(got[0]!.startFrame).toBe(300); // 10s × 30
-    expect(got.at(-1)!.endFrame + 1).toBe(390); // 13s × 30
+    // 🔴 2026-10-19 更正：本断言原先是 `endFrame + 1 === 390`，即末帧落在 389
+    //   —— 那是**旧实现的 1 帧 bug 被断言固化了**（窗口尾部恒缺 1 帧）。
+    //   现实现让末帧正好是窗口末帧 390（13s × 30）。
+    expect(got.at(-1)!.endFrame).toBe(390); // 13s × 30
     // 单调不减：重铺不能打乱朗读顺序
     for (let i = 1; i < got.length; i += 1) {
       expect(got[i]!.startFrame).toBeGreaterThanOrEqual(got[i - 1]!.endFrame);

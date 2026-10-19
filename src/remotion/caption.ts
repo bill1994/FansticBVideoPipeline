@@ -23,6 +23,7 @@
  */
 
 import type { AlignWords, Cue, WordTimestamp } from '../core/types.ts';
+import { wordsForCue } from '../core/word-timeline.ts';
 
 /** 渲染 props 里携带的字幕数据。 */
 export interface CaptionData {
@@ -195,55 +196,24 @@ export function highlightSpan(
 /**
  * 取属于某条 cue 的词（按其**词落点区间**归属，顺序即朗读顺序）。
  *
- * 词落点会漂，但**相对顺序与归属是可信的** —— 这是下面重分配的前提。
+ * ⚠️ 词落点会漂，但**相对顺序与归属是可信的** —— 这是重分配的前提。
+ * 🔴 真源已上提 `core/word-timeline.ts`（M-1f / Q4）。本处仅 re-export，
+ *    禁止再写一份实现 —— 两侧分叉会让报告对成片说谎。
  */
-export function cueWords(cue: Cue, words: WordTimestamp[]): WordTimestamp[] {
-  return words.filter((w) => w.startFrame >= cue.fromFrame - 1 && w.startFrame <= cue.toFrame + 1);
-}
-
-/** 词在 SRT 窗口内的覆盖率（0–1）。用于判断这 cue 的词是否可信。 */
-export function wordCoverage(cue: Cue, words: WordTimestamp[], fps: number): number {
-  if (typeof cue.srtFromSec !== 'number' || typeof cue.srtToSec !== 'number') return 1;
-  const own = cueWords(cue, words);
-  if (own.length === 0) return 0;
-  const a = Math.round(cue.srtFromSec * fps);
-  const b = Math.round(cue.srtToSec * fps);
-  const inside = own.filter((w) => w.startFrame >= a - 2 && w.startFrame <= b + 2).length;
-  return inside / own.length;
-}
+export { cueWords, wordCoverage } from '../core/word-timeline.ts';
 
 /**
  * 高亮用的词序列：**词落点与 SRT 窗口严重不符时，按字数权重把词重新铺在这条 cue 的窗口里**。
  *
- * 🔴 为什么可以这么做（以及为什么只在显示层做）：
- *   whisper 会把跨静音的文本压进一个长分段，导致词的时间整体偏移（实测某 cue 早 7.06 秒，
- *   9 个词被放进 6.74 秒的真静音里）。调 `-ml`/`-sow` 都改不动 —— 是模型的时间判断错了。
- *   但词的**顺序**是对的、**归属**是对的，而这条 cue「什么时候被说」（SRT 窗口）也是对的。
- *   ⇒ 用「顺序 + 字数权重」重铺时间，得到的是**当前念到哪个字**的最佳估计。
+ * 🔴 为什么可以这么做：见 `core/word-timeline.ts` 顶部说明。
  *
- *   ⚠️ 只改**渲染时的高亮定位**，绝不回写 `01-align`（产物仍是原始测量值）。
- *   覆盖率 ≥ 0.8 时**不动**（好数据不要被"修"坏）。
+ * ⚠️ 渲染层只做**显示定位**；同一套算法在产物层也用（`stages/builtin-align.ts`），
+ * 两边必须共用 `core/word-timeline.ts` 的实现。
  */
 export function highlightWords(
   cue: Cue | null,
   words: WordTimestamp[],
   fps: number,
 ): WordTimestamp[] {
-  if (!cue) return words;
-  const own = cueWords(cue, words);
-  if (own.length === 0) return words;
-  if (wordCoverage(cue, words, fps) >= 0.8) return own;
-
-  const a = Math.round((cue.srtFromSec ?? cue.fromFrame / fps) * fps);
-  const b = Math.round((cue.srtToSec ?? cue.toFrame / fps) * fps);
-  const span = Math.max(1, b - a);
-  const weights = own.map((w) => Math.max(1, w.word.length));
-  const total = weights.reduce((x, y) => x + y, 0);
-  let cursor = a;
-  return own.map((w, i) => {
-    const len = i === own.length - 1 ? b - cursor : Math.max(1, Math.round((weights[i]! / total) * span));
-    const startFrame = cursor;
-    cursor += len;
-    return { ...w, startFrame, endFrame: startFrame + len - 1 };
-  });
+  return wordsForCue(cue, words, fps, true);
 }

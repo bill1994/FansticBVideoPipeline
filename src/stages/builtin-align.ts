@@ -38,6 +38,12 @@ import { parseSrt } from '../core/srt.ts';
 import type { AlignWords, WordTimestamp, Cue } from '../core/types.ts';
 import { composeWords, type WhisperSegment } from './text-align.ts';
 import { WHISPER_CPP_VERSION, DTW_FRAME_MS, resolveWhisperCppRoot } from './whisper-adapter.ts';
+import {
+  REWEIGH_COVERAGE_MIN,
+  silentWordRatio,
+  wordCoverage,
+  wordsForCue,
+} from '../core/word-timeline.ts';
 
 export interface BuiltinAlignResult extends AlignWords {
   /** SRT cue 成功对上的比例（M-1c 门控项）。**内置对齐器保证有值。** */
@@ -46,6 +52,10 @@ export interface BuiltinAlignResult extends AlignWords {
   unmatchedCues: number[];
   /** 匹配质量明细，便于排查（按 cue 序号）。 */
   matchQuality: Array<{ cueIndex: number; segment: number | null; similarity: number }>;
+  /** 🔴 `M-1d` 判据：词落在静音里的时长占比。**缺静音数据时为 null**（不伪造 0）。 */
+  silentWordRatio: number | null;
+  /** `M-1f`：按 SRT 窗口重铺过的 cue 数（0 = 未启用或无需修）。 */
+  reweighedCues: number;
 }
 
 /** whisper.cpp 可执行文件路径（根目录解析与 `whisper-adapter.ts` 共用同一函数）。 */
@@ -165,7 +175,13 @@ export function runBuiltinAlign(
   srtPath: string,
   alignDir: string,
   fps: number,
-  opts: { model?: string; language?: string; durationInFrames?: number } = {},
+  opts: {
+    model?: string;
+    language?: string;
+    durationInFrames?: number;
+    /** `M-1f`：静音区间（秒）。传入则启用铺词与一致性校验；缺省则只做原有行为。 */
+    silences?: [number, number][];
+  } = {},
 ): BuiltinAlignResult {
   const srtCues = parseSrt(srtPath, fps);
   const segments = runWhisperSegments(wavPath, path.join(alignDir, 'whisper-ojf'), opts);
@@ -228,7 +244,7 @@ export function runBuiltinAlign(
     );
   }
 
-  // cue 的帧区间取该 cue 首词的起点 / 末词的终点（时间来自音频，不是 SRT）
+  // cue 的帧区间取该 cue 首词的起点 / 末词的终点
   const byCue = new Map<number, WordTimestamp[]>();
   outWords.forEach((w, i) => {
     const key = outCueOf[i]!;
@@ -236,6 +252,44 @@ export function runBuiltinAlign(
     arr.push(w);
     byCue.set(key, arr);
   });
+
+  /**
+   * 🔴 `M-1f` / Q1+Q3：按 SRT 窗口重铺词时，**并回写产物**。
+   *
+   * 为什么在**建 cue 之前**做：`fromFrame`/`toFrame` 取自词的首末帧，
+   * 若先建 cue 再铺词，cue 的帧区间仍是旧的漂移值 ⇒ 等于没修。
+   *
+   * 做法：逐cue 判 `wordCoverage`，< 0.8 时用 `core/word-timeline.ts` 的
+   * 铺词算法（与渲染层**共用同一份实现**，否则报告会对成片说谎）把词
+   * 铺回 `[srtFromSec, srtToSec]`，然后**原地更新 `outWords`**。
+   *
+   * ⚠️ 降级语义：`opts.silences` 缺失（ffmpeg 不可用）时**不做**重铺 ——
+   *    没有独立证据就改产物，等于拿 SRT 自证。宁可保持原始测量值。
+   */
+  let reweighedCues = 0;
+  if (opts.silences && opts.silences.length > 0) {
+    for (const [ci, ws] of byCue) {
+      const c = srtCues.find((x) => x.index === ci);
+      if (!c) continue;
+      const probe: Cue = {
+        index: c.index,
+        fromFrame: ws[0]!.startFrame,
+        toFrame: ws[ws.length - 1]!.endFrame,
+        text: c.text,
+        srtFromSec: c.srtFromSec,
+        srtToSec: c.srtToSec,
+      };
+      if (wordCoverage(probe, ws, fps) >= REWEIGH_COVERAGE_MIN) continue;
+      const fixed = wordsForCue(probe, ws, fps, true);
+      if (fixed.length !== ws.length) continue; // 防御：归属数量变了就不动
+      ws.forEach((w, i) => {
+        w.startFrame = fixed[i]!.startFrame;
+        w.endFrame = fixed[i]!.endFrame;
+      });
+      reweighedCues++;
+    }
+  }
+
   const outCues: Cue[] = [];
   for (const c of srtCues) {
     const ws = byCue.get(c.index);
@@ -267,6 +321,13 @@ export function runBuiltinAlign(
     alignedRatio: match.alignedRatio,
     unmatchedCues,
     matchQuality,
+    // 🔴 不伪造：没有静音数据时写 null 而不是 0 —— 写 0 会让
+    // 「没测过」看起来像「测过了且完美」（同 alignedRatio 的处理理由）。
+    silentWordRatio:
+      opts.silences && opts.silences.length > 0
+        ? silentWordRatio(outWords, opts.silences, fps)
+        : null,
+    reweighedCues,
   };
 }
 

@@ -60,6 +60,7 @@ import {
 } from './config.ts';
 import { CONFIDENCE_BANDS } from './schedule.ts';
 import { CARRIER_RATIO_DEFAULT, MIN_VISIBLE_RATIO } from './carrier-window.ts';
+import { SILENCE } from './config.ts';
 
 /** 一个可独立校准的数值（同一项内可能有多个，必须一起定）。 */
 export interface PlaceholderMember {
@@ -246,6 +247,36 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
       '偏松 → 主体被切掉一半仍报通过。',
     blockedBy: '`W-D2-02` 从 warning 升 error',
     alignWith: ['carrier-ratio'],
+  },
+  {
+    id: 'silence-thresholds',
+    title: '静音检测与 SRT 一致性校验阈值',
+    kind: 'invented',
+    source: 'src/core/config.ts#SILENCE',
+    members: [
+      { label: 'noiseDb', read: () => SILENCE.noiseDb },
+      { label: 'minDurationSec', read: () => SILENCE.minDurationSec },
+      { label: 'longSilenceSec', read: () => SILENCE.longSilenceSec },
+      { label: 'overlapToleranceSec', read: () => SILENCE.overlapToleranceSec },
+    ],
+    basis:
+      '文档与裁决册均未给数值（`M-1d` / `M-1f` 为 OPEN）。kukini 单条素材实测：' +
+      '`noise=-40dB / d=0.5` 下全片仅 3 段静音（6.736s 大空洞 + 0.53s / 0.57s 句中换气）；' +
+      'SRT 留白 7.083s vs 实测 6.736s，差 0.35s ⇒「长静音」取 1.0s 以排除换气。',
+    calibration:
+      '补齐 3月22日 / 5月28日 的 SRT 后，三条素材各跑一次 align，' +
+      '对比 `silentWordRatio` 与「SRT↔静音不吻合」的告警条数：' +
+      '① 不吻合告警应**只在真错位时**出现（句中换气绝不能被当错位）；' +
+      '② `longSilenceSec` 需保证各素材的正常换气都不超过它；' +
+      '③ `noiseDb` 若素材底噪偏高需上调。',
+    impact:
+      '`noiseDb` 偏大（阈值过高）→ 正常语音尾音被判静音 → 词时误重铺、误告警；' +
+      '偏小 → 真静音漏检 → `M-1d` 失守。' +
+      '`longSilenceSec` 偏小 → 句中换气被当错位 → 满屏警告（用户会学会忽略警告）；' +
+      '偏大 → 大错位漏检。' +
+      '`overlapToleranceSec` 偏小 → 边界轻微不齐就报警；偏大 → 真错位放过。',
+    blockedBy: '`M-1d` 判据升 error；`M-1f` Q2 的告警可用性',
+    alignWith: ['align-gate'],
   },
 ];
 

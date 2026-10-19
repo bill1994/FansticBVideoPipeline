@@ -168,6 +168,24 @@ export interface AlignReport {
    */
   alignedRatio: number;
 
+  /**
+   * 🔴 `M-1d`（2026-10-19）：词落在静音段内的**时长占比** 0–1。
+   *
+   * **为什么必须有它**：`alignedRatio` 衡量**文本匹配**，结构上看不见**时间错位**
+   * —— 实测反例：门控全过（`alignedRatio=1.000`、置信 0.9113），
+   * 但某 cue 的 9 个词被放进 6.74 秒真静音里，早 7.06 秒。
+   * 这是一条「门控看着齐全、实则测不到时间」的判据。
+   *
+   * 🔴 **`null` ≠ `0`**：`null` 表示**没测**（ffmpeg 不可用 / 未内置后端），
+   *    `0` 表示测了且完全正常。写 0 会让「没测过」看起来像「测过且完美」。
+   *
+   * ⚠️ 阈值**尚未校准**（`M-1d` 为 OPEN）⇒ 只报告不阻断。
+   */
+  silentWordRatio?: number | null;
+
+  /** `M-1f`：按 SRT 窗口重铺过词时的 cue 数（0 = 未启用或无需修）。 */
+  reweighedCues?: number;
+
   /** 实际使用的阈值，便于事后追溯。 */
   thresholds: {
     meanConfidenceMin: number;

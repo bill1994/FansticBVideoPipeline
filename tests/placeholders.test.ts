@@ -30,6 +30,7 @@ import {
   HANDHELD_EXPANSION,
   PERCEIVE,
   SALIENCY_TARGET_AREA_RATIO,
+  SILENCE,
 } from '../src/core/config.ts';
 import { CONFIDENCE_BANDS } from '../src/core/schedule.ts';
 import { CARRIER_RATIO_DEFAULT, MIN_VISIBLE_RATIO } from '../src/core/carrier-window.ts';
@@ -114,6 +115,10 @@ describe('占位值注册表 / 值是真源的引用而非副本', () => {
       targetAreaRatio: SALIENCY_TARGET_AREA_RATIO,
       CARRIER_RATIO_DEFAULT: CARRIER_RATIO_DEFAULT,
       MIN_VISIBLE_RATIO: MIN_VISIBLE_RATIO,
+      noiseDb: SILENCE.noiseDb,
+      minDurationSec: SILENCE.minDurationSec,
+      longSilenceSec: SILENCE.longSilenceSec,
+      overlapToleranceSec: SILENCE.overlapToleranceSec,
     };
 
     for (const p of PLACEHOLDERS) {
