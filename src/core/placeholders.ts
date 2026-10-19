@@ -60,6 +60,7 @@ import {
 } from './config.ts';
 import { CONFIDENCE_BANDS } from './schedule.ts';
 import { CARRIER_RATIO_DEFAULT, MIN_VISIBLE_RATIO } from './carrier-window.ts';
+import { REWEIGH_COVERAGE_MIN } from './word-timeline.ts';
 import { SILENCE } from './config.ts';
 
 /** 一个可独立校准的数值（同一项内可能有多个，必须一起定）。 */
@@ -276,6 +277,30 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
       '偏大 → 大错位漏检。' +
       '`overlapToleranceSec` 偏小 → 边界轻微不齐就报警；偏大 → 真错位放过。',
     blockedBy: '`M-1d` 判据升 error；`M-1f` Q2 的告警可用性',
+    alignWith: ['align-gate'],
+  },
+  {
+    id: 'reweigh-coverage-min',
+    title: '词时重铺的覆盖率阈值',
+    kind: 'invented',
+    source: 'src/core/word-timeline.ts#REWEIGH_COVERAGE_MIN',
+    members: [{ label: 'REWEIGH_COVERAGE_MIN', read: () => REWEIGH_COVERAGE_MIN }],
+    basis:
+      '**继承自 `highlightWords` 的原值 0.8，不是本项目验证过的结论** —— ' +
+      '它随显示层实现被搬进产物层，来源已不可考。' +
+      'kukini 修复后实测分布：最小 0.714 / 25%位 0.857 / 中位 0.900 / 最大 1.000。' +
+      '阈值 0.8 恰好把 7 条「首词比 SRT 窗口早约 10 帧」的边缘 cue 判为需重铺，' +
+      '而它们的词时**本是对的**（人说话起止略宽于字幕标注，非错位）。',
+    calibration:
+      '补齐 3月22日 / 5月28日后三条素材各跑一次，取覆盖率分布：' +
+      '① 阈值应落在「真漂移」与「边缘抖动」之间的**空隙**（kukini 上看是 0.714 之下）；' +
+      '② 交叉验证：低于阈值的 cue 是否真落进了静音（用 `silentWordRatio` 佐证），' +
+      '只有「既低覆盖、又落静音」才是真漂移。',
+    impact:
+      '偏高 → 真漂移漏修（本次已修的那条 cov=0.182 会漏掉）；' +
+      '偏低 → **把对的词时改坏**（本次 0.8 会误伤 7 条本正确的 cue）。' +
+      '⚠️ 第二个方向更隐蔽：重铺后画面看不出异常，只是高亮时机被人为改过。',
+    blockedBy: '`M-1f` 的「好数据不被修坏」保证',
     alignWith: ['align-gate'],
   },
 ];

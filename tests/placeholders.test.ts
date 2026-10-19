@@ -34,6 +34,7 @@ import {
 } from '../src/core/config.ts';
 import { CONFIDENCE_BANDS } from '../src/core/schedule.ts';
 import { CARRIER_RATIO_DEFAULT, MIN_VISIBLE_RATIO } from '../src/core/carrier-window.ts';
+import { REWEIGH_COVERAGE_MIN } from '../src/core/word-timeline.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 
@@ -119,6 +120,7 @@ describe('占位值注册表 / 值是真源的引用而非副本', () => {
       minDurationSec: SILENCE.minDurationSec,
       longSilenceSec: SILENCE.longSilenceSec,
       overlapToleranceSec: SILENCE.overlapToleranceSec,
+      REWEIGH_COVERAGE_MIN: REWEIGH_COVERAGE_MIN,
     };
 
     for (const p of PLACEHOLDERS) {
