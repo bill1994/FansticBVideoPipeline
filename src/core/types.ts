@@ -133,6 +133,21 @@ export interface WordTimestamp {
 
 export interface AlignReport {
   fps: number;
+
+  /**
+   * 🔴 `M-1g`（2026-10-19）：本 job 走的是哪条对齐路径。
+   *
+   * `'aligned'`（默认）—— 正常跑了内置对齐器，各项指标是**真实测量值**。
+   * `'no-subtitle'`   —— 用户显式声明「本片不做字幕对齐」（`--no-subtitle`）。
+   *   此时 `words` / `cues` 为**空数组**，`silentWordRatio` 为 `null`，
+   *   只能用 `abs:` 锚点，字幕模板不可用。
+   *
+   * 🔴 **为什么必须有这个字段**：无字幕模式的产物**文件是存在的**
+   *   （`storyboard`/`validate` 结构上硬依赖它们），若不显式标记，
+   *   一份空产物与「对齐结果异常」在下游**无法区分**——
+   *   那正是「定义了就该能被读出来」的老问题。
+   */
+  mode?: 'aligned' | 'no-subtitle';
   /** 整体均值置信度。 */
   meanConfidence: number;
   /** 低置信词占比 0–1。 */

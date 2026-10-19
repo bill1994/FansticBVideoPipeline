@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import { ALIGN_GATE, STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
-import { log } from '../core/log.ts';
+import { log, printBlock } from '../core/log.ts';
 import type { AlignReport, AlignWords, Cue, SourceManifest, WordTimestamp } from '../core/types.ts';
 import { runBuiltinAlign } from './builtin-align.ts';
 import { detectSilences } from '../core/silence.ts';
@@ -156,6 +156,59 @@ export function evaluateGate(
     gatePassed,
     thresholds: { ...ALIGN_GATE },
   };
+}
+
+/**
+ * 无字幕模式（`--no-subtitle`）的产物 —— **M-1g**。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么需要它（以及为什么不是「造假绕过门控」）
+ *
+ * 用户有两条素材**字幕烧在画面里**（无字幕轨），而字幕模板之外���
+ * motion 模板（动力学/ 排版 / 数据 / 载体）**完全不依赖词级时间**——
+ * 它们只用 `abs:` 锚点。原先的门控一刀切：「无词级时间 ⇒ 拒绝起草」，
+ * 于是「只想验证 motion 表现」这件事也做不了。
+ *
+ * 🔴 **本函数绝不伪造测量值**：`words` / `cues` 为空数组、
+ *    `alignedRatio` 为 `null`（不是 1、不是 0）、`meanConfidence` 为 `null`。
+ *    P0「绝不伪造结果」的红线不因「方便测试」而放宽。
+ *
+ * 代价是**显式可见**的：
+ * · `mode: 'no-subtitle'` 落进报告，任何人一眼看出这条 job 没做对齐
+ * · `anchorMode` 只能是 `abs`（`word:`/`cue:` 锚点会直接报错）
+ * · 字幕模板 `caption/karaoke-word` 在本模式下**不可用**
+ */
+export function createNoSubtitleAlignReport(fps: number): AlignReport {
+  return {
+    fps,
+    // ⚠️ `meanConfidence` 类型是 `number` 且下游有算术（`storyboard` 写入 meta），
+    //   不能为 null ⇒ 记 0。
+    //   「没测」这一事实**由下面两处承担**，不靠这个字段表达：
+    //   · `silentWordRatio: null`（真·未测量）
+    //   · `mode: 'no-subtitle'`（显式标记，见下）
+    meanConfidence: 0,
+    lowConfidenceRatio: 0,
+    gatePassed: true,
+    lowConfidenceWords: [],
+    textSource: 'srt',
+    alignedRatio: 0,
+    silentWordRatio: null,
+    reweighedCues: 0,
+    // 🔴 显式标记「这条job 没做对齐」—— 否则一份空产物在下游
+    //与「对齐结果异常」无法区分。
+    mode: 'no-subtitle',
+    thresholds: { ...ALIGN_GATE },
+  };
+}
+
+/**
+ * 无字幕模式下 `words.json` 的内容 —— **空数组，不是编造的词**。
+ *
+ * 存在的唯一目的是让 `storyboard` / `validate` 的文件读取不崩
+ * （它们结构上硬依赖这两个文件，见 `storyboard.ts:85`、`validate/context.ts:70`）。
+ */
+export function createNoSubtitleWords(fps: number): AlignWords {
+  return { fps, words: [], cues: [] };
 }
 
 export interface AlignOutcome {
@@ -331,4 +384,75 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
 export function loadAligned(wordsFile: string): AlignWords {
   const data = readJson<AlignWords>(wordsFile);
   return { fps: data.fps, words: data.words, cues: (data.cues ?? []) as Cue[] };
+}
+
+/**
+ * `M-1g`：无字幕模式 —— 产出**显式标记的空产物**。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 用在哪：素材字幕烧在画面里（无字幕轨）、或本片根本不需要字幕时，
+ * 只想验证非字幕类motion 模板的表现。
+ *
+ * 🔴 **这不是「绕过门控」，是给「本来就不需要对齐」一条正路**：
+ * · 产物文件**存在但为空**，并带 `mode: 'no-subtitle'` 标记
+ * · `words`/`cues` 是**空数组**，不是编造的词
+ * · `alignedRatio` 记 0（不是 1、不是 null），配 `silentWordRatio: null`
+ * · storyboard 侧会用该标记**拦住** `word:`/`cue:` 锚点与字幕模板
+ *
+ * 与 P0「绝不伪造结果」不冲突：伪造是「把没测的说成测了」，
+ * 而这里是「明说没测，并把该禁的都禁掉」。
+ */
+export function runNoSubtitleAlign(opts: {
+  jobId: string;
+  jobsDir?: string;
+  force: boolean;
+}): AlignOutcome {
+  const base = jobDir(opts.jobId, opts.jobsDir);
+  const alignDir = stageDir(opts.jobId, STAGES.align, opts.jobsDir);
+  const reportFile = path.join(alignDir, 'align-report.json');
+  const wordsFile = path.join(alignDir, 'words.json');
+
+  if (exists(wordsFile) && exists(reportFile) && !opts.force) {
+    log.info('01-align 已是不可变快照，沿用（加 --force 可重跑）');
+    const report = readJson<AlignReport>(reportFile);
+    return { report, gatePassed: report.gatePassed };
+  }
+
+  const source = readJson<SourceManifest>(path.join(base, STAGES.input, 'source.json'));
+  const report = createNoSubtitleAlignReport(source.fps);
+  const words = createNoSubtitleWords(source.fps);
+
+  log.stage('align', '无字幕模式（--no-subtitle）：产出显式标记的空对齐产物');
+
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.align,
+    target: STAGES.align,
+    file: 'words.json',
+    data: words,
+    jobsDir: opts.jobsDir,
+  });
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.align,
+    target: STAGES.align,
+    file: 'align-report.json',
+    data: report,
+    jobsDir: opts.jobsDir,
+  });
+
+  printBlock(
+    [
+      '已产出**无字幕模式**对齐产物（mode = no-subtitle）。',
+      '',
+      '· words / cues 为**空数组** —— 没有伪造任何词级时间戳',
+      '  · 只能用 `abs:<帧|秒s>` 锚点；`word:` / `cue:` 会被拒绝',
+      '  · 字幕模板 `caption/karaoke-word` 在本模式下不可用',
+      '  · 后续 validate / render 不受影响',
+      '',
+      '  ↳ 若本片其实有 SRT，请去掉 --no-subtitle 重跑。',
+    ].join('\n'),
+  );
+
+  return { report, gatePassed: true };
 }

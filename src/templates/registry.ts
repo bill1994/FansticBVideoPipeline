@@ -35,10 +35,21 @@ export function listTemplates(): TemplateDeclaration[] {
 export function getTemplate(motion: string): TemplateDeclaration {
   const t = registry.get(motion);
   if (!t) {
+    // 🔴 2026-10-19：补「漏了版本后缀」这一最常见写法的诊断。
+    //   本函数的错误信息原本只列出已注册清单（全部形如 `xxx@1.0`），
+    //   而用户若写成 `xxx`，清单里明明"有"它却仍报未注册 ——
+    //   **报错信息自己打自己的脸**，实测因此绕了一圈才定位。
+    const bare = motion.split('@')[0];
+    const byBare = bare ? registry.get(`${bare}@1.0`) : undefined;
+    const hint =
+      byBare !== undefined
+        ? `\n  ↳ 你大概想写 \`${byBare.id}\` —— motion 的规范写法是 \`family/subtype@version\`。`
+        : '';
     throw new ConfigError(
       `未注册的 motion：${JSON.stringify(motion)}。` +
         `校验与烘焙都依赖模板声明（scope / minVisibleInFrames），无法在缺失时继续。` +
-        `已注册：${[...registry.keys()].join(', ')}`,
+        `已注册：${[...registry.keys()].join(', ')}` +
+        hint,
     );
   }
   return t;

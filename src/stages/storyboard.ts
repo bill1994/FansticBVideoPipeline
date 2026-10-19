@@ -85,13 +85,17 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   if (!exists(alignReportFile) || !exists(wordsFile)) {
     throw new StageBlockedError('01-align 未就绪 —— 不得跳过对齐直接起草 storyboard');
   }
-  const alignReport = readJson<{ gatePassed: boolean; meanConfidence: number }>(alignReportFile);
+  const alignReport = readJson<{ gatePassed: boolean; meanConfidence: number; mode?: string }>(
+    alignReportFile,
+  );
   if (!alignReport.gatePassed) {
     throw new StageBlockedError(
       '对齐门控未通过（C2-2 / C2-4）—— 必须人工显式确认后才能继续。' +
         '确认后写入 06-review/confirmed.json，并把 meta.anchorMode 标为实际使用的模式。',
     );
   }
+  /** 🔴 `M-1g`：本job 是否走无字幕模式（详见下方「硬约束」）。 */
+  const noSubtitle = alignReport.mode === 'no-subtitle';
   if (!exists(shotsFile)) {
     throw new StageBlockedError('02-perceive 未就绪 —— 不得跳过感知直接起草 storyboard');
   }
@@ -112,6 +116,40 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     );
   }
   const draft = readJson<DraftStoryboard>(draftFile);
+
+  /**
+   * 🔴 `M-1g`：无字幕模式下的**硬约束**。
+   *
+   * `mode === 'no-subtitle'` 时 `words`/`cues` 为**空数组** —— 若不拦：
+   * · `word:0` 会取到 `undefined` → 烘焙期报「锚点序号非法」，看起来像 draft 写错
+   * · `cue:0` 会取到空条目 → 隐式时长算成 0
+   * 真实原因不是 draft 写错，而是「这条 job 刻意没做对齐」⇒ 必须在这里说清楚。
+   */
+  if (noSubtitle) {
+    const bad: string[] = [];
+    for (const t of draft.tracks ?? []) {
+      for (const it of t.items ?? []) {
+        // 🔴 锚点在 `_author` 里，不是顶层字段（`bake.ts:181` 读的就是它）。
+        const anchor = it._author?.anchor ?? '';
+        if (anchor.startsWith('word:') || anchor.startsWith('cue:')) {
+          bad.push(`轨「${t.id}」的 ${anchor}`);
+        }
+        if (it.motion === 'caption/karaoke-word') {
+          bad.push(`轨「${t.id}」的字幕模板 caption/karaoke-word`);
+        }
+      }
+    }
+    if (bad.length > 0) {
+      throw new ConfigError(
+        '本 job 是**无字幕模式**（align 报告 mode = no-subtitle）—— ' +
+          '没有词级时间戳也没有 cue，下列写法不可用：\n' +
+          bad.map((b) => `  · ${b}`).join('\n') +
+          '\n  ↳ 改用 `abs:<帧>` 或 `abs:<秒>s` 锚点（不依赖对齐数据）。' +
+          '\n  ↳ 若本片其实有 SRT，请去掉 --no-subtitle 重跑 align。',
+      );
+    }
+    log.info('无字幕模式：已校验全部 item 均用 abs: 锚点且不含字幕模板（M-1g）。');
+  }
 
   if (draft.meta.fps !== source.fps) {
     throw new ConfigError(

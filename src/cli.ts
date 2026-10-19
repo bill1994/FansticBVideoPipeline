@@ -17,7 +17,7 @@ import { ConfigError, EXIT, StageBlockedError, type ExitCode } from './core/exit
 import { ensureJobDirs, jobDir, writeJson } from './core/io.ts';
 import { log, printBlock } from './core/log.ts';
 import { assertRegistryValid } from './templates/registry.ts';
-import { runAlign } from './stages/align.ts';
+import { runAlign, runNoSubtitleAlign } from './stages/align.ts';
 import { runPerceive } from './stages/perceive.ts';
 import { runStoryboard } from './stages/storyboard.ts';
 import { runValidateStage } from './stages/validate.ts';
@@ -30,6 +30,7 @@ interface Args {
   draft: string | null;
   force: boolean;
   dryRun: boolean;
+  noSubtitle: boolean;
   interval: number | null;
 }
 
@@ -41,6 +42,7 @@ function parseArgs(argv: string[]): Args {
     draft: null,
     force: false,
     dryRun: false,
+    noSubtitle: false,
     interval: null,
   };
   for (let i = 1; i < argv.length; i += 1) {
@@ -70,6 +72,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--dry-run':
         out.dryRun = true;
+        break;
+      case '--no-subtitle':
+        out.noSubtitle = true;
         break;
       case '--help':
       case '-h':
@@ -101,6 +106,7 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
   --interval <sec>   抽帧密度，默认 1.5（可调，见 E4）
   --force            忽略不可变快照，强制重跑本阶段
   --dry-run          只做映射与启动闸检查，不真正渲染
+  --no-subtitle      align 阶段：声明本片不做字幕对齐（只能用 abs: 锚点）
 `;
 
 /** 阶段目录清单，供 init 打印。 */
@@ -148,6 +154,17 @@ async function main(): Promise<ExitCode> {
 
   switch (args.stage) {
     case 'align': {
+      // 🔴 `M-1g`：显式声明「本片不做字幕对齐」。产出的是**显式标记的空产物**
+      //   （`mode:'no-subtitle'`），不是伪造的测量值 —— 见
+      //   `createNoSubtitleAlignReport` 的说明。
+      if (args.noSubtitle) {
+        runNoSubtitleAlign({
+          jobId: args.job,
+          jobsDir: args.jobsDir,
+          force: args.force,
+        });
+        return EXIT.OK;
+      }
       const outcome = runAlign({ jobId: args.job, jobsDir: args.jobsDir, force: args.force });
       const r = outcome.report;
       printBlock(
