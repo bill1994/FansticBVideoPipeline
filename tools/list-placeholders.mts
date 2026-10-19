@@ -145,12 +145,23 @@ function main(): void {
   const md = render();
   const check = process.argv.includes('--check');
 
+  // 🔴 比对前必须归一化行尾：Windows 上 core.autocrlf=true 会让 `git checkout`
+  // 写出 CRLF，而 writeFileSync 写的是 LF ⇒ 逐字节比对在「内容完全一致」时也 FAIL，
+  // 且错误信息把人指向错误的修法（改代码）。只影响 --check，不影响生成内容。
+  const normalizeEol = (s: string): string => s.replace(/\r\n/g, '\n');
+
   if (check) {
-    const cur = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : '';
-    if (cur !== md) {
+    const cur = normalizeEol(
+      fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : '',
+    );
+    if (cur !== normalizeEol(md)) {
+      const eolOnly =
+        cur === normalizeEol(md).replace(/\n/g, '\r\n') ||
+        normalizeEol(cur) === md.replace(/\n/g, '\r\n');
       console.error(
         'FAIL: docs/decisions/PARAM-DECISIONS.md 与 src/core/placeholders.ts 不一致。\n' +
-          '      跑 `npm run placeholders` 重新生成后提交。',
+          '      跑 `npm run placeholders` 重新生成后提交。' +
+          (eolOnly ? '\n      （已排除行尾符差异 —— 若反复出现，请检查是否手改过该文件。）' : ''),
       );
       process.exit(1);
     }
