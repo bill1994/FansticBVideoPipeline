@@ -1,11 +1,18 @@
 /**
  * Stage 1 · align —— 抽音轨、强制对齐、置信度门控。
  *
- * 铁律（B2-fix / C2-1 / C2-4 / F5）：
- *  1. **只取 SRT 的文本，不信任其时间戳** —— 时间必须从音频重新推导
+ * 规则（B2-fix / M-1 / M-1f / C2-1 / C2-4 / F5）：
+ *  1. **SRT 是文本与句子时间的双重权威** —— 词级时间按 cue 窗口铺（`M-1f`）
  *  2. 强制对齐是 pipeline **启动前置步骤**，不是可选增强
  *  3. 音频处理只做对齐必需（16kHz 单声道 wav）；降噪 / 响度归一 / BGM 分离明确不做
  *  4. **门控不达标必须停**，降级必须阻断
+ *
+ * 🔴 **2026-10-19 更正**：本文件此前把第 1 条写成「只取 SRT 的文本，**不信任其时间戳**」，
+ *并称其为 B2-fix。该表述**不在 B2-fix 原文中** —— 审核报告（`docs/reviews/2026-10-12-工作流文档审核报告.md` §B-2）
+ * 原文是「SRT 已有字幕，Whisper **只需出时间戳**，可强制对齐到 SRT 文本」。
+ *「不信任 SRT 时间戳」是登记册转写时添加的过度推断，已撤回（见 `OPEN-DECISIONS.md` B2-fix 更正）。
+ * 实测：kukini 的 SRT 边界与音频静音吻合（留白 7.083s vs 实测 6.736s，整体平移 0 即最优），
+ * 文本归属也 100% 正确 —— 错的只是 whisper 给的词落点，故按 SRT 窗口铺词即可。
  */
 
 import { execFileSync } from 'node:child_process';
@@ -84,7 +91,8 @@ export function runExternalAligner(
         '  示例：ALIGNER_CMD="python tools/align.py --wav {wav} --srt {srt} --out {out} --fps {fps}"\n' +
         '  契约：把 {fps, words: WordTimestamp[], cues: Cue[]} 写到 {out}\n' +
         '        可选：alignedRatio（SRT 词对上 token 的比例，M-1c 门控项）\n' +
-        '  提示：仅取 SRT 的**文本**，时间戳必须由音频重新推导（B2-fix）。\n' +
+        '  提示：SRT 是**文本与句子时间**的权威，cues[] 的 from/to 应取自 SRT 时间戳；\n' +
+        '        词级时间若与 cue 窗口不符，本项目会按窗口重铺（M-1f）。\n' +
         '  语言：必须显式指定，**不要用 auto** —— 自动检测在边界素材上翻转会让\n' +
         '        words[] 整列变化，所有 word:N 锚点静默重指向（见 M-1 裁决）。',
     );
@@ -213,8 +221,9 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
     lowConfidenceRatio: g.lowConfidenceRatio,
     gatePassed: g.gatePassed,
     lowConfidenceWords: g.lowConfidenceWords,
-    // M-1c：文本权威来源落盘。M-1 已裁决取'srt' ——
-    // ALIGNER_CMD 契约本身只取 SRT 文本（B2-fix），时间戳从音频推导。
+    // M-1c：文本权威来源落盘。M-1 已裁决取 'srt'——
+    // ALIGNER_CMD 契约里 SRT 是文本与句子时间的权威（B2-fix 原意，
+    // 「不信任 SRT 时间戳」的说法已于 2026-10-19 撤回，见本文件顶部注释）。
     textSource: 'srt',
     // 🔴 不伪造：外部对齐器尚未回传该值时写 0 而非 1，
     // 会让「未测量」看起来像「测过了且完美」。此处如实记 0，
