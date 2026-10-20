@@ -11,14 +11,15 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
 
 export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const text = str(item.params, 'text');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
 
-  // P6：气泡放不下就等比缩小（下限 0.7）。24 = 下方 fontSize；43 = padding 20×2 + border 1.5×2。
-  const fit = fitScale(text, 24, item.footprint[2] * (canvasWidth ?? 1920), 43);
+  // P6：气泡放不下就等比缩小（下限 0.7）。字号与内边距读**契约** `textMetrics`
+  //（此前在此写死 24 / 43，且 43 把 border 1.5×2 算进了 padding，与契约的 40 分叉）。
+  const fit = fitScaleFor(text, item.motion, item, canvasWidth);
 
   return (
     <div

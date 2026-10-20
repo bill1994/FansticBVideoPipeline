@@ -21,11 +21,16 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
 
-export const CenterEmphasis: TemplateComponent = ({ frame, durationInFrames, item }) => {
+export const CenterEmphasis: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const text = str(item.params, 'text');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
+
+  // P6：放不下就等比缩小（下限 0.7）。字号 72px 是全库最大，
+  // 最容易溢出 —— 但**只用一套缩放同时管住 text 与它的底板**，
+  // 因为缩放作用在底板上（见下方 transform），内部文字随之等比缩。
+  const fit = fitScaleFor(text, item.motion, item, canvasWidth);
 
   return (
     <div
@@ -50,7 +55,9 @@ export const CenterEmphasis: TemplateComponent = ({ frame, durationInFrames, ite
           boxShadow: SHADOW.card,
           opacity: enter * (1 - exit),
           // 「压上去」：从 1.06 快速落定到 1；出场**不缩**（只淡出）。
-          transform: `scale(${1 + (1 - enter) * 0.06})`,
+          // `* fit`（P6）：落定缩放保留，只把最终尺寸压到框内。
+          // 居中 ⇒ 从中心缩，不偏心。
+          transform: `scale(${(1 + (1 - enter) * 0.06) * fit})`,
           whiteSpace: 'nowrap',
         }}
       >

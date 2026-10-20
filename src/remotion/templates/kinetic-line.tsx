@@ -15,7 +15,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, SHADOW } from '../tokens.ts';
-import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 支持的入场预设。**封闭枚举** —— 键就是 `params.enter` 的合法取值。
@@ -58,8 +58,9 @@ export const KineticLine: TemplateComponent = ({ frame, durationInFrames, item, 
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
 
   // P6：放不下就等比缩小（下限 0.7），保证长文案**不出画面**。
-  // 54 = 下方 fontSize；20 = paddingLeft 16 + 左侧竖条 4（与样式保持同一份数字）。
-  const fit = fitScale(text, 54, item.footprint[2] * (canvasWidth ?? 1920), 20);
+  // 🔴 字号与内边距读**契约** `textMetrics`（`fitScaleFor`），不在此写字面量——
+  //    否则改下方 fontSize 会让校验项 #17 静默失准（同 `DUR.exit` 事故）。
+  const fit = fitScaleFor(text, item.motion, item, canvasWidth);
 
   const scale = preset.scale
     ? 1 + (preset.scale - 1) * (1 - enter)

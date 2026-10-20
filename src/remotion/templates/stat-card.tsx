@@ -9,7 +9,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 🔴 **刻意不做 digit roll（数字滚动）** —— 虽然 D3b 把 `DigitRoll.tsx`
@@ -33,8 +33,9 @@ export const StatCard: TemplateComponent = ({ frame, durationInFrames, item, can
   const unit = str(item.params, 'unit');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
 
-  // P6：`value` 放不下就等比缩小（下限 0.7）。44 = 下方 fontSize；51 = padding 24×2 + border 1.5×2。
-  const fit = fitScale(value, 44, item.footprint[2] * (canvasWidth ?? 1920), 51);
+  // P6：`value` 放不下就等比缩小（下限 0.7）。字号与内边距读**契约** `textMetrics`
+  //（此前在此写死 44 / 51，且 51 把 border 1.5×2 算进了 padding，与契约的 48 分叉）。
+  const fit = fitScaleFor(value, item.motion, item, canvasWidth);
 
   return (
     <div

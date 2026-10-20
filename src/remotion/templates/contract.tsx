@@ -17,6 +17,7 @@
 
 import type { CSSProperties, FC, ReactNode } from 'react';
 import type { StoryboardItem } from '../../core/types.ts';
+import { getTemplate } from '../../templates/registry.ts';
 import type { CaptionData } from '../caption.ts';
 import { estimateTextWidthPx } from '../../validate/text-metrics.ts';
 
@@ -139,7 +140,8 @@ export function fitScale(
   return Math.max(minScale, available / needed);
 }
 
-/** 满铺一格（footprint 通常不占满屏，但强调类模板需要溢出可见）。 */
+/**
+ * 满铺一格（footprint 通常不占满屏，但强调类模板需要溢出可见）。 */
 export function fillParent(children: ReactNode, extra?: CSSProperties): CSSProperties {
   return {
     position: 'absolute',
@@ -149,4 +151,53 @@ export function fillParent(children: ReactNode, extra?: CSSProperties): CSSPrope
     justifyContent: 'center',
     ...extra,
   };
+}
+
+/**
+ * 按模板契约算出 `fitScale` 需要的两个数 —— **组件侧的 `textMetrics` 唯一入口**。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么需要它（2026-10-20，`fitScale` 铺开时发现）
+ * ─────────────────────────────────────────────────────────────
+ * `fitScale(text, fontSize, width, padding)` 要字号与内边距，而这两个数**已经在契约里**
+ * （`TemplateDeclaration.textMetrics`）—— 校验项 #17 用的就是它。
+ * 若每个组件各写一份字面量，会出现**同一个概念两个真源**，后果是：
+ * · 改组件字号 → 校验器失准（`DUR.exit` / 契约字号事故的同款病）；
+ * · 校验期与渲染期口径分叉 ⇒「校验说没超、渲染却缩了」互相打脸。
+ *
+ * 🔴 **实测已发生**：`stat-card` 与 `tag-float` 的 `fitScale` 调用把
+ *    `border: 1.5px × 2 = 3px` 算进了 padding（51/43），
+ *    而契约 `textMetrics` 只算 padding（48/40）⇒ **两套口径并存且无人守护**。
+ *    实测 6–8 字符时两套口径结论相同，但文案再长一点就会给出相反判定。
+ *
+ * ⇒ 一律用本函数，**禁止在组件里写字号/padding 字面量**。
+ *
+ * @param motion `item.motion`（`family/subtype@version`）
+ * @returns 契约声明的 `{ fontSizePx, paddingPx }`；
+ *          模板未声明 `textMetrics` 时返回 `null`（该模板无可测文本，不应调`fitScale`）。
+ */
+export function templateTextMetrics(motion: string): { fontSizePx: number; paddingPx: number } | null {
+  const m = getTemplate(motion).textMetrics;
+  if (!m) return null;
+  return { fontSizePx: m.fontSizePx, paddingPx: m.paddingPx ?? 0 };
+}
+
+/**
+ * 便捷封装：按契约算出该缩多少。
+ *
+ * ⚠️ 模板未声明 `textMetrics` 时**返回 1（不缩）**而不是抛错 ——
+ *    字幕带/载体类本就没有模型可填的长文本，不该因缺声明而崩掉整条渲染
+ *    （同 `resolveEnter` 对未知预设「静默回退」的判断：渲染期不因参数缺失而毁掉整条）。
+ *
+ * @param text 要测量的主文本（**只测主文本**：多行模板按主行判定，与 `widthKeysOf` 同口径）
+ */
+export function fitScaleFor(
+  text: string,
+  motion: string,
+  item: StoryboardItem,
+  canvasWidth?: number,
+): number {
+  const m = templateTextMetrics(motion);
+  if (!m) return 1;
+  return fitScale(text, m.fontSizePx, item.footprint[2] * (canvasWidth ?? 1920), m.paddingPx);
 }

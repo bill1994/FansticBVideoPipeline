@@ -9,12 +9,18 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
 
-export const LowerThird: TemplateComponent = ({ frame, durationInFrames, item }) => {
+export const LowerThird: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const title = str(item.params, 'title');
   const subtitle = str(item.params, 'subtitle');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
+
+  // P6：放不下就等比缩小（下限 0.7）。🔴 **按主文本 `title` 判定** ——
+  //    副标题 17px 更小，不是最宽的那行；这与校验器 `widthKeysOf` 的
+  //    「取 title / value / text 第一个命中键」是同口径。
+  //    契约 `textMetrics` 声明的正是 title 的字号 26px。
+  const fit = fitScaleFor(title, item.motion, item, canvasWidth);
 
   return (
     <div
@@ -38,7 +44,10 @@ export const LowerThird: TemplateComponent = ({ frame, durationInFrames, item })
           boxShadow: SHADOW.card,
           // 入场横向推入；出场**向左推出** —— 与入场同轴，
           // 条形信息「从哪来回哪去」才符合直觉。
-          transform: `translateX(${-(1 - enter) * 100 - exit * 100}%)`,
+          // `* fit`（P6）：推移与淡出保留，只把最终尺寸压到框内。
+          transform: `translateX(${-(1 - enter) * 100 - exit * 100}%) scale(${fit})`,
+          // 条形内容从左贴边 ⇒从左边缩，否则缩完左侧凭空多出留白
+          transformOrigin: 'left center',
           opacity: enter * (1 - exit),
           maxWidth: '100%',
         }}
