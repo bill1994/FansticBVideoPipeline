@@ -93,6 +93,8 @@ export interface MotionSpec {
   tracks: SpecTrack[];
   when?: { signals: RhythmSignal[] };
   promptRef?: string;
+  /** 仅文档用途的说明（写作用例、单位约定）。不参与派生，禁止塞实现细节。 */
+  _note?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -145,6 +147,9 @@ const TOP_LEVEL_KEYS = new Set([
   'tracks',
   'when',
   'promptRef',
+  // `_note` 是**显式收录**的文档字段（不参与派生，只给人的说明留位置）。
+  // 它不是「放开未知字段」：其它任何键仍按规则 11 拒绝。
+  '_note',
 ]);
 
 const ELEMENT_KEYS = new Set([
@@ -407,6 +412,16 @@ export function validateMotionSpec(
             issues.push(`${at}.t="${t}" 未严格递增（上一帧 ${lastT}f）`);
           }
           lastT = frames;
+
+          // 绝对帧上界：minVisibleInFrames 是这条 spec 的最短可用时长，
+          // 任何更短的 cue 都会被模板门控挡掉 ⇒ 所有绝对帧 ≤ 它，
+          // 才能保证「任何被选中的 cue 都能完整播完」，不会停在动画中途。
+          const minVisible = spec['minVisibleInFrames'];
+          if (isFiniteNumber(minVisible) && frames > minVisible) {
+            issues.push(
+              `t="${t}" 超出本 spec 声明的 minVisibleInFrames=${minVisible} —— 短句会把它截断在中途`,
+            );
+          }
         } else {
           issues.push(`${at}.t=${JSON.stringify(t)} 非法（number ∈ [0,1] 或 "Nf"）`);
         }
@@ -475,6 +490,11 @@ export function validateMotionSpec(
 
   if (spec['promptRef'] !== undefined && typeof spec['promptRef'] !== 'string') {
     issues.push('promptRef 必须是字符串');
+  }
+
+  // `_note` 仅供人读（写作用例、约定），不参与派生；类型仍须是字符串。
+  if (spec['_note'] !== undefined && typeof spec['_note'] !== 'string') {
+    issues.push('_note 必须是字符串（仅文档用途）');
   }
 
   if (issues.length > 0) {

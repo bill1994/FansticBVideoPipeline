@@ -5,6 +5,7 @@
   "footprint": [0.15, 0.62, 0.7, 0.18],
   "minVisibleInFrames": 24,
   "occludesSubject": false,
+  "_note": "入场时长用绝对帧（8f–18f ≈ 0.27–0.6s），不用 0→1 比例：比例会让整句 4 秒都在缓慢滑动，长句尤其拖沓。绝对帧保证入场快速完成、之后保持到句尾；上界受 minVisibleInFrames 约束，避免短 cue 把动画截断在中途。",
   "elements": [
     {
       "type": "text",
@@ -19,26 +20,26 @@
   "tracks": [
     {
       "element": 0,
-      "property": "y",
+      "property": "opacity",
       "keys": [
-        { "t": 0, "v": 20, "ease": "out" },
-        { "t": 1, "v": 0, "ease": "out" }
+        { "t": "8f", "v": 0, "ease": "out" },
+        { "t": "14f", "v": 1, "ease": "out" }
       ]
     },
     {
       "element": 0,
-      "property": "opacity",
+      "property": "y",
       "keys": [
-        { "t": 0, "v": 0, "ease": "out" },
-        { "t": 1, "v": 1, "ease": "out" }
+        { "t": "10f", "v": 20, "ease": "out" },
+        { "t": "18f", "v": 0, "ease": "out" }
       ]
     },
     {
       "element": 0,
       "property": "scale",
       "keys": [
-        { "t": 0, "v": 0.94, "ease": "out" },
-        { "t": 1, "v": 1, "ease": "out" }
+        { "t": "8f", "v": 0.94, "ease": "out" },
+        { "t": "16f", "v": 1, "ease": "out" }
       ]
     }
   ]

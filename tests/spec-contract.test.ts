@@ -270,6 +270,38 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
     expect(() => validateMotionSpec(baseSpec(), { byteSize: MAX_SPEC_BYTES })).not.toThrow();
   });
 
+  it('13. 绝对帧 t 不得超 minVisibleInFrames（否则短 cue 截断动画）', () => {
+    const withFrames = (second: string) => {
+      const spec = baseSpec();
+      (spec['tracks'] as { keys: unknown[] }[])[0]!.keys = [
+        { t: '0f', v: 0 },
+        { t: second, v: 1 },
+      ];
+      return spec;
+    };
+    // 恰好等于下限：通过
+    expect(() => validateMotionSpec(withFrames('24f'))).not.toThrow();
+    // 超一格：报错，文案点明会被截断
+    expect(() => validateMotionSpec(withFrames('25f'))).toThrow(
+      /t="25f" 超出本 spec 声明的 minVisibleInFrames=24 —— 短句会把它截断在中途/,
+    );
+  });
+
+  it('14. `_note` 是显式允许的文档字段（不参与派生），其它未知字段仍拒绝', () => {
+    const spec = baseSpec();
+    spec['_note'] = '入场用绝对帧，避免整句滑动';
+    const decl = deriveDeclaration(validateMotionSpec(spec));
+    expect(decl.id).toBe('custom/fade-up@1.0');
+    expect(decl.spec?.['_note']).toBeDefined();
+
+    const badType = baseSpec();
+    badType['_note'] = 123;
+    expect(() => validateMotionSpec(badType)).toThrow(/_note 必须是字符串/);
+
+    // 白名单只多这一个键 —— 任意其它键仍然拒绝
+    rejects((s) => (s['note'] = 'x'), /未知顶层字段：`note`/);
+  });
+
   it('一次列全所有问题（不是遇到第一个就停）', () => {
     const spec = baseSpec();
     spec['foo'] = 1;
