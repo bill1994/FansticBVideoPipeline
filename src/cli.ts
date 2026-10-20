@@ -17,6 +17,7 @@ import { ConfigError, EXIT, exitCodeFor, type ExitCode } from './core/exit-code.
 import { ensureJobDirs, jobDir, writeJson } from './core/io.ts';
 import { log, printBlock } from './core/log.ts';
 import { assertRegistryValid } from './templates/registry.ts';
+import { loadSpecsFromDisk } from './core/spec-loader.ts';
 import { runAlign, runNoSubtitleAlign } from './stages/align.ts';
 import { runPerceive } from './stages/perceive.ts';
 import { runStoryboard } from './stages/storyboard.ts';
@@ -141,6 +142,9 @@ function runInit(args: Args): ExitCode {
 
 async function main(): Promise<ExitCode> {
   assertRegistryValid();
+  // S1a：装载 templates/specs/*.json（目录不存在则静默跳过）。
+  // 必须在任何阶段消费模板声明之前执行 —— 否则 custom/* 会被判「未注册」。
+  loadSpecsFromDisk();
   const args = parseArgs(process.argv.slice(2));
 
   if (args.stage === '' || args.stage === 'help') {

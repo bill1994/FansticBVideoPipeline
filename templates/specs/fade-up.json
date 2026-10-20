@@ -1,0 +1,45 @@
+{
+  "specVersion": 1,
+  "id": "custom/fade-up@1.0",
+  "layer": 60,
+  "footprint": [0.15, 0.62, 0.7, 0.18],
+  "minVisibleInFrames": 24,
+  "occludesSubject": false,
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 48,
+      "weight": 700,
+      "align": "left",
+      "paddingPx": 24
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "y",
+      "keys": [
+        { "t": 0, "v": 20, "ease": "out" },
+        { "t": 1, "v": 0, "ease": "out" }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": 0, "v": 0, "ease": "out" },
+        { "t": 1, "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "scale",
+      "keys": [
+        { "t": 0, "v": 0.94, "ease": "out" },
+        { "t": 1, "v": 1, "ease": "out" }
+      ]
+    }
+  ]
+}

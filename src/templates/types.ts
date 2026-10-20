@@ -5,6 +5,7 @@
  */
 
 import type { Footprint } from '../core/types.ts';
+import type { MotionSpec } from '../core/spec.ts';
 
 /** 轴 A｜family（命名空间，可无限扩，12 类）。 */
 export const FAMILIES = [
@@ -115,6 +116,13 @@ export interface TemplateDeclaration {
    *    载体类 / fullscreen 类不画文字）⇒ 校验项 #17 跳过，不误报。
    */
   textMetrics?: TextMetrics;
+  /**
+   * 该模板的 MotionSpec（仅 `custom/*` 由 spec 派生时存在）。
+   *
+   * S1a 只负责契约与装载；渲染消费（`SpecRenderer`）属于 S1b。
+   * 省略不影响任何既有逻辑 —— 内置模板没有 spec。
+   */
+  spec?: MotionSpec;
 }
 
 /**
