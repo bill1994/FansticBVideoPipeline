@@ -29,6 +29,7 @@ import {
   DENSITY,
   HANDHELD_EXPANSION,
   PERCEIVE,
+  RHYTHM,
   SALIENCY_TARGET_AREA_RATIO,
   SILENCE,
 } from '../src/core/config.ts';
@@ -108,6 +109,7 @@ describe('占位值注册表 / 值是真源的引用而非副本', () => {
       lowConfidenceRatioMax: ALIGN_GATE.lowConfidenceRatioMax,
       alignedRatioMin: ALIGN_GATE.alignedRatioMin,
       maxItemsPerCue: DENSITY.maxItemsPerCue,
+      minCueFramesForMotion: RHYTHM.minCueFramesForMotion,
       'high': CONFIDENCE_BANDS.high,
       'mid': CONFIDENCE_BANDS.mid,
       safeAreaTopRatio: PERCEIVE.safeAreaTopRatio,

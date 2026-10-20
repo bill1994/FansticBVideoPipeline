@@ -92,7 +92,22 @@ export function checkDensity(ctx: ValidateContext): ReportItem[] {
   return out;
 }
 
-/** #6 最小可见时长：`durationInFrames < minVisibleInFrames` → error。 */
+/**
+ * #6 最小可见时长：`durationInFrames < minVisibleInFrames` → error。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 🔴 为什么 caption 不需要豁免 #6（2026-10-20 论证并撤销过一版豁免）
+ * ─────────────────────────────────────────────────────────────
+ * `bake()` 对 `cue:` 锚点的隐式时长取 `max(模板 minVisibleInFrames, cue 区间)`，
+ * 因此 caption 的时长恒 ≥ minVisibleInFrames，#6 对它永远通过。
+ * 曾加过的 `family === 'caption'` 豁免是**死路径**（一次都没执行过），已删除。
+ * 若将来有人手改 storyboard.json 写出短于 minVisible 的 caption，
+ * 报错是**正确行为**（手改产物本就违规），不应豁免。
+ *
+ * ⚠️ 这条推导**必须留在代码里**：仅看一眼「caption 是字幕、不该卡时长」
+ *    很容易再次写出豁免分支 —— 而它与「定义该被读出来」是同一类错误：
+ *    留下一条看起来在承重、实际从未执行的防御（项目已记录过五次同类病灶）。
+ */
 export function checkMinVisible(ctx: ValidateContext): ReportItem[] {
   const out: ReportItem[] = [];
   for (const s of ctx.scene) {

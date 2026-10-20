@@ -56,6 +56,7 @@ import {
   DENSITY,
   HANDHELD_EXPANSION,
   PERCEIVE,
+  RHYTHM,
   SALIENCY_TARGET_AREA_RATIO,
 } from './config.ts';
 import { CONFIDENCE_BANDS } from './schedule.ts';
@@ -163,6 +164,27 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
       '🔴 **这是唯一一个「占位值却直接产 error」**：偏严会**阻断真实素材**，' +
       '而项目没有 storyboard 编辑 UI，用户只能手改 JSON。' +
       '这是「过度严格」最现实的伤害点。',
+  },
+  {
+    id: 'rhythm-min-cue-frames',
+    title: '节奏表的 motion 时长门槛',
+    kind: 'invented',
+    source: 'src/core/config.ts#RHYTHM',
+    members: [
+      { label: 'minCueFramesForMotion', read: () => RHYTHM.minCueFramesForMotion },
+    ],
+    basis:
+      '文档与裁决册均未给数值；**用户于 2026-10-20 指定初值 10 帧**（P1 节奏表落地时口头给定），' +
+      '明确标注「待实测」。语义是「一条 cue 短于 10 帧就不值得配伴生动效」，' +
+      '与语速 / 间隙 / 预算无关。',
+    calibration:
+      '在 2–3 条真实口播素材上跑内置生成器，统计 `pacing.json` 里 `too-short` 的占比：' +
+      '① 「短到读不完」的 cue 应被挡掉（对着成片看，被配了动效却来不及读的算漏挡）；' +
+      '② 正常的一句话不应被误挡（被挡后整段没有伴生图形）。' +
+      '⚠️ 它只影响 motion，字幕层恒有一条，不受此值影响。',
+    impact:
+      '偏大 → 正常短句不配动效，成片显得「有的句子有图形、有的没有」，节奏断裂；' +
+      '偏小 → 极短 cue 上也弹动效，观众读不完，反而干扰理解。',
   },
   {
     id: 'safe-area-top',

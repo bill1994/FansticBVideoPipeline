@@ -66,6 +66,27 @@ export const DENSITY = {
 } as const;
 
 /**
+ * 节奏表（pacing）的 motion 门槛。
+ *
+ * 🔴 **PLACEHOLDER（用户指定初值 2026-10-20，待实测）**。
+ *
+ * 一条 cue 的时长（`toFrame - fromFrame`）低于此值 → 不做 motion，
+ * 在 `pacing.json` 里记 `skipped: 'too-short'`。
+ *
+ * ── 为什么是「帧数门槛」而不是「语速 / 间隙 / 预算」────────────
+ * 本项目的模型是：**motion 是「这句话」的伴生图形** —— 这句话多长它就多长，
+ * 从句首开始。因此不需要找间隙、不需要算语速、也不需要预算系统；
+ * 唯一需要防的是「短到根本读不完的一句话上还想塞动效」。
+ *
+ * ⚠️ 字幕层（`caption/karaoke-word`）**不受此门槛约束**：
+ *    每条 cue 恒有一条字幕 item（字幕时长由 SRT 区间决定，不是模型选择）。
+ */
+export const RHYTHM = {
+  minCueFramesForMotion: 10,
+  placeholder: true as const,
+} as const;
+
+/**
  * 门控阻断时的退出码一律走 EXIT.VALIDATION_FAILED。
 
  * 动态阈值 T 的硬边界。来源：B5「T_min = 0.50 / T_max = 0.80（是边界，不是取值）」。

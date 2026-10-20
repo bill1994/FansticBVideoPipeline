@@ -274,6 +274,73 @@ export interface AlignWords {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 节奏表（pacing.json）—— P1，2026-10-20
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 走势信号 —— 判断「这句话要不要配 motion」的机械依据。
+ *
+ * 🔴 **全部判据都是词表 / 正则 / 字数比较**（见 `core/rhythm.ts`），
+ *    不调用语言模型，也不读时钟或随机数 —— 同一份 SRT 必须产出同一份节奏表。
+ */
+export type RhythmSignal =
+  | 'turn'
+  | 'contrast'
+  | 'enum'
+  | 'question'
+  | 'number'
+  | 'short-after-long'
+  | 'closing'
+  | 'definition'
+  | 'cause-effect'
+  | 'repetition';
+
+/**
+ * 一条 cue 的节奏判断 —— pacing.json 的一行。
+ *
+ * 🔴 **`fromFrame` / `durationInFrames` 是 cue 区间快照，禁止二次推导**。
+ *    它们只是把「当时那条 cue 的区间」抄下来供人核对进度，
+ *    唯一真源仍然是 `01-align/words.json` 的 `cues[]`。
+ *    下游（storyboard 烘焙）不得用这里的帧数反推 cue 边界 ——
+ *    否则一次 SRT 修订就会出现「节奏表说 30 帧、实际 cue 只剩 12 帧」的静默漂移。
+ */
+export interface RhythmCue {
+  /** cue 序号，对应 `Cue.index`。 */
+  cueIndex: number;
+  /** cue 起点快照 —— 非独立真源，禁止二次推导。 */
+  fromFrame: number;
+  /** cue 时长快照（`cue.toFrame - cue.fromFrame`）—— 非独立真源，禁止二次推导。 */
+  durationInFrames: number;
+  /** 这条 cue 要不要配 motion。 */
+  decide: 'motion' | 'none';
+  /** 仅 `decide === 'motion'` 时存在：`family/subtype@version`。 */
+  motion?: string;
+  /** 人可读的判断依据（为什么做 / 为什么不做）。 */
+  reason: string;
+  /** 命中的走势信号，可空。 */
+  signal: RhythmSignal[];
+  /** 不做 motion 的结构化原因。 */
+  skipped?: 'too-short' | 'no-template-fits';
+}
+
+/**
+ * 节奏表（`03-storyboard/pacing.json`）。
+ *
+ * 职责**只有一个**：判断每条 cue 要不要配 motion、配什么。
+ * 不做时长推导 —— motion 是「这句话」的伴生图形，这句话多长它就多长，
+ * 从句首开始（见 `RhythmCue` 的快照说明）。
+ */
+export interface RhythmTable {
+  meta: {
+    fps: number;
+    /** `aligned` = 有字幕 cue；`no-subtitle` = 无 cue（本阶段无法生成节奏表）。 */
+    mode: 'aligned' | 'no-subtitle';
+    version: string;
+  };
+  cues: RhythmCue[];
+}
+
+// ─────────────────────────────────────────────────────────────
 // 02-perceive 产物
 // ─────────────────────────────────────────────────────────────
 

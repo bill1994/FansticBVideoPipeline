@@ -16,6 +16,8 @@ import { lookupConfirmed } from '../core/confirmed.ts';
 import { log } from '../core/log.ts';
 import { bake } from '../core/bake.ts';
 import { computeThreshold, decide, routingFloor, maxReview } from '../core/schedule.ts';
+import { buildRhythmTable } from '../core/rhythm.ts';
+import { synthDraft } from '../core/rhythm-rules.ts';
 import type {
   AlignWords,
   BakeReport,
@@ -211,14 +213,80 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   const aligned = readJson<AlignWords>(wordsFile);
 
   const draftFile = opts.draftPath ?? path.join(outDir, 'draft.json');
-  if (!exists(draftFile)) {
+  let draft: DraftStoryboard;
+  if (exists(draftFile)) {
+    // ── 旧路径（逐字节保持原行为）────────────────────────────
+    // 有起草稿就用起草稿：不论来自外部模型、人工返修还是上一轮内置生成器落下的
+    // `draft.json`，都走同一套「键检查 → 调度 → 烘焙 → 落盘」。
+    draft = readJson<DraftStoryboard>(draftFile);
+  } else if (opts.draftPath !== undefined) {
+    // 显式 `--draft` 指向一个不存在的文件：这是参数错误，不能悄悄改成内置生成。
     throw new ConfigError(
-      `缺少起草稿：${draftFile}\n` +
-        `  起草稿是「模型产出」的等价物，本仓库不内置模型调用。\n` +
-        `  用 --draft <file> 指定，或放到 03-storyboard/draft.json。`,
+      `--draft 指定的起草稿不存在：${draftFile}\n` +
+        `  若要使用内置生成器，请去掉 --draft 并确保 03-storyboard/draft.json 不存在。`,
+    );
+  } else if (noSubtitle) {
+    // 🔴 M-1g：无字幕模式没有 cue，内置生成器无从铺层。
+    //    保持「无 cue 不得生成 storyboard」的既有约束，而不是产出一份空壳。
+    throw new ConfigError(
+      '本 job 是**无字幕模式**（align-report.mode = no-subtitle）—— ' +
+        '内置生成器依赖 SRT cue 才能铺字幕轨与节奏表，没有 cue 无法生成起草稿。\n' +
+        '  ↳ 用 --draft <file> 提供手写起草稿（只可用 abs: 锚点），或去掉 --no-subtitle 重跑 align。',
+    );
+  } else {
+    // ── 内置确定性生成器（P1，2026-10-20）──────────────────────
+    // 没有起草稿、有 cue ⇒ 用节奏表直接合成 draft：
+    //   buildRhythmTable（纯函数判断每条 cue 配不配 motion）
+    //   → 落 pacing.json（可人工核对判断依据）
+    //   → synthDraft（每条 cue 一条 caption + 命中的 MG）
+    //   → 继续走既有的调度 / 烘焙 / 落盘流程。
+    const cues = aligned.cues ?? [];
+    if (cues.length === 0) {
+      throw new ConfigError(
+        '01-align/words.json 没有 cues —— 内置生成器需要按 cue 铺字幕与节奏表。\n' +
+          '  ↳ 若本片其实有 SRT，请重跑 align；否则用 --draft 提供手写起草稿。',
+      );
+    }
+
+    const table = buildRhythmTable(cues, source.fps, 'aligned');
+    // `pacing.json` 与 `storyboard.json` 同属 03-storyboard：它是本阶段的**判断记录**，
+    // 供人工核对「为什么这句话配/不配动效」，不参与下游判定。
+    writeStageJson({
+      jobId: opts.jobId,
+      self: STAGES.storyboard,
+      target: STAGES.storyboard,
+      file: 'pacing.json',
+      data: table,
+      jobsDir: opts.jobsDir,
+    });
+
+    draft = synthDraft(table, cues, {
+      fps: source.fps,
+      alignmentConfidence: alignReport.meanConfidence,
+    });
+
+    // 🔴 落 `draft.synth.json` 而不是 `draft.json`（产品缺口修复，2026-10-20）：
+    //    用户跑完内置生成器后需要一个**可改的文件**，否则想手工调整时手上什么都没有。
+    //    但一旦写成 `draft.json`，下次就会命中上面「有起草稿 → 走旧路径」的分支，
+    //    内置生成器**再也不会执行** —— 等于「跑一次就固化」。
+    //    `draft.synth.json` 刻意不参与读盘判断（分支只看 `opts.draftPath ?? draft.json`）。
+    writeStageJson({
+      jobId: opts.jobId,
+      self: STAGES.storyboard,
+      target: STAGES.storyboard,
+      file: 'draft.synth.json',
+      data: draft,
+      jobsDir: opts.jobsDir,
+    });
+
+    const motionCount = table.cues.filter((c) => c.decide === 'motion').length;
+    const skippedShort = table.cues.filter((c) => c.skipped === 'too-short').length;
+    log.info(
+      `内置生成器：${table.cues.length} 条 cue → ${motionCount} 条 motion / ` +
+        `${table.cues.length} 条 caption（too-short ${skippedShort} 条），已落 pacing.json；` +
+        `已落 draft.synth.json（要手工调整请复制为 draft.json 后修改并重跑）`,
     );
   }
-  const draft = readJson<DraftStoryboard>(draftFile);
   assertDraftItemKeys(draft);
 
   /**

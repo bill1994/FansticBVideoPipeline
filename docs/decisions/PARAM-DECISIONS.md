@@ -8,8 +8,8 @@
 
 | 口径 | 数量 | 说明 |
 |---|---|---|
-| 占位值**项数** | **10** | 一个"需要独立做出的校准决定"算一项 |
-| 占位值**数值个数** | **17** | 一项可含多个数（如对齐门控 3 个） |
+| 占位值**项数** | **11** | 一个"需要独立做出的校准决定"算一项 |
+| 占位值**数值个数** | **18** | 一项可含多个数（如对齐门控 3 个） |
 | 明确排除的拟定值 | 5 | 见 §五，写清为什么不收 |
 
 🔴 **引用数量时必须注明口径**：说「8 个占位值」指的是**项数**；说「12 个数值」指的是**数值个数**。此前 `MEMORY.md` / `PROGRESS.md` / 代码标记三方各数一套，就是因为没定粒度。
@@ -21,6 +21,7 @@
 | `align-gate` | 强制对齐门控 | 文档初值 | `meanConfidenceMin` = **0.6**<br>`lowConfidenceRatioMax` = **0.3**<br>`alignedRatioMin` = **0.8** | `core/config.ts` · `ALIGN_GATE` | — |
 | `confidence-bands` | 闸2 置信度分档 | 实现期拟定 | `high（≥ → auto）` = **0.8**<br>`mid（≥ → alternatives）` = **0.5** | `core/schedule.ts` · `CONFIDENCE_BANDS` | — |
 | `density` | 每 cue 最大 item 数 | 实现期拟定 | `maxItemsPerCue` = **3** | `core/config.ts` · `DENSITY` | — |
+| `rhythm-min-cue-frames` | 节奏表的 motion 时长门槛 | 实现期拟定 | `minCueFramesForMotion` = **10** | `core/config.ts` · `RHYTHM` | — |
 | `safe-area-top` | 安全区顶部比例 | 实现期拟定 | `safeAreaTopRatio` = **0.6** | `core/config.ts` · `PERCEIVE.safeAreaTopRatio` | — |
 | `handheld-expansion` | handheld 人脸框外扩 | 实现期拟定 | `widthRatio（宽）` = **3**<br>`heightRatio（高）` = **2.5** | `core/config.ts` · `HANDHELD_EXPANSION` | — |
 | `saliency-target` | 显著性目标框面积 | 实现期拟定 | `targetAreaRatio` = **0.35** | `core/config.ts` · `SALIENCY_TARGET_AREA_RATIO` | — |
@@ -59,6 +60,15 @@
 - **当前值从哪来**：真源全文只写「每 cue 的 item 数超阈值 → error」，**未给数值**。
 - **怎么校准**：统计真实 storyboard 的「每 cue 实际 item 数」分布，取 P90 作为阈值；至少 2 条素材、覆盖口播/特写两类镜头。
 - **越界后果**：🔴 **这是唯一一个「占位值却直接产 error」**：偏严会**阻断真实素材**，而项目没有 storyboard 编辑 UI，用户只能手改 JSON。这是「过度严格」最现实的伤害点。
+
+### `rhythm-min-cue-frames` · 节奏表的 motion 时长门槛
+
+- **类别**：实现期拟定
+- **真源**：`src/core/config.ts#RHYTHM`
+- **当前值**：`minCueFramesForMotion` = **10**
+- **当前值从哪来**：文档与裁决册均未给数值；**用户于 2026-10-20 指定初值 10 帧**（P1 节奏表落地时口头给定），明确标注「待实测」。语义是「一条 cue 短于 10 帧就不值得配伴生动效」，与语速 / 间隙 / 预算无关。
+- **怎么校准**：在 2–3 条真实口播素材上跑内置生成器，统计 `pacing.json` 里 `too-short` 的占比：① 「短到读不完」的 cue 应被挡掉（对着成片看，被配了动效却来不及读的算漏挡）；② 正常的一句话不应被误挡（被挡后整段没有伴生图形）。⚠️ 它只影响 motion，字幕层恒有一条，不受此值影响。
+- **越界后果**：偏大 → 正常短句不配动效，成片显得「有的句子有图形、有的没有」，节奏断裂；偏小 → 极短 cue 上也弹动效，观众读不完，反而干扰理解。
 
 ### `safe-area-top` · 安全区顶部比例
 
