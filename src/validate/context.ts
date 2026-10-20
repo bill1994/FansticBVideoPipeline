@@ -6,6 +6,7 @@
  * 校验器是**纯函数**：这一层之后不再碰磁盘。
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { ConfigError } from '../core/exit-code.ts';
 import { jobDir, readJson, stageDir } from '../core/io.ts';
@@ -108,6 +109,8 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
     );
   }
 
+  assertStageOrderIsSane(base);
+
   const scene: SceneItem[] = [];
   storyboard.tracks.forEach((track, trackIndex) => {
     track.items.forEach((item, itemIndex) => {
@@ -142,6 +145,94 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
 // ─────────────────────────────────────────────────────────────
 // 通用小工具
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * 产物时序自检 ——「下游产物是否比上游旧」（2026-10-20，`F3-2`）。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么需要这道守卫（它与 `assertNotWritingUpstream` 是两件事）
+ * ─────────────────────────────────────────────────────────────
+ * `assertNotWritingUpstream`（`core/io.ts`）管的是**写入方向**：
+ * 「04 阶段不许回写 03 的产物」。它防的是**越权写**。
+ *
+ * 本函数管的是**时序方向**：**上游产物被更新后，下游有没有跟着重跑。**
+ * 这是同一族问题的另一半 —— 前者防「改坏」，本函数防「没跟着改」。
+ *
+ * ── 实测到的故障（`jobs/e2e-perceive`，2026-10-20 复跑时发现）──
+ * ```
+ * 10-18 14:53  storyboard.json      ← 用旧版 words.json 烘焙
+ * 10-18 14:54  validate-report.json ← 校验的是上面那份 storyboard
+ * 10-19 12:57  words.json           ← M-1f 落地后 align --force 重跑，覆盖成新版
+ * ```
+ * 下游产物比上游**旧 22 小时**，而那份 validate-report 依然写着
+ * `ok: true / error: 0`，只是 warning 数从真实的 21 变成了过时的 11。
+ *
+ * 🔴 **为什么其他断言抓不到**：`alignmentConfidence` 一致性断言（同在本文件）
+ *    在这个案例里**是相等的** —— M-1f 只重铺词时、不改均值置信度。
+ *    实测已确认相等 ⇒ 现有防线确实漏了这个方向。
+ *
+ * ── 为什么抛错而不是报warning ──
+ * 这不是「内容不合规」，而是「**这份报告本身不可信**」。
+ * 让它继续以 warning 形式躺在报告里，等于给一份已知失真的报告盖章。
+ * 与同层的 `fps` / `alignmentConfidence` 断言一致：抛 `ConfigError`（退出码 2）。
+ *
+ * ⚠️ **已知局限（必须如实知道，不是缺陷而是取舍）**：
+ *   比的是**文件 mtime**，不是数据依赖关系。`cp` / 解压 / `git checkout`
+ *   会改写mtime，理论上可产生假阳性。
+ *   本项目 `jobs/*` 被 gitignore（产物不入库），实际风险可控。
+ *   更稳的做法是在烘焙时把上游 hash 写进 `storyboard.meta` 再比对——
+ *   已登记为待办（见 PROGRESS.md 待办），本函数是成本低、可立即落地的版本。
+ */
+function assertStageOrderIsSane(base: string): void {
+  /** 上游产物 → 下游产物。任一存在时序倒挂即报错。 */
+  const pairs: { upstream: string; downstream: string; stage: string }[] = [
+    {
+      upstream: path.join(base, STAGES.align, 'words.json'),
+      downstream: path.join(base, STAGES.storyboard, 'storyboard.json'),
+      stage: '01-align → 03-storyboard',
+    },
+    {
+      upstream: path.join(base, STAGES.align, 'words.json'),
+      downstream: path.join(base, STAGES.storyboard, 'bake-report.json'),
+      stage: '01-align → 03-storyboard',
+    },
+    {
+      upstream: path.join(base, STAGES.perceive, 'regions.json'),
+      downstream: path.join(base, STAGES.storyboard, 'storyboard.json'),
+      stage: '02-perceive → 03-storyboard',
+    },
+  ];
+
+  const stale: string[] = [];
+  for (const p of pairs) {
+    // 任一侧不存在则跳过 —— 缺产物由 readJson 的「缺少前置产物」报错管，
+    // 这里只管「都在，但顺序不对」。
+    if (!fs.existsSync(p.upstream) || !fs.existsSync(p.downstream)) continue;
+    const up = fs.statSync(p.upstream).mtimeMs;
+    const down = fs.statSync(p.downstream).mtimeMs;
+    if (down < up) {
+      stale.push(
+        `  ${p.stage}：${path.basename(p.downstream)}（${new Date(down).toISOString()}）` +
+          ` 比 ${path.basename(p.upstream)}（${new Date(up).toISOString()}）旧` +
+          `${Math.round((up - down) / 60000)} 分钟`,
+      );
+    }
+  }
+
+  if (stale.length === 0) return;
+
+  throw new ConfigError(
+    `产物时序倒挂：下游产物比上游旧，说明它们**不是同一版数据跑出来的**。\n` +
+      stale.join('\n') +
+      `\n\n  后果：本次校验报告的一切数字都不可信 —— 它在用旧的下游配新的上游比对。\n` +
+      `  （实测案例：W-C3-01 因此从真实的 14 条报成过时的 4 条，而报告仍显示 ok:true。）\n` +
+      `  正确做法：按顺序重跑下游阶段。\n` +
+      `    npm run pipeline -- storyboard --job <id> --draft <draft.json>\n` +
+      `    npm run pipeline -- validate   --job <id>\n` +
+      `  阶段目录是不可变快照，本工具**不会**替你重跑 —— 是否该重跑由你判断。\n` +
+      `  ⚠️ 本检查比的是文件修改时间，不是数据依赖（cp / 解压会改写 mtime）。`,
+  );
+}
 
 /** 半开区间 [aStart,aEnd) 与 [bStart,bEnd) 是否相交（严格）。 */
 export function framesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {

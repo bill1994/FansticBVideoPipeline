@@ -35,6 +35,12 @@
   ],
   "jobId": "demo",
   "ok": true,
+  "reviewQueue": [
+    {
+      "motion": "typography/kinetic-line@1.0",
+      "ref": "typo-main/002"
+    }
+  ],
   "summary": {
     "checked": 18,
     "error": 0,
