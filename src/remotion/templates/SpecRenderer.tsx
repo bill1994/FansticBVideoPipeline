@@ -21,7 +21,7 @@ import { Placeholder } from './placeholder.tsx';
 import { resolveTrack, specStyleOf } from './spec-style.ts';
 
 // 兼容既有测试/调用方的导入路径：求值函数仍可从 SpecRenderer 取到。
-export { clipInset, keyFrameOf, resolveTrack, specStyleOf } from './spec-style.ts';
+export { clipInset, keyFrameOf, parseClipSides, resolveTrack, specStyleOf } from './spec-style.ts';
 
 /** 图元的文本来源：literal 取字面量，excerpt/number 取 params[slot]。 */
 function textOf(element: SpecElement, params: Record<string, unknown> | undefined): string {
@@ -90,12 +90,20 @@ export const SpecRenderer: TemplateComponent = ({
     >
       {spec.elements.map((el, i) => {
         const color = resolveColor(spec, i, frame, durationInFrames);
+        const elStyle = specStyleOf(spec, i, frame, durationInFrames);
         return (
           <div
             key={`${el.slot}-${i}`}
             data-slot={el.slot}
             style={{
-              ...specStyleOf(spec, i, frame, durationInFrames),
+              ...elStyle,
+              // 🔴 盒子必须**贴合文本**，不能默认 stretch 到容器宽：
+              //    `clip` 的百分比是相对元素盒子计算的。若盒子被拉满 80% 画布，
+              //    `inset(0% 52% 0% 0%)` 的切点在文本右侧之外 ⇒ 看起来「裁切没生效」。
+              width: 'max-content',
+              maxWidth: '100%',
+              alignSelf:
+                el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
               fontFamily: FONT.sans,
               fontSize: el.sizePx * fit,
               fontWeight: el.weight,

@@ -58,6 +58,21 @@ export function resolveTrack(
     const p = span <= 0 ? 1 : (frame - a.f) / span;
     const easeName = b.ease ?? 'out';
     const eased = SPEC_EASE[easeName](Math.min(1, Math.max(0, p)));
+
+    // `clip` 是**四边分别插值**，不能走数值插值（`Number("0,0,100,0")` = NaN
+    // ⇒ clipInset 解析不出 4 边 ⇒ 兜底 inset(0%) ⇒ 静默无裁切）。
+    // 也不能做阶跃：阶跃会让揭幕瞬间跳变，没有动画。
+    if (track.property === 'clip') {
+      const s0 = parseClipSides(a.v);
+      const s1 = parseClipSides(b.v);
+      if (s0 === null || s1 === null) return a.v; // 校验期已拦；防御性阶跃
+      const out = s0.map((n, idx) => {
+        const target = s1[idx] as number;
+        return n + (target - n) * eased;
+      });
+      return out.join(',');
+    }
+
     const v0 = typeof a.v === 'number' ? a.v : Number(a.v);
     const v1 = typeof b.v === 'number' ? b.v : Number(b.v);
     return v0 + (v1 - v0) * eased;
@@ -65,19 +80,29 @@ export function resolveTrack(
   return last.v;
 }
 
-/** `clip` 值 → CSS `inset(...)`。字符串 `"10,0,10,0"`（或空格分隔）或单个 number。 */
-export function clipInset(value: number | string): string {
-  const sides =
+/**
+ * 解析 `clip` 的四边值：`"t,r,b,l"`（逗号/空格分隔）或单个 number（四边同值）。
+ *
+ * 与 `clipInset()` 共用 —— 求值期（插值）与渲染期（CSS 字符串）必须是同一套解析，
+ * 否则会出现「插值出 4 个数、渲染时又解析成 1 个」的分裂。
+ */
+export function parseClipSides(value: number | string): [number, number, number, number] | null {
+  const parts =
     typeof value === 'number'
       ? [value, value, value, value]
       : String(value)
           .trim()
           .split(/[\s,]+/)
           .map((s) => Number(s));
-  if (sides.length !== 4 || sides.some((n) => !Number.isFinite(n))) {
-    return 'inset(0% 0% 0% 0%)';
-  }
-  const [top, right, bottom, left] = sides as [number, number, number, number];
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  return parts as [number, number, number, number];
+}
+
+/** `clip` 值 → CSS `inset(...)`。字符串 `"10,0,10,0"`（或空格分隔）或单个 number。 */
+export function clipInset(value: number | string): string {
+  const sides = parseClipSides(value);
+  if (sides === null) return 'inset(0% 0% 0% 0%)';
+  const [top, right, bottom, left] = sides;
   return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
 }
 

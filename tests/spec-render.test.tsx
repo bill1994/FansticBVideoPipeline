@@ -102,11 +102,46 @@ describe('color 轨是阶跃，不插值', () => {
   });
 });
 
-describe('clip 解析', () => {
+describe('clip 解析与插值', () => {
   it('"10,0,10,0" → inset(10% 0% 10% 0%)', () => {
     expect(clipInset('10,0,10,0')).toBe('inset(10% 0% 10% 0%)');
     expect(clipInset('10 0 10 0')).toBe('inset(10% 0% 10% 0%)');
     expect(clipInset(5)).toBe('inset(5% 5% 5% 5%)');
+  });
+
+  it('🔴 clip 轨四边分别插值（不能退化成 NaN → inset(0%) 静默无裁切）', () => {
+    const t = track('clip', [
+      { t: '1f', v: '0,0,100,0', ease: 'linear' },
+      { t: '16f', v: '0,0,0,0', ease: 'linear' },
+    ]);
+    const mid = resolveTrack(t, 8, 100);
+    expect(String(mid)).not.toContain('NaN');
+    const sides = String(mid).split(',').map(Number);
+    expect(sides).toHaveLength(4);
+    // p = (8-1)/(16-1) = 0.4667 ⇒ bottom = 100 × (1-0.4667) ≈ 53.3
+    expect(sides[2]).toBeGreaterThan(45);
+    expect(sides[2]).toBeLessThan(60);
+    expect([sides[0], sides[1], sides[3]]).toEqual([0, 0, 0]);
+  });
+
+  it('单 number 的 clip：中间帧返回四边同值', () => {
+    const t = track('clip', [
+      { t: '0f', v: 10, ease: 'linear' },
+      { t: '10f', v: 0, ease: 'linear' },
+    ]);
+    expect(resolveTrack(t, 5, 100)).toBe('5,5,5,5');
+  });
+
+  it('反向断言：clip 求值结果经 clipInset 后必须含非零数值', () => {
+    const t = track('clip', [
+      { t: '1f', v: '0,0,100,0', ease: 'linear' },
+      { t: '16f', v: '0,0,0,0', ease: 'linear' },
+    ]);
+    const inset = clipInset(resolveTrack(t, 8, 100));
+    // 若又踩回 NaN 兜底，会得到 inset(0% 0% 0% 0%) —— 静默失效
+    expect(inset).not.toBe('inset(0% 0% 0% 0%)');
+    const nums = inset.replace(/[^\d.]/g, ' ').trim().split(/\s+/).map(Number);
+    expect(nums.some((n) => n > 0)).toBe(true);
   });
 
   it('specStyleOf 按 element 过滤并合成 transform / filter / clipPath', () => {
@@ -155,6 +190,16 @@ describe('渲染与分发', () => {
     );
     expect(html).toContain('data-template-missing="1"');
     expect(isImplemented('custom/does-not-exist@1.0')).toBe(false);
+  });
+
+  it('文本图元的盒子贴合内容 —— clip 的百分比才有意义', () => {
+    const html = renderToStaticMarkup(
+      <SpecRenderer frame={14} durationInFrames={30} item={item()} caption={EMPTY_CAPTION} />,
+    );
+    // flex 子项默认 stretch 到容器宽时，inset(0% 52% 0% 0%) 的切点会落在文本右侧之外，
+    // 看起来就像「裁切没生效」。盒子必须 max-content + 按 align 自对齐。
+    expect(html).toContain('width:max-content');
+    expect(html).toContain('align-self:flex-start');
   });
 
   it('fade-up 真渲染出文字（不是灰框）且随帧变化', () => {
