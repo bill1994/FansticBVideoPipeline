@@ -4,7 +4,8 @@ description: >-
   在已拍摄、已粗剪、**没有任何文字与特效**的实拍口播视频上，叠加 motion-graphic overlay
   （字幕条 / 大字强调 / 数字卡 / 分屏 / 推近等），产出可直接发布的成片。
   当用户给出「口播视频 + 一份编辑好的 SRT」，想要字幕、动效、版式装饰时使用。
-  本仓库是**被模型读取的管线**：你（模型）是操作者，仓库本身不调用任何大模型。
+  本管线既可以由模型逐阶段操作（本文件就是给模型读的契约），
+  也可以由内置生成器产出起草稿（`draft.json`）；确定性底座（对齐/感知/烘焙/校验/渲染）不依赖特定模型。
   五阶段：align → perceive → storyboard → validate → render。
 ---
 
@@ -40,7 +41,7 @@ description: >-
 |---|---|---|---|
 | `align` | `npm run pipeline -- align --job <id>` | `words.json`（词级时间戳）+ `align-report.json` | 机器（whisper + DP） |
 | `perceive` | `npm run pipeline -- perceive --job <id>` | `shots.json` + `regions.json` | 机器（scdet + YuNet + 显著性） |
-| `storyboard` | `npm run pipeline -- storyboard --job <id> --draft <draft.json>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `draft.json` |
+| `storyboard` | `npm run pipeline -- storyboard --job <id> --draft <draft.json>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `draft.json`（或由内置生成器产出） |
 | `validate` | `npm run pipeline -- validate --job <id>` | `validate-report.json`（18 项 + 2 条 extra） | 机器 |
 | `render` | `npm run pipeline -- render --job <id>` | `out.mp4` | 机器（Remotion） |
 

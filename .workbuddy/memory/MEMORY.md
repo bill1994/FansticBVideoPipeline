@@ -8,7 +8,8 @@
 
 - Remotion 视频动效叠加管线：在实拍口播粗剪上叠 motion-graphic overlay。Node ≥22.19 / ESM / tsx / MIT。
 - 两工作区共用 **PUBLIC** 远端 `github.com/bill1994/FansticBVideoPipeline`（main）⇒ `docs/proposals/` 与 `.workbuddy/memory/` 随仓库公开。
-- 🔴 **定位 = 「被模型读取的 skill pipeline」**：模型即操作者，**仓库不调模型**；`03-storyboard/draft.json` 是模型产物的等价物。
+- 🔴 **定位 = 「确定性底座 + 可插拔起草稿来源」**：管线负责对齐/感知/烘焙/校验/渲染这些确定性部分；`03-storyboard/draft.json` 是起草稿的落盘等价物，可由模型填表产出，**也可由内置生成器（draft/motion 生成阶段）产出**。
+  此前「被模型读取、模型即操作者、仓库不调模型」的红线已于 **2026-10-20 由用户解除**；引用旧文档时注意那是历史裁决。
 
 ## 命令
 
@@ -36,7 +37,7 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 ## 当前状态（2026-10-18）
 
 **六道闸全通，真素材可端到端出片**（kukini 6667 帧 / 218MB / 墙钟 ≈21 分钟）。
-`03-storyboard` 管线通但仍**不调模型**（模型即操作者）；`05-render` 模板 **9/11**。
+`03-storyboard` 管线通（起草稿当前仍由模型/手写 `draft.json` 产出，内置生成器尚未接入）；`05-render` 模板 **9/11**。
 剩下的不是「能不能出」，而是**质量**：`M-1d` 对齐产物层漂移 / 占位值校准 / 剩 2 个模板。
 真实数字与待办见 `PROGRESS.md`（§五 是当前主战场）。当前 **449 单测 / 27 文件 / 18 项校验**。
 
@@ -188,7 +189,10 @@ OPEN 清单：`C2-2` 阈值实测 / `C2-3` BGM 分离倾向不做 / `M-1d` 静�
 ## git
 
 - 仓库级 noreply 身份；`gh auth setup-git` 做凭证，**别用 GCM**（wincredman 校验会失败）。
-- 🔴 **代理只走环境变量 `HTTP_PROXY`/`HTTPS_PROXY`，勿写死端口**（宿主每会话换端口）。曾用 `-c http.proxy=…:4436` 连续 5 次失败而 curl 却通 —— **别用 curl 通推断 git 通**。偶发 502 → 重试即通。
+- 🔴 **git 的代理端口就是 `13145`（2026-10-20 用户确认）**。仓库/全局 `http.proxy=http://127.0.0.1:13145` 是**对的，别拿环境变量去覆盖它**：
+  环境变量 `HTTP_PROXY`/`HTTPS_PROXY` 是宿主每会话注入的另一个值（本次 `2435`），实测走它拉到 19% 只有 20 KiB/s，换 `13145` **5 秒**拉完 6 个提交。
+  判据：`git ls-remote` 慢 ≠ 网络差，先看是不是被环境变量带偏。曾用 `-c http.proxy=…:4436` 连续 5 次失败而 curl 却通 —— **别用 curl 通推断 git 通**。偶发 502 → 重试即通。
+- ⚠️ **Windows 上 `git fetch` 偶发 `fatal: unpack-objects failed`**（本次遇到）：pack < `unpackLimit` 时走 unpack-objects 卡死。绕法：`git -c fetch.unpackLimit=1 fetch …` 强制走 `index-pack`，并先 `rm -f .git/objects/pack/tmp_pack_*` 清残留。
 - 双工作区并行提交会产生「同内容不同 hash」重复提交：先建 `backup/pre-pull-<date>`，`git diff` 为空再 `reset --hard origin/main`。
 - 🔴 **`.workbuddy/memory/` 的两类内容别混**（2026-10-18 结构性修复）：
   **项目知识**（本文件）跨机共享；**本机状态**（`LOCAL.md`，已 gitignore）各机独立。

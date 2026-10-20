@@ -10,7 +10,7 @@
 | `00-input/` | 手写 | 只有 `source.json` 清单，**没有真实视频** |
 | `01-align/` | fixture | 60 个词的时间戳 + 6 条 cue，已通过门控 |
 | `02-perceive/` | fixture | 5 个 shot（含 2 个 B-roll）+ 6 个区域（人脸/手持物/B-roll） |
-| `03-storyboard/` | **起草稿 → 本管线产出** | `draft.json` 是手写的（等价于「模型产出」）；`storyboard.json` + `bake-report.json` 由 `storyboard` 阶段烘焙 |
+| `03-storyboard/` | **起草稿 → 本管线产出** | `draft.json` 是手写的起草稿（起草稿的落盘等价物，模型或内置生成器均可产出）；`storyboard.json` + `bake-report.json` 由 `storyboard` 阶段烘焙 |
 | `04-validate/` | **本管线产出** | `validate-report.json` |
 | `05-render/` | **本管线产出** | `render-props.json`（dry-run 产物，未真正渲染） |
 
@@ -65,7 +65,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
    颜色由渲染期按命名令牌（`'brand'` / `'accent'`）解析，不经 `params`。
    写了就会被校验项 #16 判 `E-P1-01`（未声明键）**阻断**。
 2. **要改下游产物，改 `draft.json` 再重跑，别手改 `storyboard.json`。**
-   `draft.json` 才是「模型产出」的等价物；`storyboard.json` 是烘焙快照。
+   `draft.json` 才是起草稿的落盘等价物；`storyboard.json` 是烘焙快照。
    手改快照会让第 1 条的错误被掩盖 —— `validate` 直接跑是绿的，
    一旦按上面「怎么跑」重跑 `storyboard` 就立刻复现阻断，文档与实测自相矛盾。
    （本仓库 2026-10-16 修过一次这个错层修复。）
