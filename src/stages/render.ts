@@ -30,6 +30,7 @@ import type { SourceManifest } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
 import { resolveScene } from '../validate/occlusion.ts';
 import { isCarrierScope } from '../templates/types.ts';
+import type { TemplateDeclaration } from '../templates/types.ts';
 import { toCaptionData } from '../remotion/caption.ts';
 import { SHADOW_TRACK_PREFIX, synthesizeCarrierTracks } from '../remotion/carrier-synth.ts';
 
@@ -214,6 +215,15 @@ export function runRender(opts: RenderOptions): RenderOutcome {
   }
   const caption = hasWords ? toCaptionData(readJson<unknown>(wordsFile)) : undefined;
 
+  /**
+   * 模板声明快照（S1b）：供浏览器侧 hydrate `custom/*`。
+   * 文件缺失 ⇒ `[]`（旧 job 兼容；内置模板已在模块初始化时注册）。
+   */
+  const snapshotFile = path.join(base, STAGES.storyboard, 'template-snapshot.json');
+  const templates = exists(snapshotFile)
+    ? readJson<TemplateDeclaration[]>(snapshotFile)
+    : [];
+
   fs.mkdirSync(outDir, { recursive: true });
   const videoAbs = path.join(base, STAGES.input, source.video);
 
@@ -297,6 +307,8 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     storyboard,
     stacks,
     carrierTracks,
+    // S1b：模板声明快照（浏览器侧 hydrate `custom/*` 用）。
+    templates,
     ...(caption ? { caption } : {}),
     },
   });

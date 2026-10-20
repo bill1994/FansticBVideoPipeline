@@ -22,7 +22,10 @@
 
 import type { FC } from 'react';
 import { BUILTIN_TEMPLATES } from '../../templates/builtin.ts';
+import { getTemplate, hasTemplate } from '../../templates/registry.ts';
 import type { TemplateComponent, TemplateProps } from './contract.tsx';
+import { Placeholder } from './placeholder.tsx';
+import { SpecRenderer } from './SpecRenderer.tsx';
 import { KaraokeWord } from './karaoke-word.tsx';
 import { KineticLine } from './kinetic-line.tsx';
 import { LowerThird } from './lower-third.tsx';
@@ -32,51 +35,6 @@ import { PunchIn } from './punch-in.tsx';
 import { NoiseGrain } from './noise-grain.tsx';
 import { CenterEmphasis } from './center-emphasis.tsx';
 import { SplitFrame } from './split-frame.tsx';
-
-/**
- * 占位组件 —— 声明存在但实现尚未落地时使用。
- *
- * ⚠️ 它与「真实现」在视觉上刻意不同：
- * ·真实现有品牌色/字号/结构；占位块是**等宽灰框 + 斜纹底**
- * · 斜纹（repeating-linear-gradient）是**故意丑的**：它的作用是
- *   在成片里显眼地告诉审片人「这里欠一个实现」，而不是让人
- *   误以为已经做完了。
- *
- * 🔴 若某个模板最终落到这里，validate 阶段不报错（它**不知道**渲染层实现情况），
- *    所以这条信息**只存在于成片里** —— 这也是为什么需要 `data-template-missing`。
- */
-const Placeholder: FC<TemplateProps> = ({ frame, item }) => {
-  // 仍在动（斜纹滚动），让占位块也遵守「动画属于 frame」——
-  // 用 background-position 表达，不用 CSS animation。
-  const shift = (frame * 4) % 24;
-  return (
-    <div
-      data-template="placeholder"
-      data-template-missing="1"
-      data-motion={item.motion}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        background: `repeating-linear-gradient(45deg, rgba(255,197,61,0.10) 0px, rgba(255,197,61,0.10) 12px, transparent 12px, transparent 24px) 0px ${shift}px / auto`,
-        border: '2px dashed rgba(255,197,61,0.6)',
-        color: '#FFC53D',
-        fontFamily: 'monospace',
-        fontSize: 16,
-        textAlign: 'center',
-        padding: 8,
-        boxSizing: 'border-box',
-      }}
-    >
-      <span style={{ fontWeight: 700 }}>未实现：{item.motion}</span>
-      <span style={{ fontSize: 13, opacity: 0.85 }}>声明已在册，渲染实现待落地</span>
-    </div>
-  );
-};
 
 /** 已实现模板的映射。键为 `family/subtype@version`，**必须与 builtin.ts 的 id 逐字相同**。 */
 const IMPLEMENTED: Record<string, TemplateComponent> = {
@@ -99,14 +57,30 @@ const IMPLEMENTED: Record<string, TemplateComponent> = {
   'carrier/split-frame@1.0': SplitFrame,
 };
 
-/** 取组件；未实现则返回 `Placeholder`。**永不抛错**。 */
+/**
+ * 取组件；未实现则返回 `Placeholder`。**永不抛错**。
+ *
+ * 🔴 `custom/*` 走**通配分发**（S1b）：spec 模板没有手写组件，
+ *    统一由 `SpecRenderer` 按 spec 出画面。`SpecRenderer` 内部再查 spec，
+ *    缺失时自己退回 Placeholder —— 这样旧 job 引用了已删除的 spec 也不会崩。
+ */
 export function getTemplateComponent(motion: string): FC<TemplateProps> {
-  return IMPLEMENTED[motion] ?? Placeholder;
+  const exact = IMPLEMENTED[motion];
+  if (exact) return exact;
+  if (motion.startsWith('custom/')) return SpecRenderer;
+  return Placeholder;
 }
 
-/** 该 motion 是否已有真实实现。测试与自检用。 */
+/**
+ * 该 motion 是否已有真实实现。测试与自检用。
+ *
+ * `custom/*` 的「已实现」= 注册表里有带 `spec` 的声明（否则 SpecRenderer
+ * 会退回占位块，不能算实现）。
+ */
 export function isImplemented(motion: string): boolean {
-  return motion in IMPLEMENTED;
+  if (motion in IMPLEMENTED) return true;
+  if (!motion.startsWith('custom/') || !hasTemplate(motion)) return false;
+  return getTemplate(motion).spec !== undefined;
 }
 
 /** 已实现模板的 id 清单。 */
@@ -130,7 +104,11 @@ export function listUnimplemented(): string[] {
  */
 export function assertRenderMapValid(): void {
   const declared = new Set(BUILTIN_TEMPLATES.map((t) => t.id));
-  const orphans = Object.keys(IMPLEMENTED).filter((id) => !declared.has(id));
+  // `custom/*` 不写进 IMPLEMENTED（走通配分发）——若将来有人硬登记，
+  // 它也不在 builtin 声明里，这里跳过前缀避免被误判 orphan。
+  const orphans = Object.keys(IMPLEMENTED).filter(
+    (id) => !declared.has(id) && !id.startsWith('custom/'),
+  );
   if (orphans.length > 0) {
     throw new Error(
       `渲染映射表里有未声明的模板 id：${orphans.join(', ')}。` +

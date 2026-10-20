@@ -2,6 +2,8 @@ import type { FC, ReactNode } from 'react';
 import { AbsoluteFill, OffthreadVideo, Sequence } from 'remotion';
 import { MotionItem } from './MotionItem.tsx';
 import type { Storyboard, StoryboardTrack } from '../core/types.ts';
+import type { TemplateDeclaration } from '../templates/types.ts';
+import { hydrateTemplates } from '../templates/registry.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { isCarrierScope, getScopeOf } from './scope.ts';
 import { CarrierTimeline } from './carrier.tsx';
@@ -52,6 +54,15 @@ export type RenderProps = {
    * ⚠️ 可选：`align` 未跑或 `words.json` 不存在时缺失，模板降级为空序列。
    */
   caption?: CaptionData;
+  /**
+   * 本 job 用到的模板声明快照（S1b）。
+   *
+   * 🔴 浏览器 bundle 与 Node 是两个进程：`custom/*` 的声明不会自己出现在
+   *    渲染进程的注册表里。`render.ts` 把 `03-storyboard/template-snapshot.json`
+   *    读出来放进 props，`Overlay` 在渲染前 hydrate。
+   *    缺省 `[]` ⇒ 与旧 job 完全兼容（内置模板已由模块初始化注册）。
+   */
+  templates?: TemplateDeclaration[];
 };
 
 /** 单个 track 的渲染片段（不含定位）。 */
@@ -128,7 +139,13 @@ export const Overlay: FC<RenderProps> = ({
   durationInFrames,
   caption,
   carrierTracks,
+  templates,
 }) => {
+  // 🔴 必须在本组件**任何** getTemplate 之前执行：`MotionItem` 渲染时会
+  //    查注册表，`custom/*` 未 hydrate 会直接抛 ConfigError。
+  //    同步、幂等（已存在的 id 静默跳过）。
+  hydrateTemplates(templates ?? []);
+
   const cap = caption ?? EMPTY_CAPTION;
   // 🔴 D4-t3 ②：影子轨**恒为最内层**（紧贴视频）⇒ 必须排在真实载体轨之前。
   //   `CarrierChain` 用 reduce 依次包裹，数组第一个元素最贴近 children。

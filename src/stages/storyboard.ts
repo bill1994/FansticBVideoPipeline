@@ -12,6 +12,7 @@ import path from 'node:path';
 import { STAGES } from '../core/config.ts';
 import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
+import { getTemplate } from '../templates/registry.ts';
 import { lookupConfirmed } from '../core/confirmed.ts';
 import { log } from '../core/log.ts';
 import { bake } from '../core/bake.ts';
@@ -415,6 +416,27 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     target: STAGES.storyboard,
     file: 'bake-report.json',
     data: report,
+    jobsDir: opts.jobsDir,
+  });
+
+  /**
+   * 模板声明快照（S1b，2026-10-20）。
+   *
+   * 两个用途，缺一不可：
+   *  ① **浏览器侧 hydrate**：渲染进程与 Node 不是同一个内存，`custom/*` 的
+   *     声明必须随 `render-props.json` 送进去，否则 `MotionItem` 查注册表直接抛错。
+   *  ② **历史可追溯**：模板日后被删改，旧 job 仍能凭快照校验/渲染，
+   *     不会出现「当时能渲、现在 validate 不过」。
+   *
+   * 只存**本 job 实际用到的** motion（去重），不塞整库 —— 快照是证据，不是镜像。
+   */
+  const usedMotions = [...new Set(tracks.flatMap((t) => t.items.map((i) => i.motion)))].sort();
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.storyboard,
+    target: STAGES.storyboard,
+    file: 'template-snapshot.json',
+    data: usedMotions.map((m) => getTemplate(m)),
     jobsDir: opts.jobsDir,
   });
   log.done(

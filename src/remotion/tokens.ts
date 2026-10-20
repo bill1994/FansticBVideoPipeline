@@ -163,6 +163,24 @@ export const ENTER_EASE = Easing.bezier(0.16, 1, 0.3, 1);
 /** 出场缓动 —— cubic-in，等价于 CSS `cubic-bezier(0.55, 0.055, 0.675, 0.19)`。 */
 export const EXIT_EASE = Easing.in(Easing.cubic);
 
+/**
+ * MotionSpec 的缓动名 → 函数映射（S1b，2026-10-20）。
+ *
+ * 🔴 **唯一真源**：`SpecRenderer` 只从这里取，禁止组件内联缓动 ——
+ *    与 `ENTER_EASE` / `EXIT_EASE` 同理，测试要能引用「实际用的那条曲线」。
+ * `expoOut` 复用 `ENTER_EASE`（项目实测选用的 0.16,1,0.3,1），不新造。
+ */
+export const SPEC_EASE: Record<
+  'linear' | 'out' | 'in' | 'inOut' | 'expoOut',
+  (t: number) => number
+> = {
+  linear: (t: number) => t,
+  out: Easing.out(Easing.cubic),
+  in: Easing.in(Easing.cubic),
+  inOut: Easing.inOut(Easing.quad),
+  expoOut: ENTER_EASE,
+};
+
 /** 0–1 钳制。纯函数。 */
 export function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));

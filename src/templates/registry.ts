@@ -56,6 +56,26 @@ export function registerTemplate(t: TemplateDeclaration, source?: string): void 
 }
 
 /**
+ * 浏览器侧**批量 hydrate** 模板声明（S1b，2026-10-20）。
+ *
+ * Remotion 渲染跑在**另一个进程**（浏览器 bundle）里，`cli.ts` 的
+ * `loadSpecsFromDisk()` 不共享内存 —— 所以 `custom/*` 的声明必须随
+ * `render-props.json` 的 `templates` 一起送进来，在 `Overlay` 渲染前注册。
+ *
+ * 🔴 **已存在则静默跳过**，与 `registerTemplate` 的查重语义**刻意不同**：
+ *    · 查重防的是「同一进程里两处定义同一 id，谁覆盖谁不可知」；
+ *    · hydrate 面对的是「Node 侧注册过、浏览器侧是另一个进程」——
+ *      这不是冲突，重复注册同一份声明是**预期**行为。
+ *    若这里也抛错，每次渲染都会因为「内置模板已在册」而崩。
+ */
+export function hydrateTemplates(decls: readonly TemplateDeclaration[]): void {
+  for (const t of decls) {
+    if (registry.has(t.id)) continue;
+    registry.set(t.id, t);
+  }
+}
+
+/**
  * **仅供测试**：清空自定义注册，保留内置模板。
  *
  * 生产代码不得调用 —— 它存在只是为了让测试能在同一进程内复用 id
