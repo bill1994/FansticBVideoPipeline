@@ -11,11 +11,14 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
 
-export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item }) => {
+export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const text = str(item.params, 'text');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
+
+  // P6：气泡放不下就等比缩小（下限 0.7）。24 = 下方 fontSize；43 = padding 20×2 + border 1.5×2。
+  const fit = fitScale(text, 24, item.footprint[2] * (canvasWidth ?? 1920), 43);
 
   return (
     <div
@@ -44,7 +47,10 @@ export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item }) =
           // 入场上浮（+24px），出场**下沉**（-16px）——
           // 气泡是"浮"着的，下沉比原地淡出更符合它的物理直觉。
           opacity: enter * (1 - exit),
-          transform: `translateY(${(1 - enter) * 24 - exit * 16}px) scale(${1 - exit * 0.06})`,
+          // `* fit`（P6）：上浮/下沉的位移保留，只把最终尺寸压到框内。
+          transform: `translateY(${(1 - enter) * 24 - exit * 16}px) scale(${(1 - exit * 0.06) * fit})`,
+          // 气泡贴右对齐，从右边缩才不会离开容器
+          transformOrigin: 'right center',
         }}
       >
         {text}

@@ -55,14 +55,6 @@ export interface ValidateContext {
   scene: SceneItem[];
 }
 
-function loadOrDefault<T>(file: string, fallback: T): T {
-  try {
-    return readJson<T>(file);
-  } catch {
-    return fallback;
-  }
-}
-
 export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
   const base = jobDir(jobId, jobsDir);
 
@@ -80,6 +72,23 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
   const bake = readJson<BakeReport>(path.join(base, STAGES.storyboard, 'bake-report.json'));
 
   const fps = storyboard.meta.fps;
+
+  /**
+   * 🔴 `meta.alignmentConfidence` 是 SPEC §1.2 强制的 5 个 meta 字段之一，
+   * 但 2026-10-19 端到端审计发现它**零消费者** —— 手改 storyboard 把置信度
+   * 改成任意值都不会被发现。这里补一次一致性断言（属**结构检查**，
+   * 退出码 2，不占 18 项校验名额）。
+   *
+   * 它不是可编辑字段，是上游测量值的**副本**：改它等于伪造对齐置信度。
+   */
+  if (storyboard.meta.alignmentConfidence !== alignReport.meanConfidence) {
+    throw new ConfigError(
+      `meta.alignmentConfidence（${storyboard.meta.alignmentConfidence}）与 ` +
+        `01-align/align-report.json 的 meanConfidence（${alignReport.meanConfidence}）不一致。\n` +
+        `  该字段是上游测量值的副本，不可手改 —— 改它等于伪造对齐置信度。\n` +
+        `  正确做法：改 draft 后重跑 storyboard，由烘焙器回填。`,
+    );
+  }
 
   // fps 与烘焙绑定：改 fps 必须重新烘焙，不允许跨 fps 复用（C6 工程约束之二）。
   if (source.fps !== fps) {

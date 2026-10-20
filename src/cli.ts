@@ -13,7 +13,7 @@
 
 import path from 'node:path';
 import { DEFAULT_JOBS_DIR, STAGES } from './core/config.ts';
-import { ConfigError, EXIT, StageBlockedError, type ExitCode } from './core/exit-code.ts';
+import { ConfigError, EXIT, exitCodeFor, type ExitCode } from './core/exit-code.ts';
 import { ensureJobDirs, jobDir, writeJson } from './core/io.ts';
 import { log, printBlock } from './core/log.ts';
 import { assertRegistryValid } from './templates/registry.ts';
@@ -244,16 +244,14 @@ const code = await (async (): Promise<ExitCode> => {
   try {
     return await main();
   } catch (e) {
-    if (e instanceof ConfigError) {
-      log.error(e.message);
-      return EXIT.BAD_ARGS;
+    const mapped = exitCodeFor(e);
+    // 只有「没被归类的异常」才值得打栈；已知类型打人话就够。
+    if (mapped === EXIT.INTERNAL) {
+      log.error(`内部错误：${(e as Error).stack ?? String(e)}`);
+    } else {
+      log.error((e as Error).message);
     }
-    if (e instanceof StageBlockedError) {
-      log.error(e.message);
-      return EXIT.VALIDATION_FAILED;
-    }
-    log.error(`内部错误：${(e as Error).stack ?? String(e)}`);
-    return EXIT.INTERNAL;
+    return mapped;
   }
 })();
 

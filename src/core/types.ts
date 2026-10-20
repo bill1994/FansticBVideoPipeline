@@ -165,6 +165,10 @@ export interface AlignReport {
    *
    * M-1 已裁决取 `'srt'`（SRT 是文本权威；时间戳权威已于 M-1f 归位）。
    * 保留另两个取值是为将来若改判时**有历史可比**，而非鼓励使用。
+   *
+   * ⚠️ 2026-10-19 端到端审计：本字段**当前无代码消费者** —— 它的定位是**审计记录**
+   * （供人工或将来工具核对「这份 `words.json` 是谁的权威」），不是判据。
+   * 不为消灭零消费而加假接线：那比零消费更糟。
    */
   textSource: 'srt' | 'whisper-asr';
 
@@ -361,4 +365,18 @@ export interface SourceManifest {
   fps: number;
   /** 成片总帧数 —— 即 `<Composition>` 的 durationInFrames。 */
   durationInFrames: number;
+  /**
+   * 画面尺寸（`P4` 裁决，2026-10-19）。
+   *
+   * **可选**。省略时 `render` 用 `ffprobe` 读视频真实分辨率，读不到才兜底 1920×1080
+   * （见 `core/video-size.ts` 的 `resolveRenderSize`）。
+   *
+   * 🔴 为什么要进契约：此前 `<Composition>` 宽高**硬编码 1920×1080**，
+   *    素材分辨率根本不参与渲染 —— 640×360 素材会被放大成 1080p，竖屏素材无路可走。
+   *
+   * ⚠️ 两个字段**必须同时填或同时省略**（只填一个视为配置错误，退出码 2）。
+   * @see RenderSize
+   */
+  width?: number;
+  height?: number;
 }

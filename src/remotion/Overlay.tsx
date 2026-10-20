@@ -16,6 +16,18 @@ export type RenderProps = {
   jobId: string;
   fps: number;
   durationInFrames: number;
+  /**
+   * 画面尺寸（`P4` 裁决，2026-10-19）。
+   *
+   * 🔴 **不再硬编码 1920×1080**：此前 Composition 写死尺寸，素材分辨率根本不进契约
+   * （实测 640×360 素材渲出 1080p，竖屏素材无路）。现在由
+   * `core/video-size.ts` 的 `resolveRenderSize()` 决定，`Root.tsx` 的
+   * `calculateMetadata` 把它透传给 `<Composition>`。
+   *
+   * 可选是为了兼容手工构造的 props（缺省走 1920×1080，与旧行为等价）。
+   */
+  width?: number;
+  height?: number;
   /** 相对 05-render/ 的视频路径；渲染时由 --props 传入。 */
   video: string;
   /** 素材是否真实存在。不存在时渲染占位底，便于无素材环境下做结构自检。 */

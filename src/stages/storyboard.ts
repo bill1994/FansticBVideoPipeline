@@ -12,6 +12,7 @@ import path from 'node:path';
 import { STAGES } from '../core/config.ts';
 import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
+import { lookupConfirmed } from '../core/confirmed.ts';
 import { log } from '../core/log.ts';
 import { bake } from '../core/bake.ts';
 import { computeThreshold, decide, routingFloor, maxReview } from '../core/schedule.ts';
@@ -46,6 +47,77 @@ export interface DraftTrack {
   layer: number;
   handoffTo?: string | null;
   items: DraftItem[];
+}
+
+/**
+ * 起草稿 item 的**允许键**（`P5` 裁决，2026-10-19）。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么需要它
+ * ─────────────────────────────────────────────────────────────
+ * 2026-10-19 端到端审计发现：起草稿 item 多写的字段**没有任何校验**——
+ * `bake` 用 `{...item}` 展开，于是 `routing` / `review` / `handoffIn` 这类
+ * 写错的键会**原样落进 `storyboard.json`**，全链路不报错、成片也不报错。
+ *
+ * 这是唯一「静默污染产物」的路径：`params` 内部有 `E-P1-01` 兜着，
+ * item 顶层此前是无人区。
+ *
+ * 归为**结构错误**而不是校验项（→ `ConfigError` / 退出码 2）：
+ * 与「`carrier` 引用了未注册模板」同类 —— 起草稿形状不对，不该等到
+ * 校验阶段再判，更不该占 18 项的名额。
+ */
+const ALLOWED_DRAFT_ITEM_KEYS = new Set([
+  // 作者语法（烘焙后剥离）
+  '_author',
+  // 契约字段
+  'fromFrame',
+  'durationInFrames',
+  'motion',
+  'footprint',
+  'exclusive',
+  'footprintAnimates',
+  'params',
+  'carrier', // 人工返修时可手填（模型不应写）
+  // 起草稿专用：闸1 / 闸2 的**输入**（产物里会挪进 `decision`）
+  'sim_max',
+  'confidence',
+]);
+
+/** 键名 → 额外提示。这些是最容易写错的那几个。 */
+const KEY_HINTS: Record<string, string> = {
+  decision: '（`decision` 是**产物**字段，由烘焙器算出来写入；起草稿只填 `sim_max` / `confidence`）',
+  routing: '（`routing` 由闸1 算出，不要在起草稿里写）',
+  review: '（`review` 由产路地板算出，不要在起草稿里写）',
+  handoffIn: '（该字段已于 2026-10-15 删除 —— 入场方式请用 `params.enter`）',
+  handoffTo: '（`handoffTo` 是 **track 层**字段，不能放 item 层）',
+  window: '（`window` 是校验期写入的系统字段，不进 params）',
+};
+
+/**
+ * 起草稿 item 顶层键检查。发现未知键即抛（退出码 2），一次列出全部。
+ *
+ * ⚠️ 只查 **item 顶层**，不递归 `params` —— 那里有校验项 #16（`E-P1-01`）负责。
+ */
+export function assertDraftItemKeys(draft: DraftStoryboard): void {
+  const problems: string[] = [];
+  const tracks = draft.tracks ?? [];
+  tracks.forEach((t, ti) => {
+    const trackLabel = t.id ?? `#${ti}`;
+    (t.items ?? []).forEach((it, ii) => {
+      Object.keys(it as object).forEach((k) => {
+        if (ALLOWED_DRAFT_ITEM_KEYS.has(k)) return;
+        problems.push(`轨「${trackLabel}」第 ${ii} 条：未知键 \`${k}\`${KEY_HINTS[k] ?? ''}`);
+      });
+    });
+  });
+  if (problems.length > 0) {
+    throw new ConfigError(
+      `起草稿含未知 item 字段（共 ${problems.length} 处）：\n` +
+        problems.map((p) => `  · ${p}`).join('\n') +
+        `\n  item 顶层只允许：${[...ALLOWED_DRAFT_ITEM_KEYS].join(' / ')}。\n` +
+        `  这些键若不拦，会原样落进 storyboard.json（bake 用 {...item} 展开），全链路无报错。`,
+    );
+  }
 }
 
 export interface DraftStoryboard {
@@ -88,10 +160,41 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   const alignReport = readJson<{ gatePassed: boolean; meanConfidence: number; mode?: string }>(
     alignReportFile,
   );
+  /**
+   * 对齐门控（C2-2 / C2-4）。
+   *
+   * 🔴 2026-10-19 端到端审计后修复：此前这里**只抛错、从不读放行记录** ——
+   *    而 CLI（`cli.ts` 门控分支）与 `align/SKILL.md` 都写着
+   *    「写 `06-review/confirmed.json` 后可继续」。
+   *    实测：照提示写了 `stage:"alignment"` 的记录，重跑**仍然 exit 1**，
+   *    报错一字不改 ⇒ 提示让人做的事做了也没用，用户被堵死在门控前。
+   *
+   * 现在：门控不过 → 查 `stage:"alignment"` 的放行记录 →
+   *   · 有 ⇒ 继续，并把 `confirmedBy` / `confirmedAt` 回填进 `storyboard.meta`（审计链落盘）
+   *   · 无 ⇒ 抛错，且**区分「没有记录」与「记录是别的阶段写的」**，给出可执行的下一步
+   */
+  let alignWaiver: { by: string; at: string; reason: string } | null = null;
   if (!alignReport.gatePassed) {
-    throw new StageBlockedError(
-      '对齐门控未通过（C2-2 / C2-4）—— 必须人工显式确认后才能继续。' +
-        '确认后写入 06-review/confirmed.json，并把 meta.anchorMode 标为实际使用的模式。',
+    const { record, available } = lookupConfirmed(opts.jobId, 'alignment', opts.jobsDir);
+    if (!record) {
+      const mismatchHint =
+        available.length > 0
+          ? `\n  ↳ 06-review/confirmed.json 现有记录覆盖的 stage：${available.join(', ')} —— ` +
+            `没有 "alignment"，故不能用于本阶段放行。\n` +
+            `  该文件支持多条记录：追加一条 alignment 记录即可，不必覆盖已有的。`
+          : '';
+      throw new StageBlockedError(
+        '对齐门控未通过（C2-2 / C2-4）—— 必须人工显式确认后才能继续。\n' +
+          '  确认后写入 06-review/confirmed.json（`stage` 必须是 "alignment"）：\n' +
+          '    { "jobId": "...", "stage": "alignment", "reason": "...",\n' +
+          '      "confirmedBy": "...", "confirmedAt": "ISO 时间" }\n' +
+          '  并把 draft.meta.anchorMode 标为实际使用的模式。' +
+          mismatchHint,
+      );
+    }
+    alignWaiver = { by: record.confirmedBy, at: record.confirmedAt, reason: record.reason };
+    log.warn(
+      `对齐门控未通过，但存在人工放行记录（${record.confirmedBy} @ ${record.confirmedAt}）：${record.reason}`,
     );
   }
   /** 🔴 `M-1g`：本job 是否走无字幕模式（详见下方「硬约束」）。 */
@@ -116,6 +219,7 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     );
   }
   const draft = readJson<DraftStoryboard>(draftFile);
+  assertDraftItemKeys(draft);
 
   /**
    * 🔴 `M-1g`：无字幕模式下的**硬约束**。
@@ -213,13 +317,16 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   }));
 
   // 回填 meta（5 个字段，见 SPEC §1.2）
+  // 🔴 放行记录优先于 `draft.meta`：前者是人工签的凭据，后者只是模型填的草稿字段。
+  const metaConfirmedBy = alignWaiver?.by ?? draft.meta.confirmedBy;
+  const metaConfirmedAt = alignWaiver?.at ?? draft.meta.confirmedAt;
   const baked: Storyboard = {
     meta: {
       fps: source.fps,
       anchorMode: draft.meta.anchorMode,
       alignmentConfidence: alignReport.meanConfidence,
-      ...(draft.meta.confirmedBy ? { confirmedBy: draft.meta.confirmedBy } : {}),
-      ...(draft.meta.confirmedAt ? { confirmedAt: draft.meta.confirmedAt } : {}),
+      ...(metaConfirmedBy ? { confirmedBy: metaConfirmedBy } : {}),
+      ...(metaConfirmedAt ? { confirmedAt: metaConfirmedAt } : {}),
     },
     tracks,
     noMotionRanges: storyboard.noMotionRanges,

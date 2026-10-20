@@ -18,6 +18,7 @@
 import type { CSSProperties, FC, ReactNode } from 'react';
 import type { StoryboardItem } from '../../core/types.ts';
 import type { CaptionData } from '../caption.ts';
+import { estimateTextWidthPx } from '../../validate/text-metrics.ts';
 
 /**
  * 所有模板组件的统一 props。
@@ -43,6 +44,15 @@ export interface TemplateProps {
    * **不要** clone / 改 props / 假设它是什么 —— 它不是「内容」，是**下一层**。
    */
   children?: ReactNode;
+  /**
+   * 本次渲染的画面宽度（px）。**`P6` 用**：文字超出 `footprint` 时要缩到框内，
+   * 而「框有多宽」= `footprint[2] × canvasWidth`，没有它算不出来。
+   *
+   * 缺省 1920（与旧行为等价），所以模板单测不需要构造 Remotion context。
+   * `MotionItem` 会从 `useVideoConfig().width` 传真实值 —— P4 之后画面宽度
+   * 不再是常量（竖屏/任意分辨率都可能）。
+   */
+  canvasWidth?: number;
 }
 
 export type TemplateComponent = FC<TemplateProps>;
@@ -90,6 +100,43 @@ export function footprintStyle(item: StoryboardItem): CSSProperties {
     height: `${h * 100}%`,
     boxSizing: 'border-box',
   };
+}
+
+/**
+ * 文字超出 `footprint` 时的**等比缩小比例**（`P6` 第一步，2026-10-19）。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么需要（端到端审计 + 手感表实测）
+ * ─────────────────────────────────────────────────────────────
+ * 模板全部 `whiteSpace: nowrap` ⇒ 长文本**既不折行也不缩放**，直接跑出框
+ * （真渲实测 16 中文字时 4 个模板全溢出，`stat-card` 甚至溢出画面）。
+ * 而构建期校验 #17 只是**估算**，且已知低估（16 字实测溢出、估算说没超）。
+ *
+ * ⇒ 渲染期必须有一条**硬兜底**：算出来放不下就缩，保证不出画面。
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 为什么用估算而不是 DOM 测量
+ * ─────────────────────────────────────────────────────────────
+ * 渲染是确定性的：DOM 测量（`getBoundingClientRect`）在服务端渲染阶段拿不到，
+ * 且会让「同一帧两次渲出不同结果」成为可能。字符估算虽然不精确，
+ * 但**确定性**且与校验项 #17 同源 —— 两处口径一致才不会出现
+ * 「校验说没超、渲染却缩了」这种互相打脸。
+ *
+ * 🔴 `minScale = 0.7`：缩到 0.7 以下就不像设计了，那是「该改文案」的信号。
+ *    到下限后仍溢出，宁可让它溢出 —— 那说明这不是排版问题，是文案问题。
+ */
+export function fitScale(
+  text: string,
+  fontSizePx: number,
+  footprintWidthPx: number,
+  paddingPx = 0,
+  minScale = 0.7,
+): number {
+  if (!text) return 1;
+  const needed = estimateTextWidthPx(text, { fontSizePx });
+  const available = Math.max(1, footprintWidthPx - paddingPx * 2);
+  if (needed <= available) return 1;
+  return Math.max(minScale, available / needed);
 }
 
 /** 满铺一格（footprint 通常不占满屏，但强调类模板需要溢出可见）。 */

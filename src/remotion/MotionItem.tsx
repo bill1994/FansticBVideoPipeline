@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import type { StoryboardItem } from '../core/types.ts';
 import { getTemplate } from '../templates/registry.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
@@ -35,6 +35,9 @@ export const MotionItem: FC<{
   children?: ReactNode;
 }> = ({ trackId, itemIndex, item, caption, children }) => {
   const frame = useCurrentFrame();
+  // 画面宽度（P6）：模板要用它把 `footprint` 换算成像素宽，才能判断文字放不放得下。
+  // P4 之后画面宽度不再是常量（竖屏/任意分辨率），不能由模板自己假设 1920。
+  const { width: canvasWidth } = useVideoConfig();
   const tpl = getTemplate(item.motion);
   const Component = getTemplateComponent(item.motion);
   const cap = caption ?? EMPTY_CAPTION;
@@ -58,6 +61,7 @@ export const MotionItem: FC<{
         durationInFrames={item.durationInFrames}
         item={item}
         caption={cap}
+        canvasWidth={canvasWidth}
       >
         {children}
       </Component>

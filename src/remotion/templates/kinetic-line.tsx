@@ -15,7 +15,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, SHADOW } from '../tokens.ts';
-import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 支持的入场预设。**封闭枚举** —— 键就是 `params.enter` 的合法取值。
@@ -52,10 +52,14 @@ function resolveEnter(v: string): EnterPresetValue {
   return (ENTER_PRESETS as Record<string, EnterPresetValue>)[v] ?? ENTER_PRESETS['from-left'];
 }
 
-export const KineticLine: TemplateComponent = ({ frame, durationInFrames, item }) => {
+export const KineticLine: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const text = str(item.params, 'text');
   const preset = resolveEnter(str(item.params, 'enter'));
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
+
+  // P6：放不下就等比缩小（下限 0.7），保证长文案**不出画面**。
+  // 54 = 下方 fontSize；20 = paddingLeft 16 + 左侧竖条 4（与样式保持同一份数字）。
+  const fit = fitScale(text, 54, item.footprint[2] * (canvasWidth ?? 1920), 20);
 
   const scale = preset.scale
     ? 1 + (preset.scale - 1) * (1 - enter)
@@ -87,7 +91,10 @@ export const KineticLine: TemplateComponent = ({ frame, durationInFrames, item }
           lineHeight: 1.1,
           whiteSpace: 'nowrap',
           opacity: enter * (1 - exit),
-          transform: `translate(${preset.dx * (1 - enter)}px, ${preset.dy * (1 - enter)}px) scale(${scale * exitScale})`,
+          // `* fit`（P6）：入场位移与缩放都保留，只把最终尺寸再压到框内。
+          transform: `translate(${preset.dx * (1 - enter)}px, ${preset.dy * (1 - enter)}px) scale(${scale * exitScale * fit})`,
+          // 左对齐的模板必须从左边缩，否则缩完左侧凭空多出留白
+          transformOrigin: 'left center',
           // 强调词左侧的竖条：宽度随入场增长，是「动态感」的第二个来源
           borderLeft: `4px solid ${COLOR.brand}`,
           paddingLeft: 16,

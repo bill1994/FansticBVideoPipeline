@@ -478,7 +478,8 @@ export function checkSubjectUnknown(ctx: ValidateContext): ReportItem[] {
         [shot.id],
         [shot.fromFrame, shot.fromFrame + shot.durationInFrames],
         `shot ${shot.id} 的主体归属为低置信，安全区未确`,
-        '不阻断。人工在 06-review/confirmed.json 里补 subjectBox 覆盖后才算确定。',
+        '不阻断。人工核验后改 02-perceive/shots.json 的 subjectBox / safeArea —— ' +
+          '改完须重跑 storyboard（下游依赖 02）。confirmed.json 没有这个字段。',
       ),
     );
   }
@@ -491,7 +492,8 @@ export function checkSubjectUnknown(ctx: ValidateContext): ReportItem[] {
         [r.id],
         [r.fromFrame, r.fromFrame + r.durationInFrames],
         `区域 ${r.id}（${r.kind}）为低置信检测结果`,
-        '不阻断。人工核验后补 subjectBox 覆盖。',
+        '不阻断。人工核验后改 02-perceive/regions.json 的 box（或 shots.json 的 subjectBox），' +
+          '改完须重跑 storyboard。',
       ),
     );
   }

@@ -67,36 +67,11 @@ export interface BuiltinPerceiveResult {
 }
 
 /** 用 ffprobe 读视频分辨率。 */
-export function probeVideoSize(videoPath: string): { width: number; height: number } {
-  const r = spawnSync(
-    'ffprobe',
-    [
-      '-v', 'error',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=width,height',
-      '-of', 'default=noprint_wrappers=1:nokey=0',
-      videoPath,
-    ],
-    { encoding: 'utf8' },
-  );
-  if (r.error || r.status !== 0) {
-    throw new ConfigError(
-      `读取视频尺寸失败（需要系统 ffprobe）：${r.error?.message ?? r.stderr?.trim()}`,
-    );
-  }
-  const kv = Object.fromEntries(
-    r.stdout
-      .trim()
-      .split('\n')
-      .map((line) => line.split('=') as [string, string]),
-  );
-  const width = Number(kv.width);
-  const height = Number(kv.height);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new ConfigError(`ffprobe 返回的分辨率非法：${r.stdout.trim()}`);
-  }
-  return { width, height };
-}
+// 尺寸探测的唯一实现在 `core/video-size.ts`（2026-10-19 `P4`）：
+// `render` 也需要它，留在本文件会让「05 依赖 02」形成跨级依赖。
+import { probeVideoSize } from '../core/video-size.ts';
+
+export { probeVideoSize };
 
 /** 按固定帧字节数切分流（ffmpeg rawvideo 的 chunk 边界不对齐帧）。 */
 async function* readRawFrames(

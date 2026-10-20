@@ -50,6 +50,14 @@ import { mk } from './item.ts';
  *    相对 1920×1080 标定的（Remotion `Root.tsx` 的 Composition 尺寸）。
  *    换分辨率须同步调整字号，否则判定失准 —— 与「改 fps 必须重新烘焙」同理。
  */
+/**
+ * 画面宽度的**缺省值**（不是唯一基准）。
+ *
+ * 🔴 2026-10-19 `P4` 之后画面宽度进契约（`source.json` 的 `width`/`height`），
+ *    校验改用 `ctx.source.width ?? FRAME_WIDTH_PX` —— 否则竖屏素材（1080 宽）
+ *    会被按 1920 估算，**系统性漏报溢出**。
+ *    此常量只在清单未填时兜底，与 `core/video-size.ts` 的 `DEFAULT_RENDER_WIDTH` 同值。
+ */
 const FRAME_WIDTH_PX = 1920;
 
 /** 各类字符的宽度估算系数（em 倍数）。 */
@@ -106,7 +114,7 @@ function widthKeysOf(s: SceneItem): string[] {
   return out;
 }
 
-function checkOne(s: SceneItem): ReportItem[] {
+function checkOne(s: SceneItem, canvasWidth: number): ReportItem[] {
   const out: ReportItem[] = [];
   const metrics = s.tpl.textMetrics;
   // 省略 textMetrics = 该模板无可测文本（载体类 / fullscreen / 字幕带）
@@ -115,7 +123,7 @@ function checkOne(s: SceneItem): ReportItem[] {
 
   const slack = metrics.slackRatio ?? 0.15;
   const [, , fw] = s.item.footprint;
-  const available = fw * FRAME_WIDTH_PX - (metrics.paddingPx ?? 0);
+  const available = fw * canvasWidth - (metrics.paddingPx ?? 0);
   const limit = available * (1 + slack);
 
   for (const key of widthKeysOf(s)) {
@@ -149,5 +157,7 @@ function checkOne(s: SceneItem): ReportItem[] {
 
 /** #17 文本溢出。遍历全部 item，不因某项非法而剔除（与 #16 同纪律）。 */
 export function checkTextOverflow(ctx: ValidateContext): ReportItem[] {
-  return ctx.scene.flatMap(checkOne);
+  // P4 之后画面宽度可能不是 1920（竖屏 / 任意分辨率），估算基准必须跟着走。
+  const canvasWidth = ctx.source.width ?? FRAME_WIDTH_PX;
+  return ctx.scene.flatMap((s) => checkOne(s, canvasWidth));
 }

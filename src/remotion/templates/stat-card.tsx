@@ -9,7 +9,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { footprintStyle, fitScale, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 🔴 **刻意不做 digit roll（数字滚动）** —— 虽然 D3b 把 `DigitRoll.tsx`
@@ -28,10 +28,13 @@ import { footprintStyle, str, type TemplateComponent } from './contract.tsx';
  *
  * ⇒ 若后续要做，先立裁决再实现，不要在组件里"顺手解析一下"。
  */
-export const StatCard: TemplateComponent = ({ frame, durationInFrames, item }) => {
+export const StatCard: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const value = str(item.params, 'value');
   const unit = str(item.params, 'unit');
   const { enter, exit } = enterExitProgress(frame, durationInFrames);
+
+  // P6：`value` 放不下就等比缩小（下限 0.7）。44 = 下方 fontSize；51 = padding 24×2 + border 1.5×2。
+  const fit = fitScale(value, 44, item.footprint[2] * (canvasWidth ?? 1920), 51);
 
   return (
     <div
@@ -58,7 +61,10 @@ export const StatCard: TemplateComponent = ({ frame, durationInFrames, item }) =
           opacity: enter * (1 - exit),
           // 入场从 0.9 放大到 1（卡片"落定"），出场再缩到 0.96 ——
           // 与 tag-float 的上浮是不同方向的动态，一静一动。
-          transform: `scale(${0.9 + 0.1 * enter - 0.04 * exit})`,
+          // `* fit`（P6）：入场「落定」的缩放保留，只把最终尺寸再压到框内。
+          transform: `scale(${(0.9 + 0.1 * enter - 0.04 * exit) * fit})`,
+          // 卡片居中，从中心缩不会偏心
+          transformOrigin: 'center center',
           maxWidth: '100%',
         }}
       >

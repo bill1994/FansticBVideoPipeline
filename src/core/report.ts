@@ -45,6 +45,28 @@ export interface ValidateReport {
     extra: string[];
   };
   items: ReportItem[];
+  /**
+   * 人工审核队列（`P2` 裁决，2026-10-19）。
+   *
+   * 🔴 **为什么加**：`item.decision.review` 算出来之后**零消费者** ——
+   * 产路地板把 `custom` 抬到 `must_review`，但没有任何地方把它变成「请你去看这几条」。
+   * 本项目没有审片 UI，这套分级唯一的落地方式就是**一份清单**。
+   *
+   * 只收 `must_review`：`alternatives` 语义是「有备选待选」，而本项目**没有备选机制**，
+   * 收了只会制造噪音。
+   *
+   * ⚠️ 它**不是校验项**，不改 `summary.checked`，也不影响 `ok`。
+   * 空队列时整个字段省略（不是空数组）—— 未出现即「没有要看的」。
+   */
+  reviewQueue?: ReviewQueueEntry[];
+}
+
+/** 人工审核队列的一条。 */
+export interface ReviewQueueEntry {
+  /** `trackId/000`，与报告条目的定位格式一致。 */
+  ref: string;
+  /** `family/subtype@version`。 */
+  motion: string;
 }
 
 /** itemIndex 补零到 3 位，与 SPEC §2.9 示例的 `typo-a/000` 一致。 */
@@ -96,5 +118,15 @@ export function formatSummary(report: ValidateReport): string {
     lines.push(`   ${i.level === 'error' ? '✗' : '!'} ${i.code}${t} ${i.message}`);
     if (i.hint) lines.push(`     ↳ ${i.hint}`);
   }
+
+  // 人工审核队列（P2）：把 `decision.review === 'must_review'` 变成「请你去看这几条」。
+  // 本项目没有审片 UI —— 这份清单是该分级唯一的落地方式。
+  const queue = report.reviewQueue ?? [];
+  if (queue.length > 0) {
+    lines.push(`   👀 人工审核队列（must_review）${queue.length} 条：`);
+    for (const q of queue) lines.push(`     · ${q.ref}  ${q.motion}`);
+    lines.push('     ↳ 产路地板把 custom 产路抬到 must_review；这些条目建议逐条看片确认。');
+  }
+
   return lines.join('\n');
 }

@@ -39,3 +39,31 @@ export class ConfigError extends Error {
 export class StageBlockedError extends Error {
   override readonly name = 'StageBlockedError';
 }
+
+/**
+ * 渲染执行失败（Remotion 进程非零退出 / 产出为空）。
+ *
+ * 🔴 2026-10-19 端到端审计：此前 `render.ts` 在失败时抛的是 `ConfigError`，
+ * 而 CLI 把 `ConfigError` 一律映射成 **退出码 2**（参数错）——
+ * 于是错误文案写着「渲染失败（退出码 4）」，实际进程退出码是 2。
+ * **报错信息自己报错了自己的退出码**，按文档写的监控逻辑永远对不上。
+ *
+ * 这个类型存在的唯一意义，就是让「4 = 渲染失败」这条约定真的成立。
+ */
+export class RenderFailedError extends Error {
+  override readonly name = 'RenderFailedError';
+}
+
+/**
+ * 异常 → 进程退出码的**唯一映射**。
+ *
+ * 抽成函数是为了可单测：映射逻辑原先内联在 `cli.ts` 的 `catch` 里，
+ * 而它是「文档承诺 `$? == 4` 就渲失败」这条约定的**唯一实现点** ——
+ * 不可测的约定等于没有约定。
+ */
+export function exitCodeFor(e: unknown): ExitCode {
+  if (e instanceof ConfigError) return EXIT.BAD_ARGS;
+  if (e instanceof StageBlockedError) return EXIT.VALIDATION_FAILED;
+  if (e instanceof RenderFailedError) return EXIT.RENDER_FAILED;
+  return EXIT.INTERNAL;
+}

@@ -109,7 +109,22 @@ export function runValidation(ctx: ValidateContext): ValidateReport {
     ...checkSubjectUnknown(ctx), // W-F6-01（F6）
   ];
 
-  return buildReport(ctx.jobId, items, DOCUMENTED_CHECK_ITEMS.length, [...EXTRA_CHECKS]);
+  const report = buildReport(ctx.jobId, items, DOCUMENTED_CHECK_ITEMS.length, [...EXTRA_CHECKS]);
+
+  /**
+   * 人工审核队列（`P2` 裁决，2026-10-19）—— 让 `decision.review` 真正产生后果。
+   *
+   * 产路地板把 `custom` 抬到 `must_review` 之后，此前**没有任何消费者**：
+   * 算完写进 `storyboard.json` 就没人看了。本项目没有审片 UI，
+   * 这套分级唯一的落地方式就是「给一份该看哪几条的清单」。
+   *
+   * ⚠️ 不是校验项：不进 `checked`、不影响 `ok`、不产 `ReportItem`。
+   */
+  const reviewQueue = ctx.scene
+    .filter((s) => s.item.decision?.review === 'must_review')
+    .map((s) => ({ ref: s.ref, motion: s.item.motion }));
+
+  return reviewQueue.length > 0 ? { ...report, reviewQueue } : report;
 }
 
 // 注：曾有 `validateJob(jobId)` = `runValidation(buildContext(...))` 的便利包装，

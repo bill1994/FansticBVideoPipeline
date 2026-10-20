@@ -5,9 +5,9 @@ import { Overlay, type RenderProps } from './Overlay.tsx';
 /**
  * 合成入口。
  *
- * 时长与 fps 不写死 —— 它们必须来自 `05-render/render-props.json`
- * （由 storyboard.meta.fps 与 00-input/source.json 的 durationInFrames 决定）。
- * 写死会让「fps 与烘焙绑定」这条约束形同虚设。
+ * 时长 / fps / **画面尺寸**都不写死 —— 它们必须来自 `05-render/render-props.json`
+ * （尺寸由 `core/video-size.ts` 的 `resolveRenderSize()` 决定：清单 → ffprobe → 兜底）。
+ * 写死会让「fps 与烘焙绑定」与「素材分辨率进契约」两条约束同时形同虚设。
  */
 
 const DEFAULT_RENDER_PROPS: RenderProps = {
@@ -38,9 +38,12 @@ const TypedComposition = Composition as unknown as FC<{
   fps: number;
   durationInFrames: number;
   defaultProps: RenderProps;
-  calculateMetadata: (args: {
-    props: RenderProps;
-  }) => { fps: number; durationInFrames: number };
+  calculateMetadata: (args: { props: RenderProps }) => {
+    fps: number;
+    durationInFrames: number;
+    width: number;
+    height: number;
+  };
 }>;
 
 export const RemotionRoot = () => {
@@ -57,6 +60,9 @@ export const RemotionRoot = () => {
         fps: props.fps,
         // Remotion 要求 durationInFrames ≥ 1；素材时长为 0 时给出显式下限而非静默截断
         durationInFrames: Math.max(1, props.durationInFrames),
+        // P4：素材分辨率进契约后，画面尺寸由 props 决定（缺省 1920×1080，与旧行为等价）
+        width: props.width ?? 1920,
+        height: props.height ?? 1080,
       })}
     />
   );

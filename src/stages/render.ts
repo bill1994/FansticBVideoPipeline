@@ -15,8 +15,15 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { REMOTION_VERSION, STAGES } from '../core/config.ts';
-import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
+import { ConfigError, RenderFailedError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
+import { lookupConfirmed, readConfirmedRecords } from '../core/confirmed.ts';
+import {
+  DEFAULT_RENDER_HEIGHT,
+  DEFAULT_RENDER_WIDTH,
+  probeVideoSize,
+  resolveRenderSize,
+} from '../core/video-size.ts';
 import { log } from '../core/log.ts';
 import type { ValidateReport } from '../core/report.ts';
 import type { SourceManifest } from '../core/types.ts';
@@ -40,33 +47,12 @@ export interface RenderOutcome {
 }
 
 /**
- * 06-review/confirmed.json —— 人工放行闸的落点（F3）。
+ * 06-review/confirmed.json 的**唯一入口在 `core/confirmed.ts`**（2026-10-19 上提）。
  *
- * **F3 不只服务对齐降级**：它同时承载 D3-a 的 fullscreen 确认，故 `stage` 含 `render`。
- *
- * | 字段 | 承载 | 语义 |
- * |------|------|------|
- * | `overrides` | C2-4 降级放行 | **改了什么**（field/from/to）|
- * | `acknowledgedFullscreen` | D3-a | **确认了哪些**（原样放行，没有「改」）|
+ * 为什么不再定义在本文件：`storyboard` 也需要读同一份记录（alignment 放行），
+ * 若它从 `stages/render` 导入，会形成「03 依赖 05」的跨级依赖。
+ * 放 `core/` 后两边共用同一份解析与结构校验，且 `stage` 字段真正参与判定。
  */
-export interface ConfirmedRecord {
-  jobId: string;
-  stage: 'alignment' | 'storyboard' | 'validate' | 'render';
-  reason: string;
-  confirmedBy: string;
-  confirmedAt: string;
-  overrides?: { itemId: string; field: string; from: unknown; to: unknown }[];
-  /**
-   * D3-a：已人工确认的 fullscreen item ref（`trackId/000` 形式）。
-   * 必须覆盖 storyboard 内**全部** fullscreen 项，否则 render 启动闸拒绝启动。
-   */
-  acknowledgedFullscreen?: string[];
-}
-
-export function readConfirmed(jobId: string, jobsDir?: string): ConfirmedRecord | null {
-  const f = path.join(jobDir(jobId, jobsDir), STAGES.review, 'confirmed.json');
-  return exists(f) ? readJson<ConfirmedRecord>(f) : null;
-}
 
 /** 启动闸。返回 null 表示放行；否则返回阻止原因。 */
 export function renderGate(jobId: string, jobsDir?: string): string | null {
@@ -83,7 +69,20 @@ export function renderGate(jobId: string, jobsDir?: string): string | null {
   const ctx = buildContext(jobId, jobsDir);
   const fullscreenRefs = ctx.scene.filter((s) => s.tpl.scope === 'fullscreen').map((s) => s.ref);
   if (fullscreenRefs.length > 0) {
-    const confirmed = readConfirmed(jobId, jobsDir);
+    const { record: confirmed, available } = lookupConfirmed(jobId, 'render', jobsDir);
+
+    // 🔴 `stage` 必须匹配（2026-10-19 实测缺口）：此前只取 `acknowledgedFullscreen`，
+    //    于是 `stage: "alignment"` 的文件也能放行 render 闸 —— 一张旧凭据通吃所有关卡。
+    if (!confirmed && available.length > 0) {
+      return (
+        `06-review/confirmed.json 里没有 stage:"render" 的记录（现有：${available.join(', ')}）。\n` +
+        `  该文件支持多条记录，请**追加**一条 render 记录，不要覆盖已有的：\n` +
+        `    { "jobId": "${jobId}", "stage": "render", "reason": "...",\n` +
+        `      "confirmedBy": "...", "confirmedAt": "...", "acknowledgedFullscreen": [...] }\n` +
+        `  ↳ 写在 \`{"records": [...]}\` 数组里（顶层单条记录的旧写法仍兼容）。`
+      );
+    }
+
     const acked = new Set(confirmed?.acknowledgedFullscreen ?? []);
     const unacked = fullscreenRefs.filter((r) => !acked.has(r));
     if (unacked.length > 0) {
@@ -217,6 +216,57 @@ export function runRender(opts: RenderOptions): RenderOutcome {
 
   fs.mkdirSync(outDir, { recursive: true });
   const videoAbs = path.join(base, STAGES.input, source.video);
+
+  /**
+   * 画面尺寸（`P4` 裁决，2026-10-19）：**清单 → ffprobe → 兜底**。
+   *
+   * 此前 `Root.tsx` 把 `Composition` 的宽高硬编码 1920×1080，而 `SourceManifest`
+   * 没有 width/height ⇒ **素材分辨率根本不进契约**。实测：640×360 素材渲出 1080p，
+   * 竖屏素材无路可走。
+   *
+   * ffprobe 不可用**不阻断渲染**（它只是「尺寸从哪来」的第二来源）——
+   * 但会在日志里说清楚走的是哪一条路。
+   */
+  const probed = (() => {
+    if (source.width !== undefined && source.height !== undefined) return null;
+    if (!fs.existsSync(videoAbs)) return null;
+    try {
+      return probeVideoSize(videoAbs);
+    } catch {
+      return null;
+    }
+  })();
+  const size = resolveRenderSize(source, probed);
+
+  /**
+   * 人工改动留痕（`P3` 裁决，2026-10-19）。
+   *
+   * `ConfirmedRecord.overrides` 此前**零消费者**：人工签字说「我把 fromFrame
+   * 从 120 改到 135」，而没有任何代码读它 —— 签字只进了文件，没进任何流程。
+   *
+   * ⚠️ 这里**只做告警 + 留档，不做回放校验**：`overrides.field` 的路径格式
+   *    还没有契约（`fromFrame`？`footprint.0`？），贸然做值比对会引入新的猜谜。
+   *    先把「本次有 N 处人工改动」变成可见事实，值校验等字段路径定下来再说。
+   */
+  const overrides = readConfirmedRecords(opts.jobId, opts.jobsDir).flatMap((r) =>
+    (r.overrides ?? []).map((o) => ({ stage: r.stage, ...o })),
+  );
+  if (overrides.length > 0) {
+    log.warn(
+      `本 job 有 ${overrides.length} 处人工改动（06-review/confirmed.json 的 overrides）—— ` +
+        `这是「签字说改了什么」，**未自动校验是否与产物一致**。`,
+    );
+  }
+  if (size.from === 'default') {
+    log.warn(
+      `未能确定画面尺寸（source.json 未填 width/height，且读不到视频）→ ` +
+        `按 ${DEFAULT_RENDER_WIDTH}×${DEFAULT_RENDER_HEIGHT} 渲染。` +
+        `竖屏素材请在 00-input/source.json 填 width/height。`,
+    );
+  } else if (size.from === 'ffprobe') {
+    log.info(`画面尺寸：${size.width}×${size.height}（ffprobe 从素材读得）`);
+  }
+
   // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
   const propsFile = writeStageJson({
     jobId: opts.jobId,
@@ -228,6 +278,9 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     jobId: opts.jobId,
     fps: source.fps,
     durationInFrames: source.durationInFrames,
+    // 画面尺寸（P4）：由 `Root.tsx` 的 calculateMetadata 透传给 Composition
+    width: size.width,
+    height: size.height,
     // 🔴 2026-10-18 实测修正：**不能传 `../00-input/x.mp4`，也不能只传文件名**。
     //   `<OffthreadVideo src>` 由 Remotion 的静态服务器解析，而该服务器把 URL 路径
     //   映射到 **bundle 目录**（`--public-dir` 的内容被复制进 `bundle/public/`）。
@@ -268,12 +321,58 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     '--log=verbose',
   ];
   log.info(`npx ${args.join(' ')}`);
+  const startedAt = Date.now();
   try {
     execFileSync('npx', args, { stdio: 'inherit', shell: true });
   } catch (e) {
-    throw new ConfigError(`渲染失败（退出码 4）：${(e as Error).message}`);
+    // 🔴 渲染失败是**独立语义**（退出码 4），不能混进「参数错(2)」。
+    //    此前抛 ConfigError ⇒ CLI 一律映射成 2，而文案还写着「退出码 4」。
+    throw new RenderFailedError(
+      `渲染失败：${(e as Error).message}\n` +
+        `  成片目标：${outVideo}\n` +
+        `  命令：npx ${args.join(' ')}`,
+    );
   }
+  const wallMs = Date.now() - startedAt;
+  const bytes = fs.existsSync(outVideo) ? fs.statSync(outVideo).size : 0;
 
-  log.done(`成片：${outVideo}。请记录墙钟时长与 CPU 峰值（F4 基准量化）。`);
+  /**
+   * F4 基准量化 —— 墙钟与产物大小落盘，供多次取样取中位数。
+   *
+   * ⚠️ `cpuPeakPercent` 写 `null` 而不是 0：`execFileSync` 不暴露子进程 rusage，
+   *    本项目拿不到真实 CPU 峰值。`null` = 没测，`0` = 测了且为空闲 —— 同
+   *    `silentWordRatio` 的口径（写 0 会让「没测过」看起来像「测过且完美」）。
+   */
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.render,
+    target: STAGES.render,
+    file: 'render-report.json',
+    jobsDir: opts.jobsDir,
+    data: {
+      jobId: opts.jobId,
+      outFile: path.basename(outVideo),
+      bytes,
+      durationInFrames: source.durationInFrames,
+      fps: source.fps,
+      // 尺寸及其来源（P4）：`manifest` / `ffprobe` / `default` 三选一，便于事后追溯
+      width: size.width,
+      height: size.height,
+      sizeFrom: size.from,
+      wallMs,
+      wallHuman: `${Math.floor(wallMs / 60000)}m${Math.round((wallMs % 60000) / 1000)}s`,
+      command: `npx ${args.join(' ')}`,
+      gl: 'angle',
+      cpuPeakPercent: null,
+      note: 'cpuPeakPercent=null 表示未采集：execFileSync 不暴露子进程 rusage',
+      // P3：人工改动清单（空数组 = 读了且没有；不像 null 那样含混）
+      manualOverrides: overrides,
+    },
+  });
+
+  log.done(
+    `成片：${outVideo}（${(bytes / 1024 / 1024).toFixed(1)} MB，墙钟 ${(wallMs / 1000).toFixed(1)}s）` +
+      `。F4 基准已写入 05-render/render-report.json。`,
+  );
   return { propsFile, stacks };
 }
