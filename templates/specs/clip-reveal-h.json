@@ -1,0 +1,38 @@
+{
+  "specVersion": 1,
+  "id": "custom/clip-reveal-h@1.0",
+  "layer": 64,
+  "footprint": [0.1, 0.58, 0.8, 0.2],
+  "minVisibleInFrames": 28,
+  "occludesSubject": false,
+  "_note": "横向裁切揭示：clip 从右往左收，文字像被一条竖线扫开。⚠️ 这**不是**逐字打字机——裁切边界会从字符中间扫过，边缘出现半个字（实测「逐」字被竖直切开）。真逐字需要每个字一个独立图元 + stagger 错峰，当前「一个 spec 一个 text 图元」的结构表达不了。取名 clip-reveal-h 而非 typewriter，就是为了不误导后来者。",
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 60,
+      "weight": 700,
+      "align": "left",
+      "paddingPx": 18
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 1 },
+        { "t": "1f", "v": 1 }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "clip",
+      "keys": [
+        { "t": "1f", "v": "0,100,0,0", "ease": "linear" },
+        { "t": "24f", "v": "0,0,0,0", "ease": "linear" }
+      ]
+    }
+  ]
+}

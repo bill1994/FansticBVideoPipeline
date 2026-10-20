@@ -1,0 +1,38 @@
+{
+  "specVersion": 1,
+  "id": "custom/wipe-reveal@1.0",
+  "layer": 62,
+  "footprint": [0.12, 0.5, 0.76, 0.22],
+  "minVisibleInFrames": 28,
+  "occludesSubject": false,
+  "_note": "自上而下揭幕：起始只保留顶部一条细线（bottom 裁掉 100%），16 帧内展开到完整高度。缓动用 inOut 而非 expoOut —— expoOut 在 p=0.47 时已走完 96%，16 帧的揭幕会变成「瞬间出现」，看不出展开过程。文字本身不位移——位移会让人以为是'滑入'而不是'揭开'。",
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 64,
+      "weight": 900,
+      "align": "center",
+      "paddingPx": 16
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 1 },
+        { "t": "1f", "v": 1 }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "clip",
+      "keys": [
+        { "t": "1f", "v": "0,0,100,0", "ease": "inOut" },
+        { "t": "16f", "v": "0,0,0,0", "ease": "inOut" }
+      ]
+    }
+  ]
+}

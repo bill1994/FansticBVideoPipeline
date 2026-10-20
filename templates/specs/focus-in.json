@@ -1,0 +1,46 @@
+{
+  "specVersion": 1,
+  "id": "custom/focus-in@1.0",
+  "layer": 60,
+  "footprint": [0.12, 0.66, 0.76, 0.16],
+  "minVisibleInFrames": 24,
+  "occludesSubject": false,
+  "_note": "镜头合焦：文字从失焦(blur 8px)+1.15 倍，12 帧内聚焦清晰并缩到 1.0 倍。blur 与 scale 同时收敛才像对焦，只做一个会像'淡入'或'放大'。",
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 52,
+      "weight": 700,
+      "align": "center",
+      "paddingPx": 20
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "1f", "v": 0, "ease": "out" },
+        { "t": "5f", "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "blur",
+      "keys": [
+        { "t": "1f", "v": 8, "ease": "out" },
+        { "t": "12f", "v": 0, "ease": "out" }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "scale",
+      "keys": [
+        { "t": "1f", "v": 1.15, "ease": "out" },
+        { "t": "12f", "v": 1, "ease": "out" }
+      ]
+    }
+  ]
+}
