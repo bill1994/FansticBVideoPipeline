@@ -13,6 +13,11 @@ import { BUILTIN_TEMPLATES } from './builtin.ts';
 import { FAMILIES, SCOPES, type TemplateDeclaration } from './types.ts';
 
 const registry = new Map<string, TemplateDeclaration>();
+/** 自定义模板的来源标注（仅用于重复注册时的诊断；内置模板不需要）。 */
+const registeredSources = new Map<string, string>();
+/** 内置模板 id 集合 —— 用于区分「覆盖内置」与「自定义重复」两种错误。 */
+const BUILTIN_IDS = new Set(BUILTIN_TEMPLATES.map((t) => t.id));
+
 for (const t of BUILTIN_TEMPLATES) {
   if (registry.has(t.id)) {
     throw new ConfigError(`模板 id 重复：${t.id}`);
@@ -20,9 +25,47 @@ for (const t of BUILTIN_TEMPLATES) {
   registry.set(t.id, t);
 }
 
-/** 注册一个模板（供使用方扩展自有模板库）。 */
-export function registerTemplate(t: TemplateDeclaration): void {
+/**
+ * 注册一个模板（供使用方扩展自有模板库）。
+ *
+ * 🔴 **不静默覆盖**（2026-10-20 修复）：原实现直接 `registry.set(t.id, t)`，
+ * 同 id 会**静默替换内置模板** —— 一处 `registerTemplate` 就能改掉
+ * `caption/karaoke-word` 的 `minVisibleInFrames` 或 `scope`，而全链路无任何提示。
+ * 这与「定义了就该能被读出来」同源：覆盖行为不报错，就不会有人知道模板被换过。
+ *
+ * @param t 模板声明
+ * @param source 可选来源标注（测试夹具名 / 文件路径），仅用于重复注册的诊断
+ * @throws ConfigError 覆盖内置模板、或自定义 id 重复时抛（退出码 2）
+ */
+export function registerTemplate(t: TemplateDeclaration, source?: string): void {
+  if (registry.has(t.id)) {
+    if (BUILTIN_IDS.has(t.id)) {
+      throw new ConfigError(
+        `不得覆盖内置模板：${t.id}\n` +
+          `  内置模板由 templates/builtin.ts 声明 —— 要改行为请新增版本（如 @1.1），` +
+          `不要用 registerTemplate 替换；否则校验/渲染看到的是改过的声明，而产物无从追溯。`,
+      );
+    }
+    const from = registeredSources.get(t.id);
+    throw new ConfigError(
+      `模板 id 重复：${t.id}${from === undefined ? '' : `（已由 ${from} 注册）`}`,
+    );
+  }
   registry.set(t.id, t);
+  if (source !== undefined && source !== '') registeredSources.set(t.id, source);
+}
+
+/**
+ * **仅供测试**：清空自定义注册，保留内置模板。
+ *
+ * 生产代码不得调用 —— 它存在只是为了让测试能在同一进程内复用 id
+ * （注册表现在拒绝静默覆盖，测试之间必须显式清理）。
+ */
+export function __resetRegistryForTests(): void {
+  for (const id of [...registry.keys()]) {
+    if (!BUILTIN_IDS.has(id)) registry.delete(id);
+  }
+  registeredSources.clear();
 }
 
 export function listTemplates(): TemplateDeclaration[] {

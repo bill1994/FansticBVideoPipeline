@@ -94,22 +94,25 @@ export const OCCLUDER_MOTION = 'test/occluding-overlay@1.0';
 
 export function makeOccludingItem(over: Partial<StoryboardItem> = {}): StoryboardItem {
   if (occluderSeq === 0) {
-    registerTemplate({
-      id: OCCLUDER_MOTION,
-      family: 'custom',
-      subtype: 'occluding-overlay',
-      version: '1.0',
-      scope: 'overlay-safe',
-      layer: 60,
-      occludesSubject: true, // ← 唯一关键点：让它进入遮挡判定
-      status: 'custom',
-      // ⚠️ 空paramsSchema：夹具不承载任何参数。故下面 `params: {}` 必须是空对象 ——
-      //    沿用 makeItem() 的默认 `{ text: 't' }` 会触发校验项 #16 的 E-P1-01
-      //    （参数含未声明键），那是与遮挡测试无关的噪音报错。
-      paramsSchema: {},
-      footprint: [0.05, 0.72, 0.3, 0.16],
-      minVisibleInFrames: 1,
-    });
+    registerTemplate(
+      {
+        id: OCCLUDER_MOTION,
+        family: 'custom',
+        subtype: 'occluding-overlay',
+        version: '1.0',
+        scope: 'overlay-safe',
+        layer: 60,
+        occludesSubject: true, // ← 唯一关键点：让它进入遮挡判定
+        status: 'custom',
+        // ⚠️ 空paramsSchema：夹具不承载任何参数。故下面 `params: {}` 必须是空对象 ——
+        //    沿用 makeItem() 的默认 `{ text: 't' }` 会触发校验项 #16 的 E-P1-01
+        //    （参数含未声明键），那是与遮挡测试无关的噪音报错。
+        paramsSchema: {},
+        footprint: [0.05, 0.72, 0.3, 0.16],
+        minVisibleInFrames: 1,
+      },
+      'tests/_ctx.ts#makeOccludingItem',
+    );
     occluderSeq += 1;
   }
   return makeItem({ motion: OCCLUDER_MOTION, params: {}, ...over });
