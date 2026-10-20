@@ -31,6 +31,7 @@ import {
   decideMotion,
   DEFINITION_WORDS,
   ENUM_WORDS,
+  hasContentAfterWord,
   parseCnNumber,
   QUESTION_PATTERNS,
   TURN_WORDS,
@@ -137,7 +138,10 @@ export function detectSignals(
   const text = cue.text ?? '';
   const signals: RhythmSignal[] = [];
 
-  if (containsAny(text, TURN_WORDS)) signals.push('turn');
+  // 🔴 依赖「其后内容」的四个信号要求词后 ≥2 个中文字（2026-10-20）：
+  //    词在句末（`…接近全自动但` / `…记住这一点很`）时它属于下一句，
+  //    本句不该命中 —— 否则 motion 会写下一句的文字，画面与文案错位。
+  if (hasContentAfterWord(text, TURN_WORDS)) signals.push('turn');
   if (containsAny(text, CONTRAST_WORDS)) signals.push('contrast');
   if (containsAny(text, ENUM_WORDS)) signals.push('enum');
   if (QUESTION_TAIL_RE.test(text) || containsAny(text, QUESTION_PATTERNS)) {
@@ -153,9 +157,13 @@ export function detectSignals(
     if (prevCount >= 12 && curCount <= prevCount * 0.5) signals.push('short-after-long');
   }
 
-  if (ctx.isLast === true || containsAny(text, CLOSING_WORDS)) signals.push('closing');
-  if (containsAny(text, DEFINITION_WORDS)) signals.push('definition');
-  if (containsAny(text, CAUSE_EFFECT_WORDS)) signals.push('cause-effect');
+  // `closing` 仍可由「末条 cue」触发（那与词后内容无关）；
+  // 由收束词触发时同样要求词后有内容。
+  if (ctx.isLast === true || hasContentAfterWord(text, CLOSING_WORDS)) {
+    signals.push('closing');
+  }
+  if (hasContentAfterWord(text, DEFINITION_WORDS)) signals.push('definition');
+  if (hasContentAfterWord(text, CAUSE_EFFECT_WORDS)) signals.push('cause-effect');
   if ((ctx.repeatedTerms ?? []).length > 0) signals.push('repetition');
 
   return signals;

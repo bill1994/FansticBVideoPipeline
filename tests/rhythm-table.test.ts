@@ -33,6 +33,17 @@ describe('detectSignals —— 10 个信号的正例与反例', () => {
     expect(signalsOf(NEUTRAL)).not.toContain('turn');
   });
 
+  it('🔴 信号词在句末（其后不足 2 字）→ 依赖上文的信号不命中', () => {
+    // demo cue3 原文：转折词被 SRT 切在句末，属于下一句，本句不该命中
+    const tail = '主体位置最后渲染出片整个流程接近全自动但';
+    expect(signalsOf(tail)).not.toContain('turn');
+    // 定义词 / 收束词同理
+    expect(signalsOf('这叫做')).not.toContain('definition');
+    expect(signalsOf('总之')).not.toContain('closing');
+    // cause-effect 同理
+    expect(signalsOf('因为')).not.toContain('cause-effect');
+  });
+
   it('contrast：否定 / 对比词', () => {
     expect(signalsOf('这件事没那么简单')).toContain('contrast');
     expect(signalsOf(NEUTRAL)).not.toContain('contrast');

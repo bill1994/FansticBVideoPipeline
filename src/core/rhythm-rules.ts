@@ -60,14 +60,15 @@ export interface MotionDecision {
 const STRONG_SIGNALS: readonly RhythmSignal[] = ['definition', 'number', 'closing'];
 
 /**
- * 安全文案长度上限（中文字符数）。
+ * 文案长度上限（中文字符数）。
  *
- * 🔴 12 是**安全线**，不是设计值：模板的 footprint 宽度有限，
- *    超过它就会触发校验项 #17（文本溢出）的告警。P1 是粗糙版提取，
- *    先把「能渲染、不溢出」放在「语义完整」之前；
- *    后续要提升文案质量，应改这里的策略，而不是在校验侧放宽阈值。
+ * 🔴 14 的依据：项目记录的真实溢出阈值是 **13–14 个中文字**
+ *    （`stat-card` 的 footprint 更窄，先撞线），且 `fitScaleFor` 有 **0.7 下限**兜底 ——
+ *    即最坏情况只缩到 70% 字号，不会无限缩小。
+ *    12 太保守：实测「关键节点必须停下来让人确认」= **13 字**，
+ *    按 12 会被切掉首字「关」。14 能完整保留这句。
  */
-const MAX_EXCERPT_CHARS = 12;
+const MAX_EXCERPT_CHARS = 14;
 
 /** 阿拉伯数字串（`stat-card.value` 的唯一来源）。 */
 const ARABIC_NUMBER_RE = /\d+(?:\.\d+)?/;
@@ -262,6 +263,39 @@ function cleanChars(text: string): string {
   return out;
 }
 
+/**
+ * 信号词**之后**是否还有至少 `minChars` 个可数中文字。
+ *
+ * 🔴 为什么信号判据需要它（2026-10-20 demo 实测）：
+ *    cue 文本可能在信号词处被切断 —— `…接近全自动但` / `…记住这一点很`。
+ *    此时转折/收束词属于**下一句**，本句并不该因此命中：
+ *    motion 是「这句话」的伴生图形，文案也必须来自这句；
+ *    跨 cue 拿下一句的文字会让「画面在说 A、motion 写 B」。
+ *
+ * 只用于**依赖其后内容**的信号（turn / closing / definition / cause-effect）。
+ * `contrast` / `enum` / `number` / `question` 不依赖后文，不受影响。
+ *
+ * @param text 原始 cue 文本
+ * @param words 信号词表
+ * @param minChars 其后至少需要的可数字符数（默认 2）
+ */
+export function hasContentAfterWord(
+  text: string,
+  words: readonly string[],
+  minChars = 2,
+): boolean {
+  const src = text ?? '';
+  for (const w of words) {
+    let i = src.indexOf(w);
+    while (i >= 0) {
+      const after = src.slice(i + w.length);
+      if ([...cleanChars(after)].length >= minChars) return true;
+      i = src.indexOf(w, i + w.length);
+    }
+  }
+  return false;
+}
+
 /** 该 cue 的最后一个短句 —— 无信号时的兜底位置。 */
 function lastClause(text: string): string {
   const clauses = splitClauses(text);
@@ -316,10 +350,9 @@ function questionClause(text: string): string {
 /**
  * 按**命中的信号**定位要展示的片段。
  *
- * 🔴 为什么不能「取前 12 字」（2026-10-20 实测推翻）：
+ * 🔴 为什么不能「固定取前 N 字」（2026-10-20 实测推翻）：
  *    中文口播的**重点通常在句子后半**。「主体位置最后渲染出片整个流程接近全自动但
- *    关键节点必须停下来让人确认」取前 12 字得到「主体位置最后渲染出片整个」——
- *    前半句全是铺垫，重点（关键节点/必须确认）全丢。
+ *    关键节点必须停下来让人确认」固定取头部只会拿到前半句铺垫，重点（关键节点/必须确认）全丢。
  *    只有按信号定位（转折词之后、定义词之后、否定词所在短句…）才抓得住重心。
  *
  * 优先级与规格表同序：turn → closing → definition → contrast → enum → question
@@ -357,11 +390,11 @@ function locateExcerpt(text: string, signals: readonly RhythmSignal[]): string |
 }
 
 /**
- * 规则化文案提取 —— **按信号定位**，不是「取前 12 字」。
+ * 规则化文案提取 —— **按信号定位**，不是「固定取前 N 字」。
  *
  * 规则（规格 2026-10-20）：
  *   1. 先按中文标点切短句，再按信号选目标段（见 `locateExcerpt`）
- *   2. 目标段超过 12 个中文字 → **保留尾部 12 字**（中文重心在后）
+ *   2. 目标段超过 14 个中文字 → **保留尾部 14 字**（中文重心在后）
  *   3. 目标段不足 2 个中文字 → 回退「最后一个短句」；仍不足 → `null`（该条降级）
  *
  * 仍然是**规则化提取**：它保证「非空、不溢出、可复现」，不保证语义通顺；

@@ -101,7 +101,7 @@ describe('decideMotion —— 模板门控与降级链', () => {
   });
 });
 
-describe('文案提取 —— 按信号定位（不是取前 12 字）', () => {
+describe('文案提取 —— 按信号定位（不是固定取前 N 字）', () => {
   it('turn：取转折词之后的片段', () => {
     expect(extractExcerpt('这个方案成本很高但效果特别好', ['turn'])).toBe('效果特别好');
     // 规格给出的真实句式：前半句是铺垫，重点在「但」之后
@@ -110,16 +110,20 @@ describe('文案提取 —— 按信号定位（不是取前 12 字）', () => {
     ).toContain('关键节点');
   });
 
-  it('turn：目标段超过 12 字 → 保留尾部 12 字（重心在后）', () => {
+  it('turn：目标段 13 字（关键节点…）→ 上限 14 完整保留', () => {
     const long =
       '主体位置最后渲染出片整个流程接近全自动但关键节点必须停下来让人确认';
     const out = extractExcerpt(long, ['turn'])!;
-    expect([...out].length).toBe(12);
+    expect(out).toBe('关键节点必须停下来让人确认'); // 13 字，未被切掉「关」
+    expect([...out].length).toBe(13);
     expect(out).not.toContain('主体位置');
-    expect(out.endsWith('确认')).toBe(true);
-    // ⚠️ 「但」之后的目标段是 13 字（关键节点必须停下来让人确认），
-    //    尾部 12 字会丢掉开头那个「关」——详见报告里的口径冲突说明。
-    expect(out).toBe('键节点必须停下来让人确认');
+  });
+
+  it('turn：目标段超过 14 字 → 保留尾部 14 字（重心在后）', () => {
+    const long = '前面都是铺垫但关键节点必须停下来让人确认然后再继续讲下一段';
+    const out = extractExcerpt(long, ['turn'])!;
+    expect([...out].length).toBe(14);
+    expect(long.endsWith(out)).toBe(true);
   });
 
   it('closing：取收束词之后的片段；无收束词则取最后一个短句', () => {
@@ -153,10 +157,10 @@ describe('文案提取 —— 按信号定位（不是取前 12 字）', () => {
     expect(extractExcerpt('a1两个')).toBe('a1两个');
   });
 
-  it('长度上限：任何情况下都不超过 12 字', () => {
+  it('长度上限：任何情况下都不超过 14 字', () => {
     const text = '一句话非常非常非常非常非常长没有标点';
     const out = extractExcerpt(text, [])!;
-    expect([...out].length).toBe(12);
+    expect([...out].length).toBe(14);
     expect(text.endsWith(out)).toBe(true); // 保留的是尾部，不是头部
   });
 
