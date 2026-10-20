@@ -6,14 +6,76 @@
  */
 
 import type { CSSProperties } from 'react';
-import type { MotionSpec, SpecTrack } from '../../core/spec.ts';
+import type { MotionSpec, SpecTextElement, SpecTrack } from '../../core/spec.ts';
+import { timeToFrame } from '../../core/spec.ts';
 import { SPEC_EASE } from '../tokens.ts';
 
-/** key 的 `t` → item 内绝对帧。number 按比例，`"Nf"` 直接取 N。 */
+/**
+ * key 的 `t` → item 内绝对帧。
+ *
+ * ⚠️ 与校验期共用 `core/spec.ts` 的 `parseTime`/`timeToFrame` —— 禁止第二套时间语法。
+ */
 export function keyFrameOf(t: number | string, durationInFrames: number): number {
-  if (typeof t === 'number') return t * Math.max(0, durationInFrames);
-  const n = Number.parseInt(t.slice(0, -1), 10);
-  return Number.isFinite(n) ? n : 0;
+  return timeToFrame(t, durationInFrames);
+}
+
+/**
+ * 图元级错峰偏移（帧）。
+ *
+ * `order: 'reverse'` 时反序：最后一个图元先动。
+ */
+export function elementOffsetOf(
+  spec: MotionSpec,
+  elementIndex: number,
+  durationInFrames: number,
+): number {
+  const stagger = spec.stagger;
+  if (!stagger) return 0;
+  const per = timeToFrame(stagger.perElement, durationInFrames);
+  const j =
+    stagger.order === 'reverse' ? spec.elements.length - 1 - elementIndex : elementIndex;
+  return j * per;
+}
+
+/**
+ * 渲染期自适应的每字间隔（帧）。
+ *
+ * `perUnit_eff = min(perUnit, max(1, (duration - holdFrames) / (n - 1)))`
+ * —— 保证最后几个字能在 item 结束前显示完，而不是被截掉。
+ */
+export function effectivePerUnit(
+  element: Pick<SpecTextElement, 'perUnit' | 'holdFrames'>,
+  charCount: number,
+  durationInFrames: number,
+): number {
+  const base = timeToFrame(element.perUnit ?? '2f', durationInFrames);
+  const hold = element.holdFrames ?? 6;
+  if (charCount <= 1) return base;
+  return Math.min(base, Math.max(1, (durationInFrames - hold) / (charCount - 1)));
+}
+
+/**
+ * 累计揭示下当前可见的字符数。
+ *
+ * 第 i 个字在 `elementOffset + i × perUnit_eff` 帧出现，**出现后保持**
+ * （不是逐字独立淡入淡出）。返回 0..n。
+ */
+export function visibleCharCount(
+  element: Pick<SpecTextElement, 'perUnit' | 'holdFrames' | 'split'>,
+  text: string,
+  frame: number,
+  elementOffset: number,
+  durationInFrames: number,
+): number {
+  const chars = [...text];
+  if (element.split !== 'chars' || chars.length === 0) return chars.length;
+  const unit = effectivePerUnit(element, chars.length, durationInFrames);
+  let count = 0;
+  for (let i = 0; i < chars.length; i += 1) {
+    if (elementOffset + i * unit <= frame) count += 1;
+    else break;
+  }
+  return count;
 }
 
 /**
@@ -106,12 +168,23 @@ export function clipInset(value: number | string): string {
   return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
 }
 
+/** 图元本地帧（减去 stagger 偏移，钳到 ≥0）。 */
+export function elementLocalFrame(
+  spec: MotionSpec,
+  elementIndex: number,
+  frame: number,
+  durationInFrames: number,
+): number {
+  return Math.max(0, frame - elementOffsetOf(spec, elementIndex, durationInFrames));
+}
+
 /**
  * 把某个图元的轨道合成成 CSS。
  *
  * 🔴 **按 `track.element` 过滤**：spec 允许 ≤3 个图元，每条轨只作用于自己的图元。
  *    若把所有轨合成到容器上，`element` 字段就成了「校验了却没人读」的字段
  *    —— 那正是本项目记录过多次的病灶（声明了 / 定义了，但没人用）。
+ * 🔴 轨道求值用**图元本地帧**（已减去 `stagger` 偏移）。
  */
 export function specStyleOf(
   spec: MotionSpec,
@@ -119,10 +192,11 @@ export function specStyleOf(
   frame: number,
   durationInFrames: number,
 ): CSSProperties {
+  const local = elementLocalFrame(spec, elementIndex, frame, durationInFrames);
   const values = new Map<string, number | string>();
   for (const track of spec.tracks) {
     if (track.element !== elementIndex) continue;
-    values.set(track.property, resolveTrack(track, frame, durationInFrames));
+    values.set(track.property, resolveTrack(track, local, durationInFrames));
   }
 
   const style: CSSProperties = {};

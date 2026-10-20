@@ -16,6 +16,7 @@ import { EMPTY_CAPTION } from '../src/remotion/caption.ts';
 import {
   SpecRenderer,
   clipInset,
+  effectivePerUnit,
   resolveTrack,
   specStyleOf,
 } from '../src/remotion/templates/SpecRenderer.tsx';
@@ -169,6 +170,94 @@ describe('clip 解析与插值', () => {
     };
     expect(specStyleOf(spec, 0, 5, 30).opacity).toBe(0);
     expect(specStyleOf(spec, 1, 5, 30).opacity).toBe(1);
+  });
+});
+
+describe('S2：装饰图元 / 逐字 / stagger', () => {
+  function renderAt(id: string, text: string, frame: number, duration = 60): string {
+    const tpl = getTemplate(id);
+    const spec = tpl.spec!;
+    const it: StoryboardItem = {
+      fromFrame: 20,
+      durationInFrames: duration,
+      motion: id,
+      footprint: [...spec.footprint] as StoryboardItem['footprint'],
+      params: { main: text },
+    };
+    return renderToStaticMarkup(
+      <SpecRenderer
+        frame={frame}
+        durationInFrames={duration}
+        item={it}
+        caption={EMPTY_CAPTION}
+        canvasWidth={1920}
+      />,
+    );
+  }
+
+  it('panel 占满 footprint（inset:0），不是缩成文字宽', () => {
+    const html = renderAt('custom/card-stack@1.0', '卡底测试', 20);
+    expect(html).toContain('data-element="panel"');
+    expect(html).toContain('inset:0');
+    expect(html).toContain('border-radius:12px'); // RADIUS.md
+    expect(html).toContain('data-slot="main"');
+  });
+
+  it('bar 贴左边、厚度定宽', () => {
+    const html = renderAt('custom/bar-accent@1.0', '竖条测试', 20);
+    expect(html).toContain('data-element="bar"');
+    expect(html).toContain('width:6px');
+    expect(html).toContain('left:0');
+  });
+
+  it('rule 下划线贴底（at:100 完全在框内）', () => {
+    const html = renderAt('custom/rule-underline@1.0', '下划线测试', 20);
+    expect(html).toContain('data-element="rule"');
+    expect(html).toContain('height:4px');
+    expect(html).toContain('top:calc(100% - 4px)');
+  });
+
+  it('triangle 用 border 技巧绘制（底宽 1.15×sizePx）', () => {
+    const spec = getTemplate('custom/bar-accent@1.0').spec!;
+    // 复用合法 spec 的壳，临时替换 elements 仅用于渲染断言
+    const probe = {
+      ...spec,
+      elements: [{ type: 'triangle' as const, dir: 'up' as const, sizePx: 20, fill: 'brand' as const }],
+      tracks: [],
+    };
+    hydrateTemplates([{ ...getTemplate('custom/bar-accent@1.0'), id: 'custom/tri-probe@1.0', spec: probe }]);
+    const html = renderAt('custom/tri-probe@1.0', '', 0, 30);
+    expect(html).toContain('data-element="triangle"');
+    // half = 1.15 × 20 / 2 = 11.5
+    expect(html).toContain('border-left:11.5px solid transparent');
+    expect(html).toContain('border-bottom:20px solid #FFC53D');
+  });
+
+  it('逐字累计揭示：第 12 帧 7 字、第 24 帧 13 字', () => {
+    const text = '这不是逐字输出而是累计揭示'; // 13 个字
+    const html12 = renderAt('custom/typewriter-cn@1.0', text, 12);
+    const html24 = renderAt('custom/typewriter-cn@1.0', text, 24);
+    expect(html12).toContain('data-chars-visible="7"');
+    expect(html24).toContain('data-chars-visible="13"');
+    // 累计揭示：第 24 帧可见全部 13 字
+    expect(html24).toContain(text);
+    expect(html12).not.toContain(text);
+  });
+
+  it('渲染期自适应：perUnit 被压到能容纳全部字符', () => {
+    const text = '一二三四五六七八九十';
+    const spec = getTemplate('custom/typewriter-cn@1.0').spec!;
+    const el = spec.elements[0] as { perUnit?: string; holdFrames?: number };
+    // duration 12、hold 6、10 字 ⇒ max(1, 6/9)=1 < 2 ⇒ 有效间隔 1 帧
+    expect(effectivePerUnit(el, 10, 12)).toBe(1);
+  });
+
+  it('stagger：text 的动画时钟比 panel 晚 4 帧', () => {
+    const spec = getTemplate('custom/card-stack@1.0').spec!;
+    const panel = specStyleOf(spec, 0, 6, 30).opacity;
+    const text = specStyleOf(spec, 1, 6, 30).opacity;
+    expect(panel).toBe(1); // panel 本地帧 6 = 动画末
+    expect(text).toBeLessThan(1); // text 本地帧 2，仍在淡入
   });
 });
 

@@ -1,0 +1,53 @@
+{
+  "specVersion": 1,
+  "id": "custom/card-stack@1.0",
+  "layer": 58,
+  "footprint": [0.12, 0.6, 0.76, 0.2],
+  "minVisibleInFrames": 30,
+  "occludesSubject": false,
+  "_note": "卡底 + 文字：panel 必须排在 text 之前（后置会盖住文字）；panel 用 inset:0 占满 footprint，不能缩成文字宽。stagger 4f 让文字比卡底晚 4 帧出现。",
+  "stagger": { "perElement": "4f", "order": "index" },
+  "elements": [
+    {
+      "type": "panel",
+      "fill": "plate",
+      "radius": "md",
+      "shadow": "card"
+    },
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 48,
+      "weight": 700,
+      "align": "left",
+      "paddingPx": 24
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 0, "ease": "out" },
+        { "t": "6f", "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 1,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 0, "ease": "out" },
+        { "t": "6f", "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 1,
+      "property": "y",
+      "keys": [
+        { "t": "0f", "v": 12, "ease": "out" },
+        { "t": "10f", "v": 0, "ease": "out" }
+      ]
+    }
+  ]
+}

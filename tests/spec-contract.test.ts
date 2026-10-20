@@ -190,7 +190,7 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
         { t: 0, v: 0 },
         { t: 1.2, v: 1 },
       ];
-    }, /number 必须在 \[0,1\]/);
+    }, /t=1\.2 非法/);
     rejects((s) => {
       (s['tracks'] as { keys: unknown[] }[])[0]!.keys = [
         { t: '0f', v: 0 },
@@ -318,6 +318,152 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
   });
 });
 
+describe('S2 图元契约（panel / bar / rule / triangle / split / stagger）', () => {
+  const textEl = (over: Record<string, unknown> = {}) => ({
+    type: 'text',
+    slot: 'main',
+    content: 'excerpt',
+    sizePx: 48,
+    weight: 700,
+    align: 'left',
+    paddingPx: 20,
+    ...over,
+  });
+  const withElements = (elements: unknown[]): Record<string, unknown> => {
+    const spec = baseSpec();
+    spec['elements'] = elements;
+    return spec;
+  };
+  const rejects = (spec: Record<string, unknown>, pattern: RegExp) => {
+    expect(() => validateMotionSpec(spec)).toThrow(ConfigError);
+    expect(() => validateMotionSpec(spec)).toThrow(pattern);
+  };
+  const accepts = (spec: Record<string, unknown>) => {
+    expect(() => validateMotionSpec(spec)).not.toThrow();
+  };
+
+  it('panel 必须排在所有 text 之前（后置会盖住文字）', () => {
+    rejects(
+      withElements([textEl(), { type: 'panel', fill: 'plate' }]),
+      /panel 却排在 text（下标 0）之后 —— 卡底后置会盖住文字/,
+    );
+    accepts(
+      withElements([{ type: 'panel', fill: 'plate', radius: 'md', shadow: 'card' }, textEl()]),
+    );
+  });
+
+  it('白名单按 type 分组：跨类型字段被拒', () => {
+    rejects(
+      withElements([{ type: 'bar', edge: 'left', thicknessPx: 6, slot: 'main' }]),
+      /（bar）未知字段：`slot`/,
+    );
+    rejects(
+      withElements([{ type: 'triangle', dir: 'up', sizePx: 40, content: 'excerpt' }]),
+      /（triangle）未知字段：`content`/,
+    );
+    accepts(withElements([{ type: 'bar', edge: 'left', thicknessPx: 6, fill: 'brand' }, textEl()]));
+  });
+
+  it('panel 的颜色/圆角/阴影只接受令牌', () => {
+    rejects(
+      withElements([{ type: 'panel', fill: '#FFFFFF' }, textEl()]),
+      /fill 必须是令牌之一/,
+    );
+    rejects(
+      withElements([{ type: 'panel', radius: 'xl' }, textEl()]),
+      /radius 必须是令牌之一/,
+    );
+    rejects(
+      withElements([{ type: 'panel', shadow: 'glow' }, textEl()]),
+      /shadow 必须是令牌之一/,
+    );
+  });
+
+  it('bar：edge 枚举 / thicknessPx 取值域 / insetPx', () => {
+    rejects(withElements([{ type: 'bar', edge: 'middle', thicknessPx: 6 }, textEl()]), /edge 必须是/);
+    rejects(withElements([{ type: 'bar', edge: 'left', thicknessPx: 0 }, textEl()]), /thicknessPx/);
+    rejects(
+      withElements([{ type: 'bar', edge: 'left', thicknessPx: 6, insetPx: -1 }, textEl()]),
+      /insetPx 必须是 0–500/,
+    );
+  });
+
+  it('rule：axis 枚举 / at 0–100', () => {
+    rejects(withElements([{ type: 'rule', axis: 'x', at: 50, thicknessPx: 4 }, textEl()]), /axis 必须是/);
+    rejects(withElements([{ type: 'rule', axis: 'h', at: 120, thicknessPx: 4 }, textEl()]), /at 必须是 0–100/);
+    accepts(withElements([textEl(), { type: 'rule', axis: 'h', at: 100, thicknessPx: 4, fill: 'accent' }]));
+  });
+
+  it('triangle：dir 枚举 / sizePx 上限', () => {
+    rejects(withElements([{ type: 'triangle', dir: 'diag', sizePx: 40 }, textEl()]), /dir 必须是/);
+    rejects(withElements([{ type: 'triangle', dir: 'up', sizePx: 500 }, textEl()]), /sizePx 必须是 \(0, 400\]/);
+  });
+
+  it('text 的 split / perUnit / holdFrames', () => {
+    rejects(withElements([textEl({ split: 'words' })]), /split 只支持 "chars"/);
+    // perUnit 只接受 "Nf"（不接受比例，避免两套时间语义混用）
+    rejects(withElements([textEl({ perUnit: '2' })]), /perUnit 必须是 "Nf"/);
+    rejects(withElements([textEl({ perUnit: '0f' })]), /perUnit 必须是 "Nf"/);
+    rejects(withElements([textEl({ holdFrames: -1 })]), /holdFrames/);
+    accepts(withElements([textEl({ split: 'chars', perUnit: '2f', holdFrames: 6 })]));
+  });
+
+  it('stagger：perElement 必须是 "Nf"、order 枚举、未知键拒绝', () => {
+    const withStagger = (stagger: unknown) => {
+      const spec = baseSpec();
+      spec['stagger'] = stagger;
+      return spec;
+    };
+    rejects(withStagger({ perElement: '0f', order: 'index' }), /perElement 必须是 "Nf"/);
+    rejects(withStagger({ perElement: '4f', order: 'random' }), /order 必须是 "index" 或 "reverse"/);
+    rejects(withStagger({ perElement: '4f', order: 'index', delay: 1 }), /未知字段/);
+    accepts(withStagger({ perElement: '4f', order: 'reverse' }));
+  });
+
+  it('emoji 拒绝：逐字按码点切会拆成两半', () => {
+    rejects(withElements([textEl({ content: 'literal:太棒了👍' })]), /含 emoji/);
+    accepts(withElements([textEl({ content: 'literal:太棒了' })]));
+  });
+
+  it('装饰图元不参与 textMetrics / paramsSchema', () => {
+    const spec = withElements([
+      { type: 'panel', fill: 'plate' },
+      { type: 'bar', edge: 'left', thicknessPx: 99 },
+      textEl({ sizePx: 48, paddingPx: 20, content: 'literal:固定文案' }),
+    ]);
+    const decl = deriveDeclaration(validateMotionSpec(spec));
+    // 只有 text 的 48/20 进 textMetrics，bar 的 99 不能进来
+    expect(decl.textMetrics).toEqual({ fontSizePx: 48, paddingPx: 20 });
+    // literal 不产生 params
+    expect(decl.paramsSchema).toEqual({});
+  });
+});
+
+describe('现有 spec 兼容性（S2 后必须全部仍合法）', () => {
+  const dir = path.resolve(import.meta.dirname, '../templates/specs');
+  const files = [
+    'fade-up.json',
+    'focus-in.json',
+    'wipe-reveal.json',
+    'clip-reveal-h.json',
+    'card-stack.json',
+    'bar-accent.json',
+    'typewriter-cn.json',
+    'rule-underline.json',
+  ];
+
+  it.each(files)('%s 通过校验并可派生声明', (file) => {
+    const raw = fs.readFileSync(path.join(dir, file), 'utf8');
+    const spec = validateMotionSpec(JSON.parse(raw), {
+      byteSize: Buffer.byteLength(raw, 'utf8'),
+      source: file,
+    });
+    const decl = deriveDeclaration(spec);
+    expect(decl.id).toBe(spec.id);
+    expect(decl.scope).toBe('overlay-safe');
+  });
+});
+
 describe('loadSpecsFromDisk —— 目录扫描与注册', () => {
   it('空目录不报错，返回 0', () => {
     const dir = tmpDir();
@@ -331,12 +477,14 @@ describe('loadSpecsFromDisk —— 目录扫描与注册', () => {
   it('真实示例 templates/specs/fade-up.json 装载后可查到', () => {
     expect(defaultSpecDir()).toContain(path.join('templates', 'specs'));
     const n = loadSpecsFromDisk();
-    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).toBeGreaterThanOrEqual(8); // 4 旧 + 4 个 S2 验证 spec
     const tpl = getTemplate('custom/fade-up@1.0');
     expect(tpl.family).toBe('custom');
     expect(tpl.minVisibleInFrames).toBe(24);
     expect(tpl.occludesSubject).toBe(false);
     expect(tpl.spec?.tracks).toHaveLength(3);
+    // S2 新图元 spec 也在册
+    expect(getTemplate('custom/card-stack@1.0').spec?.elements[0]?.type).toBe('panel');
     // 幂等：重复装载不再注册（否则查重会直接抛）
     expect(loadSpecsFromDisk()).toBe(0);
   });

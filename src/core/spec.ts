@@ -20,7 +20,7 @@
  */
 
 import { ConfigError } from './exit-code.ts';
-import { COLOR } from '../remotion/tokens.ts';
+import { COLOR, RADIUS, SHADOW } from '../remotion/tokens.ts';
 import { parseMotionId, type TemplateDeclaration } from '../templates/types.ts';
 import type { Footprint, RhythmSignal } from './types.ts';
 
@@ -58,8 +58,11 @@ export interface SpecKey {
   ease?: SpecEase;
 }
 
-/** 文本图元。S1a 只支持 text（几何图元留到后续版本）。 */
-export interface SpecElement {
+/** 图元类型（S2 起 5 类：1 文本 + 4 装饰）。 */
+export type SpecElementType = 'text' | 'panel' | 'bar' | 'rule' | 'triangle';
+
+/** 文本图元。 */
+export interface SpecTextElement {
   type: 'text';
   slot: 'main' | 'sub';
   /** `'excerpt'` / `'number'` 由运行时从 params 取；`literal:` 是写死文案。 */
@@ -70,7 +73,71 @@ export interface SpecElement {
   lineHeight?: number;
   trackingEm?: number;
   paddingPx: number;
+  /**
+   * 逐字**累计**揭示：第 i 个码点从 `i × perUnit` 起出现，出现后保持。
+   * ⚠️ 刻意只有这一种语义（没有 reveal 字段）：逐字独立淡入淡出会出现
+   *    「的/了单独闪一下」的乱码感。
+   */
+  split?: 'chars';
+  /** 每字起始间隔，`"Nf"` 绝对帧；省略 = `"2f"`（30fps ≈ 15 字/秒）。 */
+  perUnit?: string;
+  /** 最后一个字之后保留多少帧（用于把总时长压进 item 内）；省略 = 6。 */
+  holdFrames?: number;
 }
+
+/** 卡底：铺满 footprint 的纯色/圆角/阴影块。 */
+export interface SpecPanelElement {
+  type: 'panel';
+  /** `COLOR` 的键（如 `plate`）。 */
+  fill?: string;
+  /** `COLOR` 的键；1px 描边。 */
+  border?: string;
+  /** `RADIUS` 的键（sm/md/lg）。 */
+  radius?: string;
+  /** `SHADOW` 的键（text/card）。 */
+  shadow?: string;
+}
+
+/** 贴边竖条 / 横条。 */
+export interface SpecBarElement {
+  type: 'bar';
+  edge: 'left' | 'right' | 'top' | 'bottom';
+  thicknessPx: number;
+  /** 从所在边向内缩进的像素（默认 0）。 */
+  insetPx?: number;
+  /** `COLOR` 的键。 */
+  fill?: string;
+}
+
+/** 分隔线 / 下划线。 */
+export interface SpecRuleElement {
+  type: 'rule';
+  /** `h` = 水平线（主轴 x），`v` = 垂直线。 */
+  axis: 'h' | 'v';
+  /** 交叉轴位置 0–100（从起边算）；线绘制在该位置**内侧**。 */
+  at: number;
+  thicknessPx: number;
+  /** 主轴两端内缩像素（默认 0）。 */
+  insetPx?: number;
+  /** `COLOR` 的键。 */
+  fill?: string;
+}
+
+/** 三角指示器（border 技巧绘制，居中）。 */
+export interface SpecTriangleElement {
+  type: 'triangle';
+  dir: 'up' | 'down' | 'left' | 'right';
+  sizePx: number;
+  /** `COLOR` 的键。 */
+  fill?: string;
+}
+
+export type SpecElement =
+  | SpecTextElement
+  | SpecPanelElement
+  | SpecBarElement
+  | SpecRuleElement
+  | SpecTriangleElement;
 
 export interface SpecTrack {
   element: number;
@@ -93,6 +160,13 @@ export interface MotionSpec {
   tracks: SpecTrack[];
   when?: { signals: RhythmSignal[] };
   promptRef?: string;
+  /**
+   * 图元级错峰（S2）。
+   *
+   * 第 j 个图元的动画时钟整体后移 `j × perElement`；`reverse` 时反序
+   * （`(count-1-j) × perElement`）。与 `text.split:'chars'` 的字符偏移**叠加**。
+   */
+  stagger?: { perElement: string; order: 'index' | 'reverse' };
   /** 仅文档用途的说明（写作用例、单位约定）。不参与派生，禁止塞实现细节。 */
   _note?: string;
 }
@@ -135,6 +209,24 @@ export const RHYTHM_SIGNALS: readonly RhythmSignal[] = [
 
 /** 颜色令牌白名单 —— 直接取 `COLOR` 的键，**不另抄一份色值/键名**。 */
 export const COLOR_TOKENS: readonly string[] = Object.keys(COLOR);
+/** 圆角 / 阴影令牌白名单 —— 同上，只引用不抄写。 */
+export const RADIUS_TOKENS: readonly string[] = Object.keys(RADIUS);
+export const SHADOW_TOKENS: readonly string[] = Object.keys(SHADOW);
+
+/** 图元类型枚举。 */
+export const ELEMENT_TYPES: readonly SpecElementType[] = [
+  'text',
+  'panel',
+  'bar',
+  'rule',
+  'triangle',
+];
+/** bar 的贴边方向。 */
+export const BAR_EDGES = ['left', 'right', 'top', 'bottom'] as const;
+/** rule 的主轴。 */
+export const RULE_AXES = ['h', 'v'] as const;
+/** triangle 的指向。 */
+export const TRIANGLE_DIRS = ['up', 'down', 'left', 'right'] as const;
 
 const TOP_LEVEL_KEYS = new Set([
   'specVersion',
@@ -147,22 +239,40 @@ const TOP_LEVEL_KEYS = new Set([
   'tracks',
   'when',
   'promptRef',
+  'stagger',
   // `_note` 是**显式收录**的文档字段（不参与派生，只给人的说明留位置）。
   // 它不是「放开未知字段」：其它任何键仍按规则 11 拒绝。
   '_note',
 ]);
 
-const ELEMENT_KEYS = new Set([
-  'type',
-  'slot',
-  'content',
-  'sizePx',
-  'weight',
-  'align',
-  'lineHeight',
-  'trackingEm',
-  'paddingPx',
-]);
+/**
+ * 图元白名单 —— **按 type 分组**（S2）。
+ *
+ * 🔴 为什么分组而不是一个大 Set：S1 踩过「自家白名单拒掉自家新字段」的坑；
+ *    分组后新增某类图元字段只改对应一行，且「shape 带 slot/content」这类
+ *    跨类型污染会被自然拒掉。
+ */
+const COMMON_ELEMENT_KEYS = new Set(['type']);
+const ELEMENT_KEYS_BY_TYPE: Record<SpecElementType, ReadonlySet<string>> = {
+  text: new Set([
+    ...COMMON_ELEMENT_KEYS,
+    'slot',
+    'content',
+    'sizePx',
+    'weight',
+    'align',
+    'lineHeight',
+    'trackingEm',
+    'paddingPx',
+    'split',
+    'perUnit',
+    'holdFrames',
+  ]),
+  panel: new Set([...COMMON_ELEMENT_KEYS, 'fill', 'border', 'radius', 'shadow']),
+  bar: new Set([...COMMON_ELEMENT_KEYS, 'edge', 'thicknessPx', 'insetPx', 'fill']),
+  rule: new Set([...COMMON_ELEMENT_KEYS, 'axis', 'at', 'thicknessPx', 'insetPx', 'fill']),
+  triangle: new Set([...COMMON_ELEMENT_KEYS, 'dir', 'sizePx', 'fill']),
+};
 
 const TRACK_KEYS = new Set(['element', 'property', 'keys']);
 const KEY_KEYS = new Set(['t', 'v', 'ease']);
@@ -177,6 +287,40 @@ const VALUE_BOUNDS: Partial<Record<SpecProperty, readonly [number, number]>> = {
 
 const ID_RE = /^custom\/[a-z0-9]+(?:-[a-z0-9]+)*@\d+\.\d+$/;
 const FRAME_T_RE = /^\d+f$/;
+
+/** 解析后的时间单位。 */
+export interface ParsedTime {
+  /** `ratio` = 0–1 比例；`frames` = 绝对帧。 */
+  kind: 'ratio' | 'frames';
+  value: number;
+}
+
+/**
+ * 时间语法的**唯一解析入口**（S2）。
+ *
+ * 支持 `number ∈ [0,1]`（比例）与 `"Nf"`（绝对帧）。`key.t`、`perUnit`、
+ * `stagger.perElement` 全部走这里 —— 禁止出现第二套时间语法。
+ *
+ * @returns 解析失败返回 `null`（调用方决定报错或降级）
+ */
+export function parseTime(t: unknown): ParsedTime | null {
+  if (typeof t === 'number' && Number.isFinite(t) && t >= 0 && t <= 1) {
+    return { kind: 'ratio', value: t };
+  }
+  if (typeof t === 'string' && FRAME_T_RE.test(t)) {
+    return { kind: 'frames', value: Number.parseInt(t.slice(0, -1), 10) };
+  }
+  return null;
+}
+
+/** 时间 → item 内绝对帧。解析失败回退 0（校验期已拦）。 */
+export function timeToFrame(t: number | string, durationInFrames: number): number {
+  const parsed = parseTime(t);
+  if (parsed === null) return 0;
+  return parsed.kind === 'ratio'
+    ? parsed.value * Math.max(0, durationInFrames)
+    : parsed.value;
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -286,49 +430,155 @@ export function validateMotionSpec(
     issues.push('缺少必填字段 elements（数组）');
   } else {
     if (elements.length > 3) issues.push(`elements 数量 ${elements.length} > 上限 3`);
+
+    const token = (value: unknown, tokens: readonly string[], label: string): void => {
+      if (value === undefined) return;
+      if (typeof value !== 'string' || !tokens.includes(value)) {
+        issues.push(`${label} 必须是令牌之一（${tokens.join('/')}），当前 ${JSON.stringify(value)}`);
+      }
+    };
+    const positive = (value: unknown, label: string, max: number): void => {
+      if (!isFiniteNumber(value) || value <= 0 || value > max) {
+        issues.push(`${label} 必须是 (0, ${max}] 的数字`);
+      }
+    };
+
     elements.forEach((el, i) => {
       if (!isRecord(el)) {
         issues.push(`elements[${i}] 必须是对象`);
         return;
       }
-      for (const k of Object.keys(el)) {
-        if (!ELEMENT_KEYS.has(k)) issues.push(`elements[${i}] 未知字段：\`${k}\``);
-      }
-      if (el['type'] !== 'text') issues.push(`elements[${i}].type 必须是 "text"`);
-      if (el['slot'] !== 'main' && el['slot'] !== 'sub') {
-        issues.push(`elements[${i}].slot 必须是 "main" 或 "sub"`);
-      }
-      const content = el['content'];
-      const contentOk =
-        content === 'excerpt' ||
-        content === 'number' ||
-        (typeof content === 'string' &&
-          content.startsWith('literal:') &&
-          content.length > 'literal:'.length);
-      if (!contentOk) {
+      const type = el['type'];
+      if (!ELEMENT_TYPES.includes(type as SpecElementType)) {
         issues.push(
-          `elements[${i}].content 必须是 "excerpt" / "number" / "literal:<非空文本>"`,
+          `elements[${i}].type 非法：${JSON.stringify(type)}（允许 ${ELEMENT_TYPES.join('/')}）`,
         );
+        return;
       }
-      if (!isFiniteNumber(el['sizePx']) || (el['sizePx'] as number) <= 0) {
-        issues.push(`elements[${i}].sizePx 必须是正数`);
+      const kind = type as SpecElementType;
+      for (const k of Object.keys(el)) {
+        if (!ELEMENT_KEYS_BY_TYPE[kind].has(k)) {
+          issues.push(`elements[${i}]（${kind}）未知字段：\`${k}\``);
+        }
       }
-      if (![400, 600, 700, 900].includes(el['weight'] as number)) {
-        issues.push(`elements[${i}].weight 必须是 400/600/700/900`);
+
+      if (kind === 'text') {
+        if (el['slot'] !== 'main' && el['slot'] !== 'sub') {
+          issues.push(`elements[${i}].slot 必须是 "main" 或 "sub"`);
+        }
+        const content = el['content'];
+        const contentOk =
+          content === 'excerpt' ||
+          content === 'number' ||
+          (typeof content === 'string' &&
+            content.startsWith('literal:') &&
+            content.length > 'literal:'.length);
+        if (!contentOk) {
+          issues.push(
+            `elements[${i}].content 必须是 "excerpt" / "number" / "literal:<非空文本>"`,
+          );
+        }
+        if (typeof content === 'string' && content.startsWith('literal:')) {
+          // 逐字按码点切分；emoji 会被拆成两半 ⇒ 早失败优于渲出乱码。
+          if (/\p{Extended_Pictographic}/u.test(content)) {
+            issues.push(
+              `elements[${i}].content 含 emoji —— 逐字按码点切会把它拆成两半，请在 spec 里换成文字描述`,
+            );
+          }
+        }
+        positive(el['sizePx'], `elements[${i}].sizePx`, 400);
+        if (![400, 600, 700, 900].includes(el['weight'] as number)) {
+          issues.push(`elements[${i}].weight 必须是 400/600/700/900`);
+        }
+        if (!['left', 'center', 'right'].includes(el['align'] as string)) {
+          issues.push(`elements[${i}].align 必须是 left/center/right`);
+        }
+        if (!isFiniteNumber(el['paddingPx']) || (el['paddingPx'] as number) < 0) {
+          issues.push(`elements[${i}].paddingPx 必须是 ≥0 的数字`);
+        }
+        if (el['lineHeight'] !== undefined && !isFiniteNumber(el['lineHeight'])) {
+          issues.push(`elements[${i}].lineHeight 必须是数字`);
+        }
+        if (el['trackingEm'] !== undefined && !isFiniteNumber(el['trackingEm'])) {
+          issues.push(`elements[${i}].trackingEm 必须是数字`);
+        }
+        if (el['split'] !== undefined && el['split'] !== 'chars') {
+          issues.push(`elements[${i}].split 只支持 "chars"（累计揭示，无第二种语义）`);
+        }
+        if (el['perUnit'] !== undefined) {
+          const parsed = parseTime(el['perUnit']);
+          if (parsed === null || parsed.kind !== 'frames' || parsed.value < 1) {
+            issues.push(`elements[${i}].perUnit 必须是 "Nf" 且 N ≥ 1（当前 ${JSON.stringify(el['perUnit'])}）`);
+          }
+        }
+        if (el['holdFrames'] !== undefined) {
+          const h = el['holdFrames'];
+          if (!Number.isInteger(h) || (h as number) < 0 || (h as number) > 600) {
+            issues.push(`elements[${i}].holdFrames 必须是 0–600 的整数`);
+          }
+        }
+        return;
       }
-      if (!['left', 'center', 'right'].includes(el['align'] as string)) {
-        issues.push(`elements[${i}].align 必须是 left/center/right`);
+
+      if (kind === 'panel') {
+        token(el['fill'], COLOR_TOKENS, `elements[${i}].fill`);
+        token(el['border'], COLOR_TOKENS, `elements[${i}].border`);
+        token(el['radius'], RADIUS_TOKENS, `elements[${i}].radius`);
+        token(el['shadow'], SHADOW_TOKENS, `elements[${i}].shadow`);
+        return;
       }
-      if (!isFiniteNumber(el['paddingPx']) || (el['paddingPx'] as number) < 0) {
-        issues.push(`elements[${i}].paddingPx 必须是 ≥0 的数字`);
+
+      if (kind === 'bar') {
+        if (!BAR_EDGES.includes(el['edge'] as (typeof BAR_EDGES)[number])) {
+          issues.push(`elements[${i}].edge 必须是 ${BAR_EDGES.join('/')}`);
+        }
+        positive(el['thicknessPx'], `elements[${i}].thicknessPx`, 200);
+        if (el['insetPx'] !== undefined) {
+          if (!isFiniteNumber(el['insetPx']) || (el['insetPx'] as number) < 0 || (el['insetPx'] as number) > 500) {
+            issues.push(`elements[${i}].insetPx 必须是 0–500 的数字`);
+          }
+        }
+        token(el['fill'], COLOR_TOKENS, `elements[${i}].fill`);
+        return;
       }
-      if (el['lineHeight'] !== undefined && !isFiniteNumber(el['lineHeight'])) {
-        issues.push(`elements[${i}].lineHeight 必须是数字`);
+
+      if (kind === 'rule') {
+        if (!RULE_AXES.includes(el['axis'] as (typeof RULE_AXES)[number])) {
+          issues.push(`elements[${i}].axis 必须是 ${RULE_AXES.join('/')}`);
+        }
+        if (!isFiniteNumber(el['at']) || (el['at'] as number) < 0 || (el['at'] as number) > 100) {
+          issues.push(`elements[${i}].at 必须是 0–100 的数字`);
+        }
+        positive(el['thicknessPx'], `elements[${i}].thicknessPx`, 200);
+        if (el['insetPx'] !== undefined) {
+          if (!isFiniteNumber(el['insetPx']) || (el['insetPx'] as number) < 0 || (el['insetPx'] as number) > 500) {
+            issues.push(`elements[${i}].insetPx 必须是 0–500 的数字`);
+          }
+        }
+        token(el['fill'], COLOR_TOKENS, `elements[${i}].fill`);
+        return;
       }
-      if (el['trackingEm'] !== undefined && !isFiniteNumber(el['trackingEm'])) {
-        issues.push(`elements[${i}].trackingEm 必须是数字`);
+
+      // triangle
+      if (!TRIANGLE_DIRS.includes(el['dir'] as (typeof TRIANGLE_DIRS)[number])) {
+        issues.push(`elements[${i}].dir 必须是 ${TRIANGLE_DIRS.join('/')}`);
       }
+      positive(el['sizePx'], `elements[${i}].sizePx`, 400);
+      token(el['fill'], COLOR_TOKENS, `elements[${i}].fill`);
     });
+
+    // 层序：panel 必须排在所有 text 之前（DOM 后置会盖住文字）。
+    const firstText = elements.findIndex((el) => isRecord(el) && el['type'] === 'text');
+    if (firstText >= 0) {
+      elements.forEach((el, i) => {
+        if (isRecord(el) && el['type'] === 'panel' && i > firstText) {
+          issues.push(
+            `elements[${i}] 是 panel 却排在 text（下标 ${firstText}）之后 —— ` +
+              `卡底后置会盖住文字，请把 panel 放在 elements 前面`,
+          );
+        }
+      });
+    }
   }
 
   const elementCount = Array.isArray(elements) ? elements.length : 0;
@@ -387,43 +637,31 @@ export function validateMotionSpec(
           if (!KEY_KEYS.has(k)) issues.push(`${at} 未知字段：\`${k}\``);
         }
 
-        // 规则 7：t 单位与范围
+        // 规则 7：t 单位与范围 —— 与 perUnit / stagger 共用 parseTime
         const t = key['t'];
-        if (typeof t === 'number') {
-          if (!Number.isFinite(t) || t < 0 || t > 1) {
-            issues.push(`${at}.t=${t} 非法（number 必须在 [0,1]）`);
-          } else {
-            if (unit === 'string') {
-              issues.push(`tracks[${ti}] 的 t 单位混用（number 与 "Nf"）—— 同一轨必须统一`);
-            }
-            unit = 'number';
-            if (lastT !== null && t <= lastT) {
-              issues.push(`${at}.t=${t} 未严格递增（上一帧 t=${lastT}）`);
-            }
-            lastT = t;
-          }
-        } else if (typeof t === 'string' && FRAME_T_RE.test(t)) {
-          const frames = Number.parseInt(t.slice(0, -1), 10);
-          if (unit === 'number') {
+        const parsed = parseTime(t);
+        if (parsed === null) {
+          issues.push(`${at}.t=${JSON.stringify(t)} 非法（number ∈ [0,1] 或 "Nf"）`);
+        } else {
+          const kind: 'number' | 'string' = parsed.kind === 'ratio' ? 'number' : 'string';
+          if (unit !== null && unit !== kind) {
             issues.push(`tracks[${ti}] 的 t 单位混用（number 与 "Nf"）—— 同一轨必须统一`);
           }
-          unit = 'string';
-          if (lastT !== null && frames <= lastT) {
-            issues.push(`${at}.t="${t}" 未严格递增（上一帧 ${lastT}f）`);
+          unit = kind;
+          if (lastT !== null && parsed.value <= lastT) {
+            issues.push(`${at}.t=${JSON.stringify(t)} 未严格递增（上一帧 ${lastT}）`);
           }
-          lastT = frames;
+          lastT = parsed.value;
 
           // 绝对帧上界：minVisibleInFrames 是这条 spec 的最短可用时长，
           // 任何更短的 cue 都会被模板门控挡掉 ⇒ 所有绝对帧 ≤ 它，
           // 才能保证「任何被选中的 cue 都能完整播完」，不会停在动画中途。
           const minVisible = spec['minVisibleInFrames'];
-          if (isFiniteNumber(minVisible) && frames > minVisible) {
+          if (parsed.kind === 'frames' && isFiniteNumber(minVisible) && parsed.value > minVisible) {
             issues.push(
               `t="${t}" 超出本 spec 声明的 minVisibleInFrames=${minVisible} —— 短句会把它截断在中途`,
             );
           }
-        } else {
-          issues.push(`${at}.t=${JSON.stringify(t)} 非法（number ∈ [0,1] 或 "Nf"）`);
         }
 
         // 规则 5：ease
@@ -492,6 +730,29 @@ export function validateMotionSpec(
     issues.push('promptRef 必须是字符串');
   }
 
+  // stagger（S2）：图元级错峰
+  const stagger = spec['stagger'];
+  if (stagger !== undefined) {
+    if (!isRecord(stagger)) {
+      issues.push('stagger 必须是 { perElement: "Nf", order: "index" | "reverse" }');
+    } else {
+      for (const k of Object.keys(stagger)) {
+        if (k !== 'perElement' && k !== 'order') {
+          issues.push(`stagger 含未知字段：\`${k}\``);
+        }
+      }
+      const parsed = parseTime(stagger['perElement']);
+      if (parsed === null || parsed.kind !== 'frames' || parsed.value < 1) {
+        issues.push(
+          `stagger.perElement 必须是 "Nf" 且 N ≥ 1（当前 ${JSON.stringify(stagger['perElement'])}）`,
+        );
+      }
+      if (stagger['order'] !== 'index' && stagger['order'] !== 'reverse') {
+        issues.push('stagger.order 必须是 "index" 或 "reverse"');
+      }
+    }
+  }
+
   // `_note` 仅供人读（写作用例、约定），不参与派生；类型仍须是字符串。
   if (spec['_note'] !== undefined && typeof spec['_note'] !== 'string') {
     issues.push('_note 必须是字符串（仅文档用途）');
@@ -532,14 +793,17 @@ export function deriveDeclaration(spec: MotionSpec): TemplateDeclaration {
 
   const paramsSchema: Record<string, string> = {};
   const requiredParams: string[] = [];
-  for (const el of spec.elements) {
+  const texts = spec.elements.filter((el): el is SpecTextElement => el.type === 'text');
+  for (const el of texts) {
     if (el.content === 'excerpt' || el.content === 'number') {
       paramsSchema[el.slot] = 'string';
       if (!requiredParams.includes(el.slot)) requiredParams.push(el.slot);
     }
   }
 
-  const main = spec.elements.find((el) => el.slot === 'main');
+  // 🔴 textMetrics 只由 **text** 图元贡献：装饰图元的 sizePx/thicknessPx
+  //    不是字号，喂给校验项 #17 会得到完全错误的溢出判定。
+  const main = texts.find((el) => el.slot === 'main');
 
   return {
     id: spec.id,

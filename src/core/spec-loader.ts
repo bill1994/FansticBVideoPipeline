@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ConfigError } from './exit-code.ts';
+import { log } from './log.ts';
 import { deriveDeclaration, validateMotionSpec } from './spec.ts';
 import { registerTemplate } from '../templates/registry.ts';
 
@@ -71,6 +72,19 @@ export function loadSpecsFromDisk(dir: string = defaultSpecDir()): number {
         byteSize: Buffer.byteLength(raw, 'utf8'),
         source: `templates/specs/${name}`,
       });
+
+      // 装载期 warning（不进 18 项校验）：逐字揭示与 clip 同用会切出半个字。
+      const hasSplitChars = spec.elements.some(
+        (el) => el.type === 'text' && el.split === 'chars',
+      );
+      const hasClipTrack = spec.tracks.some((t) => t.property === 'clip');
+      if (hasSplitChars && hasClipTrack) {
+        log.warn(
+          `${name}: split:'chars' 与 clip 轨同用 —— 裁切边界会从字符中间扫过，` +
+            `会出现半个字（S1 实测）。要逐字请只用 split；要揭示请只用 clip。`,
+        );
+      }
+
       registerTemplate(deriveDeclaration(spec), `templates/specs/${name}`);
       count += 1;
     } catch (e) {

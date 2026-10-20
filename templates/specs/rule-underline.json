@@ -1,0 +1,46 @@
+{
+  "specVersion": 1,
+  "id": "custom/rule-underline@1.0",
+  "layer": 60,
+  "footprint": [0.14, 0.62, 0.72, 0.16],
+  "minVisibleInFrames": 24,
+  "occludesSubject": false,
+  "_note": "文字 + 下划线：rule 主轴 100%、at:100 贴底（线绘制在该位置内侧，完全在框内），4px 厚。",
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 52,
+      "weight": 700,
+      "align": "left",
+      "paddingPx": 22
+    },
+    {
+      "type": "rule",
+      "axis": "h",
+      "at": 100,
+      "thicknessPx": 4,
+      "insetPx": 0,
+      "fill": "accent"
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 0, "ease": "out" },
+        { "t": "6f", "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 1,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 0, "ease": "out" },
+        { "t": "8f", "v": 1, "ease": "out" }
+      ]
+    }
+  ]
+}

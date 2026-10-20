@@ -1,0 +1,45 @@
+{
+  "specVersion": 1,
+  "id": "custom/bar-accent@1.0",
+  "layer": 61,
+  "footprint": [0.15, 0.62, 0.7, 0.14],
+  "minVisibleInFrames": 24,
+  "occludesSubject": false,
+  "_note": "左侧强调竖条 + 文字：bar 沿边 100% 高、6px 厚；bar 先声明（在 text 下面），文字压在其右侧（靠 padding 让位）。",
+  "elements": [
+    {
+      "type": "bar",
+      "edge": "left",
+      "thicknessPx": 6,
+      "insetPx": 0,
+      "fill": "brand"
+    },
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 44,
+      "weight": 600,
+      "align": "left",
+      "paddingPx": 20
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        { "t": "0f", "v": 0, "ease": "out" },
+        { "t": "5f", "v": 1, "ease": "out" }
+      ]
+    },
+    {
+      "element": 1,
+      "property": "opacity",
+      "keys": [
+        { "t": "2f", "v": 0, "ease": "out" },
+        { "t": "8f", "v": 1, "ease": "out" }
+      ]
+    }
+  ]
+}
