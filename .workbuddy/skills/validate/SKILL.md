@@ -249,23 +249,17 @@ agent_created: true
 1. 人工改 `03-storyboard/storyboard.json`（改 `fromFrame` / `footprint` / 删 item）
 2. **重跑本阶段** → 新 `04-validate/validate-report.json`
 3. `remotion studio` 预览
-4. 确认无误后写 `06-review/confirmed.json` 放行
+4. 若返修**引入了别的阶段的闸**，按对应闸写 `06-review/confirmed.json`：
+   - 新加了 `fullscreen` item → `stage: "render"` + `acknowledgedFullscreen`（由 render 启动闸读）
+   - 对齐门控本来就未过 → `stage: "alignment"`（由 storyboard 读）
 
-```jsonc
-{
-  "jobId": "...",
-  "stage": "validate",
-  "reason": "人工核验后放行",
-  "confirmedBy": "人工署名",
-  "confirmedAt": "ISO 时间",
-  "acknowledgedFullscreen": [],
-  "overrides": [{ "itemId": "...", "field": "fromFrame", "from": 120, "to": 135 }]
-}
-```
-
-这就是「降级必须阻断」的闭环：**阻断 → 人工改 → 重校验 → 写 confirmed.json 放行 → 进渲染**。
-`overrides` 记录改了什么，审计链不断。**放行信息不得写进 storyboard** —— 那会污染烘焙产物。
-`acknowledgedFullscreen` 属 D3-a，由 render 阶段读取 —— 本阶段不判它。
+> 🔴 **本阶段不读 `confirmed.json`**，也不接受「写一张放行单」来跳过 error。
+> 校验器是**只读纯函数**，输入边界只到 `03` / `01` / `02` —— 它读不到 `06-review`。
+> 「改完 storyboard 再写 confirmed 放行」是**错的**：`ok: true` 本身就是放行，不需要额外凭据。
+>
+> ⚠️ 2026-10-19 更正：此前本节的示例写 `stage: "validate"` 并称「写 confirmed.json 放行」，
+> 而**没有任何代码读 `stage:"validate"` 的记录** —— 照着做会写一张没人看的凭据。
+> `overrides` 同样目前**只有记录作用**（无消费者），改了什么仍应如实写，但别指望它驱动行为。
 
 ## 落盘检查清单
 

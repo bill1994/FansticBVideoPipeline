@@ -118,6 +118,24 @@ rotation.set((frame / fps) * Math.PI);
 
 `meta.fps` 是**顶层固化值**。**改 fps 会让全部已烘焙 `fromFrame` 语义漂移** —— 改 fps 必须**重新烘焙**，不允许跨 fps 复用 storyboard。
 
+## 画面尺寸（`P4` 裁决，2026-10-19）
+
+`<Composition>` 的宽高**不再硬编码 1920×1080**（那条写死让 640×360 素材渲成 1080p、
+竖屏素材完全无路）。来源优先级：
+
+| 顺序 | 来源 | 说明 |
+|---|---|---|
+| 1 | `00-input/source.json` 的 `width` / `height` | 填了就用；**竖屏素材建议显式填** |
+| 2 | `ffprobe` 读视频 | 未填时自动探测真实分辨率 |
+| 3 | 兜底 `1920×1080` | 前两者都拿不到时使用，**日志会 warn** |
+
+⚠️ **只填一个**（有 `width` 无 `height`）→ 退出码 `2`，不猜默认值。
+
+实际采用值落在 `05-render/render-report.json` 的 `width` / `height` / `sizeFrom`
+（`sizeFrom` = `manifest` / `ffprobe` / `default`，事后可追溯尺寸是从哪来的）。
+
+> 归一化 `footprint` 与模板布局都不依赖绝对像素，故改尺寸不会改变版式比例。
+
 ## 渲染期兜底校验
 
 以下三类只能在渲染时暴露，属 `04-validate` 的渲染期分支，用同一报告结构（`stage: "render"`）：
@@ -146,13 +164,22 @@ rotation.set((frame / fps) * Math.PI);
 
 ```jsonc
 {
-  "stage": "render",
-  "reason": "fullscreen 类 motion 覆盖全画面，人工确认后放行",
-  "confirmedBy": "人工署名",
-  "confirmedAt": "ISO 时间",
-  "acknowledgedFullscreen": ["fs-track/000"]   // 必须覆盖 storyboard 内全部 fullscreen item ref
+  "records": [
+    {
+      "jobId": "...",
+      "stage": "render",
+      "reason": "fullscreen 类 motion 覆盖全画面，人工确认后放行",
+      "confirmedBy": "人工署名",
+      "confirmedAt": "ISO 时间",
+      "acknowledgedFullscreen": ["fs-track/000"]   // 必须覆盖 storyboard 内全部 fullscreen item ref
+    }
+  ]
 }
 ```
+
+> 🔴 `F3-1`（2026-10-19）：`records` 数组可同时放 `alignment` 与 `render` 两条，
+> **各阶段只读自己那一关**。别为了写 render 记录去覆盖 alignment 那条。
+> 顶层单条对象的旧格式仍兼容。
 
 ## 产物（落 `05-render/`）
 
@@ -160,9 +187,16 @@ rotation.set((frame / fps) * Math.PI);
 
 | 文件 | 来源 | 内容 |
 |------|------|------|
-| `remotion/` | 【文档指定：Remotion 工程】 | 组件树由 storyboard 映射生成（目录名为实现建议） |
+| `render-props.json` | 【实现期补充】 | 映射产物：`storyboard` / `stacks`（双栈）/ `caption` / `carrierTracks` / `video`，即 `--props` 的输入 |
 | `out.mp4` | 【文档指定】 | 成片 |
-| `render.log` | 【文档指定：渲染日志】 | 含墙钟时长、CPU 峰值 |
+| `render-report.json` | 【替代 `render.log`，2026-10-19】 | 墙钟 `wallMs` / `durationInFrames` / `fps` / `bytes` / 完整命令 / `gl`；`cpuPeakPercent: null` 表示**未采集** |
+
+> 🔴 **两处与文档不一致，已确认是设计取舍**：
+> ① **`remotion/` 工程目录不落盘** —— 渲染走 `npx remotion render src/remotion/index.ts`，
+>    bundle 在临时目录，渲完即清理。落一份工程副本只会和源码分叉（同「一个概念一个真源」）。
+> ② **`render.log` 改为 `render-report.json`** —— JSON 可 diff、可被脚本取中位数（F4 基准）。
+>    ⚠️ **CPU 峰值拿不到**：`execFileSync` 不暴露子进程 rusage，写 `null` 而非 `0`。
+>    要真测需换成 `spawn` + 平台采样，属未做项（见审计报告）。
 
 > 成片是链路末端。**`06-review/` 的放行信息不得回写进本阶段产物**，反之亦然。
 
@@ -172,10 +206,14 @@ rotation.set((frame / fps) * Math.PI);
 |------|------|
 | `04-validate` 报告 `ok !== true` | **拒绝启动**，退出码 `1` |
 | 参数错（版本未锁、缺 `--gl=angle`） | 退出码 `2` |
-| 渲染失败 / 产出空白 canvas | 退出码 `4` |
-| 排队超时 | 退出码 `5` |
+| 渲染失败 / 产出空白 canvas | 退出码 `4` —— 由 `RenderFailedError` 保证，见 `tests/exit-code.test.ts` |
 | 内部错误 | 退出码 `6` |
 | 用户中断 | 退出码 `130` |
+| 排队超时 | 退出码 `5` —— **未实现**（无队列） |
+
+> 🔴 2026-10-19 修复：此前渲染失败抛的是 `ConfigError`，CLI 一律映射成 **2**，
+> 而文案写着「退出码 4」—— 报错信息自己报错了自己的退出码。
+> 现在 `EXIT.RENDER_FAILED` 有唯一消费者，`exitCodeFor()` 是映射的单一实现点。
 
 ## 落盘检查清单
 

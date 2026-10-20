@@ -185,14 +185,33 @@ storyboard 只能引用 `01-align/` 与 `02-perceive/` 的产物。
 
 **接力（hand-off）**：只写在 **track 层** 的 `handoffTo`。
 **禁止写在 item 层** —— item 层会产生循环引用，且重排 item 顺序时引用全断。
-交接的视觉连续性**不硬编码**：接收方模板用自身参数 `handoffIn` 声明如何入场。
+交接的视觉连续性**不硬编码**：接收方模板用自身的 `params.enter` 声明如何入场。
 接力**不强制首尾相接**，允许 gap（gap 常带来呼吸感）。
+
+> 🔴 **`handoffIn` 字段已于 2026-10-15 删除**（问题 9 审计：零消费、与 `params.enter` 语义重复、
+> 且不在 `paramsSchema` 内连模型都填不了）。此处原文写「接收方用 `handoffIn` 声明入场」，
+> 与实现相反 —— 已更正为 `params.enter`。
 
 **禁配段（`noMotionRanges`）**：模型起草时**跳过**这些区间。不需要外部素材契约，不需要 `media` 字段、alpha 通道处理、fps 对齐。
 
 ## 铁律 4：调度走两道闸 + 产路地板
 
-每个 item 带 4 个决策字段：`sim_max` / `confidence` / `routing` / `review`。
+**每个 item 有 4 个决策字段**：`sim_max` / `confidence` / `routing` / `review`。
+
+🔴 **但起草稿与产物的形状不同**（2026-10-19 澄清，实测过的两种写法）：
+
+| 阶段 | 位置 | 谁填 |
+|---|---|---|
+| **起草稿 `draft.json`** | item **顶层**，只填 `sim_max` 与 `confidence` —— 它们是闸1/闸2 的**输入** | 模型 |
+| **产物 `storyboard.json`** | `item.decision.{ sim_max, confidence, routing, review }` —— 四个值都是**输出** | 烘焙器（`core/schedule.ts`） |
+
+即：模型**不写** `routing` / `review`（那是算出来的），也不要自己套一层 `decision` 对象。
+烘焙完成后 `sim_max` / `confidence` 会从顶层剥离，四个值统一挪进 `decision`。
+
+> 🔴 **警告：item 顶层多写的字段不会被拦**（2026-10-19 实测）。
+> 当前**没有**「未知 item 字段」校验项 —— 起草稿里多写 `routing` / `review` / `handoffIn` 之类，
+> 会经 `{...item}` 原样落进 `storyboard.json`，全链路无报错。
+> 只有 `params` 内部有键名校验（`E-P1-01`），item 顶层没有。模型请只填该填的。
 
 **闸1 路由**：`sim_max ≥ T` → `template` 产路 / `custom` 产路。决定「走哪条产路」。
 **闸2 审核强度**：按 `confidence` 只调制人工介入强度（`auto` / `alternatives` / `must_review`），**不改变产路**。

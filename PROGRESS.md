@@ -53,8 +53,8 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**480 项全过**（28 文件，2026-10-19 实测，33.34s）。按文件：
-  word-timeline 31 / template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 /
+- **单测**：**527 项全过**（34 文件，2026-10-19 23:34 实测，18.7s）。按文件：
+  fit-text 7 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 / template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 /
   text-align 26 / srt 22 / bake 22 / zh-normalize 21 / validate 41 / schedule 19 / carrier 18 /
   yunet 17 / params-schema 17 / shot-detect 14 / split-frame 14 / placeholders 12 / region-derive 12 /
   doctor 11 / occlusion-tier 11 / subject-visible 10 / carrier-contract 10 / align-gate 9 /
@@ -464,8 +464,8 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
 错误码      31 条（E-*/W-*，+W-DB-01）
-单测        480 项全过（28 文件）  ← 449 → 480（10-19：M-1f 静义词 + M-1g + 铺词测试）
-测试文件    28 个（27 个测试 + 1 个共享夹具 tests/_ctx.ts）
+单测        527 项全过（34 文件）  ← 449 → 480 → 493 → 498 → 509 → 527（10-19 再 +18）
+测试文件    34 个（33 个测试 + 1 个共享夹具 tests/_ctx.ts）
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
 登记册      48 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算；+C2-6 / +D4-t3）
@@ -484,8 +484,10 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
             明细由代码生成到 docs/decisions/PARAM-DECISIONS.md（真源 src/core/placeholders.ts）
 手感表      docs/templates/2026-10-15-参数手感表.md（已建）
 成片基准    3 条真素材成片（kukini 218MB / fast-0322 259MB / fast-0528 256MB）
+            ⚠️ **CPU 峰值不采集**（execFileSync 拿不到子进程 rusage，2026-10-19 裁决明确放弃）；
+            墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 480 项全过（33.34s）· placeholders --check OK · git 干净
+工程健康    typecheck exit 0 · 527 项全过（18.7s）· placeholders --check OK · git 干净
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

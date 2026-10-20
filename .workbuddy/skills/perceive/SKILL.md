@@ -58,7 +58,11 @@ agent_created: true
 - 该 shot 主体框标 `lowConfidence: true`
 - **不阻断** pipeline
 - 在 `04-validate` 报告里出 `W-F6-01` warning：「shot X 主体未确」
-- 人工在 `06-review/confirmed.json` 里补 `subjectBox` 覆盖后才算确定
+- 人工核验后改 `02-perceive/shots.json` 的 `subjectBox` / `safeArea` 才算确定
+
+> 🔴 **2026-10-19 更正**：此前写「人工在 `06-review/confirmed.json` 里补 `subjectBox` 覆盖」——
+> `ConfirmedRecord` **没有这个字段**，提示指向了一个结构上不存在的东西。
+> 正确落点是 `02-perceive/shots.json`；注意 02 是上游，改完必须重跑 `storyboard` → `validate`。
 
 ### 4. 手持物检测走 shot 级时间累积，不做逐帧跟踪
 
@@ -88,16 +92,17 @@ agent_created: true
 
 | 文件 | 对应文档要求 | 内容 |
 |------|------------|------|
-| `frames/` | 抽帧 | 抽帧图（默认每 1.5s，可调） |
-| `subject.json` | 主体检测 | 每 shot 的主体框 + 安全区 + `lowConfidence` 标记 |
-| `handheld.json` | 手持物检测 | shot 级累积出的讲解物 box |
-| `broll.json` | B-roll 检测 | B-roll shot 的显著性峰值区 |
-| `regions.json` | footprint 依据 | 各级区域的**预算占用基线**（供 validate 算额度） |
-| `shots.json` | —（本 Skill 补充） | shot 边界切分，上述几项的公共索引 |
+| `shots.json` | 主体检测 + shot 索引 | shot 边界、`safeArea`（主体 bbox 上部，按 shot 取并集）、`lowConfidence` |
+| `regions.json` | 手持物 / B-roll / footprint 依据 | 各级区域（`kind: face \| handheld \| broll`）+ `box` + 所属 shot + 预算基线 |
+
+> 🔴 **2026-10-19 更正**：此表此前列了 `frames/`、`subject.json`、`handheld.json`、`broll.json` 四个文件，
+> **实现只产出上面两个**。三类区域合并进 `regions[].kind` —— 内容没缺，是不落多份文件。
+> 唯一实质差异：**抽帧图不落盘**（检测在内存里做，图不写磁盘）；
+> 需要看抽帧时用 `ffmpeg -vf select` 自行抽取，或临时改造 `builtin-perceive`。
 
 > **footprint 的最终归属是 `storyboard.json` 的 item，不是本阶段的独立文件。**
 > D 分支已明确「不新增任何文件格式」—— 主体安全区与 footprint 同样走 `storyboard.json` + 渲染后测量两条路。
-> 本阶段产出的 `regions.json` 只是 **storyboard 起草 footprint 时的依据**，不要为感知产物另立契约，那会让产出物分裂。
+> 本阶段产出的 `regions.json` 只是 **storyboard 起草 footprint 时的依据**，不要为感知产物另立契约。
 
 ## 失败与退出码
 
@@ -105,8 +110,11 @@ agent_created: true
 |------|------|
 | `01-align/` 缺失或门控未通过 | **停**，退出码 `1` |
 | 参数错（抽帧密度非法等） | 退出码 `2` |
-| 检测全部失败（无可用帧） | 退出码 `4`，如实报错，不伪造框 |
-| 超时 / 中断 | 退出码 `5` / `130` |
+| 检测全部失败 / 视频不存在 / ffprobe 读不出分辨率 | 退出码 `2`（`ConfigError`）。本阶段**没有**渲染动作，不会返回 `4` |
+| 中断 | 退出码 `130`（由 shell 决定，本阶段不自行捕获） |
+
+> ⚠️ 2026-10-19 端到端审计实测：此前表中写的「检测全部失败 → 4」与实现不符（实现抛 `ConfigError` → 2）。
+> 另：`5 排队超时` 本阶段也未实现（无队列）。
 
 **禁止**：检测不出来时随手编一个 bbox 糊过去。宁可标 `lowConfidence: true` 交人工。
 
