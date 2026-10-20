@@ -27,6 +27,7 @@ import {
   elementOffsetOf,
   resolveTrack,
   specStyleOf,
+  splitUnits,
   visibleCharCount,
 } from './spec-style.ts';
 
@@ -38,6 +39,7 @@ export {
   parseClipSides,
   resolveTrack,
   specStyleOf,
+  splitUnits,
   visibleCharCount,
 } from './spec-style.ts';
 
@@ -111,46 +113,36 @@ function decorationStyle(el: Exclude<SpecElement, SpecTextElement>): CSSProperti
     return { ...base, top: inset, bottom: inset, left: `calc(${el.at}% - ${t}px)`, width: t };
   }
 
-  // triangle：border 技巧（同 tag-float.tsx 的小尖角），底宽 = 1.15 × sizePx
-  const s = el.sizePx;
-  const half = (1.15 * s) / 2;
+  // triangle：border 技巧（同 tag-float.tsx 的小尖角），底宽 = 1.15 × heightPx
+  const h = el.heightPx;
+  const width = 1.15 * h;
+  const half = width / 2;
+  const at = el.at ?? { x: 'center' as const, y: 'bottom' as const };
+  const left =
+    at.x === 'left' ? 0 : at.x === 'right' ? `calc(100% - ${width}px)` : `calc(50% - ${half}px)`;
+  const top =
+    at.y === 'top' ? 0 : at.y === 'middle' ? `calc(50% - ${h / 2}px)` : `calc(100% - ${h}px)`;
   const color = colorOf(el.fill, COLOR.brand);
   const base: CSSProperties = {
     position: 'absolute',
     width: 0,
     height: 0,
-    left: `calc(50% - ${half}px)`,
-    top: `calc(50% - ${s / 2}px)`,
+    left,
+    top,
   };
   if (el.dir === 'up') {
     return {
       ...base,
       borderLeft: `${half}px solid transparent`,
       borderRight: `${half}px solid transparent`,
-      borderBottom: `${s}px solid ${color}`,
-    };
-  }
-  if (el.dir === 'down') {
-    return {
-      ...base,
-      borderLeft: `${half}px solid transparent`,
-      borderRight: `${half}px solid transparent`,
-      borderTop: `${s}px solid ${color}`,
-    };
-  }
-  if (el.dir === 'left') {
-    return {
-      ...base,
-      borderTop: `${half}px solid transparent`,
-      borderBottom: `${half}px solid transparent`,
-      borderRight: `${s}px solid ${color}`,
+      borderBottom: `${h}px solid ${color}`,
     };
   }
   return {
     ...base,
-    borderTop: `${half}px solid transparent`,
-    borderBottom: `${half}px solid transparent`,
-    borderLeft: `${s}px solid ${color}`,
+    borderLeft: `${half}px solid transparent`,
+    borderRight: `${half}px solid transparent`,
+    borderTop: `${h}px solid ${color}`,
   };
 }
 
@@ -220,7 +212,7 @@ export const SpecRenderer: TemplateComponent = ({
         const localFrame = elementLocalFrame(spec, i, frame, durationInFrames);
         const color = resolveColor(spec, i, localFrame, durationInFrames);
         const full = textOf(el, item.params);
-        const chars = [...full];
+        const chars = splitUnits(full);
         const visible = visibleCharCount(
           el,
           full,

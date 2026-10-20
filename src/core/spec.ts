@@ -20,6 +20,7 @@
  */
 
 import { ConfigError } from './exit-code.ts';
+import { parseTime, parseUnitFrames } from './spec-time.ts';
 import { COLOR, RADIUS, SHADOW } from '../remotion/tokens.ts';
 import { parseMotionId, type TemplateDeclaration } from '../templates/types.ts';
 import type { Footprint, RhythmSignal } from './types.ts';
@@ -83,6 +84,16 @@ export interface SpecTextElement {
   perUnit?: string;
   /** 最后一个字之后保留多少帧（用于把总时长压进 item 内）；省略 = 6。 */
   holdFrames?: number;
+  /**
+   * `split:'chars'` 时**必填**：作者声明这条 spec 最多吃多少字。
+   *
+   * 🔴 为什么必须声明：`perUnit` 是绝对帧，但总长度取决于字符数，
+   *    天然绕过「绝对帧 ≤ minVisibleInFrames」那条铁律 —— 长句会把最后几个字
+   *    拖到 item 结束后静默截断。装载期用 `(maxUnits-1)×perUnit+holdFrames
+   *    ≤ minVisibleInFrames` 校验上界；实际字符数超了由选型期换 spec，
+   *    渲染期 `perUnit_eff` 再兜底。三层职责互不替代。
+   */
+  maxUnits?: number;
 }
 
 /** 卡底：铺满 footprint 的纯色/圆角/阴影块。 */
@@ -123,11 +134,14 @@ export interface SpecRuleElement {
   fill?: string;
 }
 
-/** 三角指示器（border 技巧绘制，居中）。 */
+/** 三角指示器（border 技巧绘制）。 */
 export interface SpecTriangleElement {
   type: 'triangle';
-  dir: 'up' | 'down' | 'left' | 'right';
-  sizePx: number;
+  dir: 'up' | 'down';
+  /** 三角高度；底宽 = 1.15 × heightPx（对齐 tag-float 的小尖角）。 */
+  heightPx: number;
+  /** 在 footprint 内的锚点；默认 `{ x:'center', y:'bottom' }`。 */
+  at?: { x: 'left' | 'center' | 'right'; y: 'top' | 'middle' | 'bottom' };
   /** `COLOR` 的键。 */
   fill?: string;
 }
@@ -154,7 +168,7 @@ export interface MotionSpec {
   minVisibleInFrames: number;
   /** 必填 —— 禁止默认 false（默认值会让人忘记声明遮挡意图）。 */
   occludesSubject: boolean;
-  /** ≤3 个图元。 */
+  /** ≤4 个图元。 */
   elements: SpecElement[];
   /** 每轨 2–8 个关键帧。 */
   tracks: SpecTrack[];
@@ -225,8 +239,11 @@ export const ELEMENT_TYPES: readonly SpecElementType[] = [
 export const BAR_EDGES = ['left', 'right', 'top', 'bottom'] as const;
 /** rule 的主轴。 */
 export const RULE_AXES = ['h', 'v'] as const;
-/** triangle 的指向。 */
-export const TRIANGLE_DIRS = ['up', 'down', 'left', 'right'] as const;
+/** triangle 的指向（只支持上下；左右没有语义场景）。 */
+export const TRIANGLE_DIRS = ['up', 'down'] as const;
+/** triangle 锚点枚举。 */
+export const TRIANGLE_AT_X = ['left', 'center', 'right'] as const;
+export const TRIANGLE_AT_Y = ['top', 'middle', 'bottom'] as const;
 
 const TOP_LEVEL_KEYS = new Set([
   'specVersion',
@@ -267,11 +284,12 @@ const ELEMENT_KEYS_BY_TYPE: Record<SpecElementType, ReadonlySet<string>> = {
     'split',
     'perUnit',
     'holdFrames',
+    'maxUnits',
   ]),
   panel: new Set([...COMMON_ELEMENT_KEYS, 'fill', 'border', 'radius', 'shadow']),
   bar: new Set([...COMMON_ELEMENT_KEYS, 'edge', 'thicknessPx', 'insetPx', 'fill']),
   rule: new Set([...COMMON_ELEMENT_KEYS, 'axis', 'at', 'thicknessPx', 'insetPx', 'fill']),
-  triangle: new Set([...COMMON_ELEMENT_KEYS, 'dir', 'sizePx', 'fill']),
+  triangle: new Set([...COMMON_ELEMENT_KEYS, 'dir', 'heightPx', 'at', 'fill']),
 };
 
 const TRACK_KEYS = new Set(['element', 'property', 'keys']);
@@ -286,41 +304,9 @@ const VALUE_BOUNDS: Partial<Record<SpecProperty, readonly [number, number]>> = {
 };
 
 const ID_RE = /^custom\/[a-z0-9]+(?:-[a-z0-9]+)*@\d+\.\d+$/;
-const FRAME_T_RE = /^\d+f$/;
 
-/** 解析后的时间单位。 */
-export interface ParsedTime {
-  /** `ratio` = 0–1 比例；`frames` = 绝对帧。 */
-  kind: 'ratio' | 'frames';
-  value: number;
-}
-
-/**
- * 时间语法的**唯一解析入口**（S2）。
- *
- * 支持 `number ∈ [0,1]`（比例）与 `"Nf"`（绝对帧）。`key.t`、`perUnit`、
- * `stagger.perElement` 全部走这里 —— 禁止出现第二套时间语法。
- *
- * @returns 解析失败返回 `null`（调用方决定报错或降级）
- */
-export function parseTime(t: unknown): ParsedTime | null {
-  if (typeof t === 'number' && Number.isFinite(t) && t >= 0 && t <= 1) {
-    return { kind: 'ratio', value: t };
-  }
-  if (typeof t === 'string' && FRAME_T_RE.test(t)) {
-    return { kind: 'frames', value: Number.parseInt(t.slice(0, -1), 10) };
-  }
-  return null;
-}
-
-/** 时间 → item 内绝对帧。解析失败回退 0（校验期已拦）。 */
-export function timeToFrame(t: number | string, durationInFrames: number): number {
-  const parsed = parseTime(t);
-  if (parsed === null) return 0;
-  return parsed.kind === 'ratio'
-    ? parsed.value * Math.max(0, durationInFrames)
-    : parsed.value;
-}
+// 时间语法在 `spec-time.ts`（校验与渲染共用）；此处 re-export 保持既有调用路径。
+export { parseTime, timeToFrame, type ParsedTime } from './spec-time.ts';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -429,7 +415,7 @@ export function validateMotionSpec(
   if (!Array.isArray(elements)) {
     issues.push('缺少必填字段 elements（数组）');
   } else {
-    if (elements.length > 3) issues.push(`elements 数量 ${elements.length} > 上限 3`);
+    if (elements.length > 4) issues.push(`elements 数量 ${elements.length} > 上限 4`);
 
     const token = (value: unknown, tokens: readonly string[], label: string): void => {
       if (value === undefined) return;
@@ -505,17 +491,51 @@ export function validateMotionSpec(
         if (el['split'] !== undefined && el['split'] !== 'chars') {
           issues.push(`elements[${i}].split 只支持 "chars"（累计揭示，无第二种语义）`);
         }
+        const splitChars = el['split'] === 'chars';
+        let perUnitFrames: number | null = null;
         if (el['perUnit'] !== undefined) {
-          const parsed = parseTime(el['perUnit']);
-          if (parsed === null || parsed.kind !== 'frames' || parsed.value < 1) {
-            issues.push(`elements[${i}].perUnit 必须是 "Nf" 且 N ≥ 1（当前 ${JSON.stringify(el['perUnit'])}）`);
+          const frames = parseUnitFrames(el['perUnit']);
+          if (!Number.isFinite(frames) || frames < 1 || frames > 6) {
+            issues.push(
+              `elements[${i}].perUnit 必须是 "Nf" 且 N ∈ [1,6]（当前 ${JSON.stringify(el['perUnit'])}）`,
+            );
+          } else {
+            perUnitFrames = frames;
           }
+        } else {
+          perUnitFrames = 2; // 默认 "2f"
         }
+        let hold = 6; // 默认 6
         if (el['holdFrames'] !== undefined) {
           const h = el['holdFrames'];
-          if (!Number.isInteger(h) || (h as number) < 0 || (h as number) > 600) {
-            issues.push(`elements[${i}].holdFrames 必须是 0–600 的整数`);
+          if (!Number.isInteger(h) || (h as number) < 0 || (h as number) > 24) {
+            issues.push(`elements[${i}].holdFrames 必须是 0–24 的整数`);
+          } else {
+            hold = h as number;
           }
+        }
+        if (splitChars) {
+          const maxUnits = el['maxUnits'];
+          if (maxUnits === undefined) {
+            issues.push(
+              `elements[${i}] 使用 split:'chars' 时必须声明 maxUnits（最多吃多少字）—— ` +
+                `perUnit 是绝对帧但总长取决于字数，没有上界就会被长句静默截断`,
+            );
+          } else if (!Number.isInteger(maxUnits) || (maxUnits as number) < 2 || (maxUnits as number) > 40) {
+            issues.push(`elements[${i}].maxUnits 必须是 2–40 的整数`);
+          } else if (perUnitFrames !== null) {
+            // 装载期上界：保证「按声明上限铺满」仍能塞进 minVisibleInFrames。
+            const need = ((maxUnits as number) - 1) * perUnitFrames + hold;
+            const minVisible = spec['minVisibleInFrames'];
+            if (isFiniteNumber(minVisible) && need > minVisible) {
+              issues.push(
+                `elements[${i}] 逐字总长 ${need} 帧 > minVisibleInFrames=${minVisible} ` +
+                  `（(${maxUnits}-1)×${perUnitFrames}+${hold}）—— 长句会把最后几个字截断在中途`,
+              );
+            }
+          }
+        } else if (el['maxUnits'] !== undefined) {
+          issues.push(`elements[${i}].maxUnits 只在 split:'chars' 时有效`);
         }
         return;
       }
@@ -563,7 +583,26 @@ export function validateMotionSpec(
       if (!TRIANGLE_DIRS.includes(el['dir'] as (typeof TRIANGLE_DIRS)[number])) {
         issues.push(`elements[${i}].dir 必须是 ${TRIANGLE_DIRS.join('/')}`);
       }
-      positive(el['sizePx'], `elements[${i}].sizePx`, 400);
+      const h = el['heightPx'];
+      if (!Number.isInteger(h) || (h as number) < 4 || (h as number) > 40) {
+        issues.push(`elements[${i}].heightPx 必须是 4–40 的整数`);
+      }
+      if (el['at'] !== undefined) {
+        const at = el['at'];
+        if (!isRecord(at)) {
+          issues.push(`elements[${i}].at 必须是 { x, y }`);
+        } else {
+          for (const k of Object.keys(at)) {
+            if (k !== 'x' && k !== 'y') issues.push(`elements[${i}].at 含未知字段：\`${k}\``);
+          }
+          if (at['x'] !== undefined && !TRIANGLE_AT_X.includes(at['x'] as (typeof TRIANGLE_AT_X)[number])) {
+            issues.push(`elements[${i}].at.x 必须是 ${TRIANGLE_AT_X.join('/')}`);
+          }
+          if (at['y'] !== undefined && !TRIANGLE_AT_Y.includes(at['y'] as (typeof TRIANGLE_AT_Y)[number])) {
+            issues.push(`elements[${i}].at.y 必须是 ${TRIANGLE_AT_Y.join('/')}`);
+          }
+        }
+      }
       token(el['fill'], COLOR_TOKENS, `elements[${i}].fill`);
     });
 

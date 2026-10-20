@@ -19,6 +19,7 @@ import {
   effectivePerUnit,
   resolveTrack,
   specStyleOf,
+  splitUnits,
 } from '../src/remotion/templates/SpecRenderer.tsx';
 import {
   getTemplateComponent,
@@ -217,12 +218,14 @@ describe('S2：装饰图元 / 逐字 / stagger', () => {
     expect(html).toContain('top:calc(100% - 4px)');
   });
 
-  it('triangle 用 border 技巧绘制（底宽 1.15×sizePx）', () => {
+  it('triangle 用 border 技巧绘制（底宽 1.15×heightPx，默认 bottom/center）', () => {
     const spec = getTemplate('custom/bar-accent@1.0').spec!;
     // 复用合法 spec 的壳，临时替换 elements 仅用于渲染断言
     const probe = {
       ...spec,
-      elements: [{ type: 'triangle' as const, dir: 'up' as const, sizePx: 20, fill: 'brand' as const }],
+      elements: [
+        { type: 'triangle' as const, dir: 'up' as const, heightPx: 20, fill: 'brand' as const },
+      ],
       tracks: [],
     };
     hydrateTemplates([{ ...getTemplate('custom/bar-accent@1.0'), id: 'custom/tri-probe@1.0', spec: probe }]);
@@ -231,6 +234,17 @@ describe('S2：装饰图元 / 逐字 / stagger', () => {
     // half = 1.15 × 20 / 2 = 11.5
     expect(html).toContain('border-left:11.5px solid transparent');
     expect(html).toContain('border-bottom:20px solid #FFC53D');
+    // 默认 at = bottom/center ⇒ 贴底、水平居中
+    expect(html).toContain('top:calc(100% - 20px)');
+    expect(html).toContain('left:calc(50% - 11.5px)');
+  });
+
+  it('emoji 不拒、不拆：ZWJ 序列算一个显示单元', () => {
+    expect(splitUnits('A👍B')).toEqual(['A', '👍', 'B']);
+    expect(splitUnits('家👨‍👩‍👧人')).toEqual(['家', '👨‍👩‍👧', '人']);
+    // params 里的 emoji 不触发 spec 校验错误（SRT 是文本权威）
+    const html = renderAt('custom/typewriter-cn@1.0', '好👍', 2);
+    expect(html).toContain('data-chars-visible="2"');
   });
 
   it('逐字累计揭示：第 12 帧 7 字、第 24 帧 13 字', () => {

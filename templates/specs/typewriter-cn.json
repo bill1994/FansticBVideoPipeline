@@ -2,10 +2,15 @@
   "specVersion": 1,
   "id": "custom/typewriter-cn@1.0",
   "layer": 64,
-  "footprint": [0.1, 0.58, 0.8, 0.18],
-  "minVisibleInFrames": 28,
+  "footprint": [
+    0.1,
+    0.58,
+    0.8,
+    0.18
+  ],
+  "minVisibleInFrames": 32,
   "occludesSubject": false,
-  "_note": "中文逐字累计揭示：第 i 个字从 i×2 帧起出现并保持，没有逐字淡入淡出。渲染期会按 (duration-holdFrames)/(n-1) 自动压缩 perUnit，保证最后一个字能显示完。",
+  "_note": "中文逐字累计揭示：第 i 个字从 i×2 帧起出现并保持，没有逐字淡入淡出。maxUnits=13 是作者声明的字数上界，(13-1)×2+6=30 ≤ minVisible 32；渲染期还会按 (duration-holdFrames)/(n-1) 自动压缩 perUnit 兜底。",
   "elements": [
     {
       "type": "text",
@@ -17,7 +22,8 @@
       "paddingPx": 18,
       "split": "chars",
       "perUnit": "2f",
-      "holdFrames": 6
+      "holdFrames": 6,
+      "maxUnits": 13
     }
   ],
   "tracks": [
@@ -25,8 +31,14 @@
       "element": 0,
       "property": "opacity",
       "keys": [
-        { "t": "0f", "v": 1 },
-        { "t": "1f", "v": 1 }
+        {
+          "t": "0f",
+          "v": 1
+        },
+        {
+          "t": "1f",
+          "v": 1
+        }
       ]
     }
   ]

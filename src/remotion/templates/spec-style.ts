@@ -7,13 +7,14 @@
 
 import type { CSSProperties } from 'react';
 import type { MotionSpec, SpecTextElement, SpecTrack } from '../../core/spec.ts';
-import { timeToFrame } from '../../core/spec.ts';
+import { timeToFrame } from '../../core/spec-time.ts';
 import { SPEC_EASE } from '../tokens.ts';
 
 /**
  * key 的 `t` → item 内绝对帧。
  *
- * ⚠️ 与校验期共用 `core/spec.ts` 的 `parseTime`/`timeToFrame` —— 禁止第二套时间语法。
+ * ⚠️ 与校验期共用 `core/spec-time.ts` 的 `timeToFrame` —— 禁止第二套时间语法；
+ *    这里**不 import 校验器** `spec.ts`（那会让渲染器依赖 Node 侧校验代码）。
  */
 export function keyFrameOf(t: number | string, durationInFrames: number): number {
   return timeToFrame(t, durationInFrames);
@@ -55,10 +56,24 @@ export function effectivePerUnit(
 }
 
 /**
+ * 把文本切成**不可再分的显示单元**。
+ *
+ * 普通字符按码点切；emoji（含 ZWJ 组合序列）整体算一个单元 ——
+ * `params` 的文本来自 SRT（文本权威），不能因为一个 emoji 就让整条 job 失败，
+ * 所以运行时**不拒绝、只分组**，避免把 emoji 拆成两个半截码点。
+ */
+const UNIT_RE = /(\p{Extended_Pictographic}(?:\u200D\p{Extended_Pictographic})*)|./gsu;
+
+export function splitUnits(text: string): string[] {
+  return text.match(UNIT_RE) ?? [];
+}
+
+/**
  * 累计揭示下当前可见的字符数。
  *
  * 第 i 个字在 `elementOffset + i × perUnit_eff` 帧出现，**出现后保持**
- * （不是逐字独立淡入淡出）。返回 0..n。
+ * （不是逐字独立淡入淡出 —— 后者会让「的/了」单独闪一下）。
+ * 返回 0..n。
  */
 export function visibleCharCount(
   element: Pick<SpecTextElement, 'perUnit' | 'holdFrames' | 'split'>,
@@ -67,7 +82,7 @@ export function visibleCharCount(
   elementOffset: number,
   durationInFrames: number,
 ): number {
-  const chars = [...text];
+  const chars = splitUnits(text);
   if (element.split !== 'chars' || chars.length === 0) return chars.length;
   const unit = effectivePerUnit(element, chars.length, durationInFrames);
   let count = 0;

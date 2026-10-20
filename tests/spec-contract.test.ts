@@ -141,13 +141,28 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
     rejects((s) => (s['footprint'] = [0, 0, 0.2]), /四元组/);
   });
 
-  it('4. elements > 3；keys 数量越界', () => {
+  it('4. elements > 4；keys 数量越界', () => {
     rejects((s) => {
-      s['elements'] = new Array(4).fill(null).map((_, i) => ({
+      s['elements'] = new Array(5).fill(null).map((_, i) => ({
         type: 'text', slot: i === 0 ? 'main' : 'sub', content: 'excerpt',
         sizePx: 20, weight: 400, align: 'left', paddingPx: 2,
       }));
-    }, /elements 数量 4 > 上限 3/);
+    }, /elements 数量 5 > 上限 4/);
+    // 恰好 4 个可以通过（S2 起 panel + text + bar + rule 是合法组合）
+    expect(() =>
+      validateMotionSpec(
+        (() => {
+          const s = baseSpec();
+          s['elements'] = [
+            { type: 'panel', fill: 'plate' },
+            { type: 'text', slot: 'main', content: 'excerpt', sizePx: 20, weight: 400, align: 'left', paddingPx: 2 },
+            { type: 'bar', edge: 'left', thicknessPx: 4 },
+            { type: 'rule', axis: 'h', at: 100, thicknessPx: 2 },
+          ];
+          return s;
+        })(),
+      ),
+    ).not.toThrow();
 
     rejects((s) => {
       (s['tracks'] as { keys: unknown[] }[])[0]!.keys = [{ t: 0, v: 0 }];
@@ -394,18 +409,40 @@ describe('S2 图元契约（panel / bar / rule / triangle / split / stagger）',
     accepts(withElements([textEl(), { type: 'rule', axis: 'h', at: 100, thicknessPx: 4, fill: 'accent' }]));
   });
 
-  it('triangle：dir 枚举 / sizePx 上限', () => {
-    rejects(withElements([{ type: 'triangle', dir: 'diag', sizePx: 40 }, textEl()]), /dir 必须是/);
-    rejects(withElements([{ type: 'triangle', dir: 'up', sizePx: 500 }, textEl()]), /sizePx 必须是 \(0, 400\]/);
+  it('triangle：dir 只支持上下 / heightPx 整数 4–40 / at 枚举', () => {
+    rejects(withElements([{ type: 'triangle', dir: 'left', heightPx: 20 }, textEl()]), /dir 必须是/);
+    rejects(withElements([{ type: 'triangle', dir: 'up', heightPx: 41 }, textEl()]), /heightPx 必须是 4–40 的整数/);
+    rejects(withElements([{ type: 'triangle', dir: 'up', heightPx: 10.5 }, textEl()]), /heightPx 必须是 4–40 的整数/);
+    rejects(
+      withElements([{ type: 'triangle', dir: 'up', heightPx: 20, at: { x: 'middle' } }, textEl()]),
+      /at\.x 必须是 left\/center\/right/,
+    );
+    // 旧字段名 sizePx 不再属于 triangle（同 schema 不允许一个键两种语义）
+    rejects(withElements([{ type: 'triangle', dir: 'up', sizePx: 20 }, textEl()]), /（triangle）未知字段：`sizePx`/);
+    accepts(withElements([{ type: 'triangle', dir: 'down', heightPx: 20, at: { x: 'right', y: 'top' } }, textEl()]));
   });
 
-  it('text 的 split / perUnit / holdFrames', () => {
+  it('text 的 split / perUnit / holdFrames / maxUnits', () => {
     rejects(withElements([textEl({ split: 'words' })]), /split 只支持 "chars"/);
     // perUnit 只接受 "Nf"（不接受比例，避免两套时间语义混用）
     rejects(withElements([textEl({ perUnit: '2' })]), /perUnit 必须是 "Nf"/);
     rejects(withElements([textEl({ perUnit: '0f' })]), /perUnit 必须是 "Nf"/);
-    rejects(withElements([textEl({ holdFrames: -1 })]), /holdFrames/);
-    accepts(withElements([textEl({ split: 'chars', perUnit: '2f', holdFrames: 6 })]));
+    rejects(withElements([textEl({ perUnit: '7f' })]), /perUnit 必须是 "Nf"/);
+    rejects(withElements([textEl({ holdFrames: 25 })]), /holdFrames 必须是 0–24/);
+    // maxUnits 只在 split:'chars' 时有效，且必填
+    rejects(withElements([textEl({ maxUnits: 10 })]), /maxUnits 只在 split:'chars' 时有效/);
+    rejects(withElements([textEl({ split: 'chars', perUnit: '2f' })]), /必须声明 maxUnits/);
+    rejects(
+      withElements([textEl({ split: 'chars', perUnit: '2f', maxUnits: 1 })]),
+      /maxUnits 必须是 2–40 的整数/,
+    );
+    // 装载期上界：(10-1)×2+6 = 24 ≤ minVisible 24 → 通过
+    accepts(withElements([textEl({ split: 'chars', perUnit: '2f', holdFrames: 6, maxUnits: 10 })]));
+    // 超一行就拒：(11-1)×2+6 = 26 > 24
+    rejects(
+      withElements([textEl({ split: 'chars', perUnit: '2f', holdFrames: 6, maxUnits: 11 })]),
+      /逐字总长 26 帧 > minVisibleInFrames=24/,
+    );
   });
 
   it('stagger：perElement 必须是 "Nf"、order 枚举、未知键拒绝', () => {
