@@ -74,6 +74,18 @@ demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` 
 | 1 | split-frame 分界线落在 0.75（偏差 25%） | `clip-path` 百分比**相对父容器**，而 `MotionItem` 已按 footprint 缩窄 ⇒ 组件内反向抵消；⚠️ 抵消量也相对父宽，**必须除以 footprint 尺寸** |
 | 2 | `params.scale=3.0` 判据按 3.0 算、渲染实际用 1.6 | 钳制常量只存在于组件里 ⇒ 上提 `core/carrier-window.ts`，两边共用 `clampScale()` |
 | 3 | 校验期顺序耦合（#12 改 footprint 后 #17 读到改后的值） | 明知并记录；`render` 侧复用同一份 `resolveScene` |
+| 4 | **6 个模板的容器被缩成 `w²/h²`**（2026-10-21 修掉的 P0） | 第 1 行的病因**当时只修了 split-frame 一个模板**，其余 6 个仍在根节点 `...footprintStyle(item)`。修法：模板根节点改 `position:'absolute'; inset:0`（`MotionItem` 外层已按 footprint 定位） |
+
+🔴 **这张表第 4 行是最贵的教训：修了一处 ≠ 修了一类。** split-frame 的「百分比相对父容器」在 2026-07 就查清了，
+但只有它自己被修，另外 6 个模板继续错了三个月。**下次发现坐标系/真源类问题时，必须全库扫同类模式**
+（`grep 'footprintStyle(item)'` 这种一眼可见的），而不是只修触发问题的那一个。
+
+🔴 **为什么这个 bug 藏了三个月**：文字是绝对字号、背景板是 `inline-flex` 贴内容、`overflow` 默认可见
+⇒ 容器缩水在画面上**看不出来**，只有位置轻微偏移。但 `fitScaleFor` 是按 `footprint[2]×canvasWidth` 算可用宽的，
+与实际容器不一致 ⇒ **长文本溢出 25%，而校验说放得下**。判定与画面各说各话，正是「报告对成片说谎」。
+
+🔴 **免疫与例外**：`punch-in` / `noise-grain` 的 footprint 是 `[0,0,1,1]`（`1²=1` 无影响）；
+`split-frame` 是**主动**用负 margin 反向抵消并**除以父尺寸**换回画面系 —— 它是对的，别顺手"统一"掉。
 
 🔴 **发现手段**：跨层探针对账（渲染期实际值 vs 判据推算值）比单测更灵。
 🔴 **写断言前先跑一遍拿真实值**，别纯手算 —— 两次几何算错都伪装成「代码有 bug」。
