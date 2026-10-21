@@ -145,3 +145,8 @@ Pros：单一入口、复用全部防线、生成器与绑定共用同一解析�
   派生选型（步骤 2 与步骤 4 存在隐性冲突——词表在 motionboard.ts 会使派生成环，落地以步骤 4 单一真源为准）；
   `definition` 词表候选修正为 `[center-emphasis, kinetic-line]` 对齐规格 P1 选型表；featuredText 改为
   schema 感知覆盖语义键（text/value/title）。Final iterations: 2 / 3。
+- Reservation ② 验证（2026-10-21，baseline-kukini-1021 真实模型会话）：按 skill 起草流程
+  生成器底稿（48 cue → 12 intent）→ 模型精修（改判 3 / 文案精修 4 / 钉死 1 / 增 1 删 1 / 留 3 对照）→
+  绑定 noFits 0 → validate 0 error。底稿缺陷被模型纠出：「一个」误命中数字出假数据卡（cue25/37）、
+  「怎么样/怎么」误命中 question（cue20/30/32）、机械提取残缺（cue44「么不管是…」）。
+  Final iterations: 2 / 3。
