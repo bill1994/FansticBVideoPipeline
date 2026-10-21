@@ -1,6 +1,6 @@
 # motionboard × storyboard 整合 (motionboard-intent-binding) Spec v2
 
-> Status: DRAFT（Wave 5 已定核心裁决，待用户批准后转 ALIGNED）
+> Status: ALIGNED → IMPLEMENTED（2026-10-21 按 plan v2 实施完成：689/689 测试、typecheck 干净、demo 端到端与 baseline 复跑验证通过）
 > Author: user
 > Last updated: 2026-10-21
 > v1 → v2：Wave 5 推翻「三分支 + draft 概念」，裁定 storyboard 与 motionboard **整合为单一可编辑文件**。

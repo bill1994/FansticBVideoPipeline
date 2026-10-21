@@ -28,7 +28,6 @@ interface Args {
   stage: string;
   job: string | null;
   jobsDir: string;
-  draft: string | null;
   force: boolean;
   dryRun: boolean;
   noSubtitle: boolean;
@@ -40,7 +39,6 @@ function parseArgs(argv: string[]): Args {
     stage: argv[0] ?? '',
     job: null,
     jobsDir: DEFAULT_JOBS_DIR,
-    draft: null,
     force: false,
     dryRun: false,
     noSubtitle: false,
@@ -61,9 +59,6 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--jobs-dir':
         out.jobsDir = next();
-        break;
-      case '--draft':
-        out.draft = next();
         break;
       case '--interval':
         out.interval = Number.parseFloat(next());
@@ -96,14 +91,14 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
   init        建出 jobs/<jobId>/{00-input..06-review} 骨架 + source.json 模板
   align       抽音轨 → 16kHz 单声道 wav，强制对齐，置信度门控
   perceive    抽帧 + 主体/手持物/B-roll 检测 + 安全区
-  storyboard  按词级锚点起草并烘焙 storyboard.json
+  storyboard  读 03-storyboard/motionboard.json（缺失则按节奏表生成意图底稿）
+              → 绑定器解析意图 → 烘焙 storyboard.json
   validate    跑构建期校验项（当前 18 项），产出 validate-report.json
   render      C6 双栈映射 + 本地渲染（必须显式 --gl=angle）
 
 选项：
   --job, -j <id>     job 标识（除 init 外必填）
   --jobs-dir <dir>   job 根目录，默认 jobs
-  --draft <file>     storyboard 起草稿路径（默认 03-storyboard/draft.json）
   --interval <sec>   抽帧密度，默认 1.5（可调，见 E4）
   --force            忽略不可变快照，强制重跑本阶段
   --dry-run          只做映射与启动闸检查，不真正渲染
@@ -183,7 +178,7 @@ async function main(): Promise<ExitCode> {
           [
             '停在这里，等人工显式确认。确认后：',
             '  · 写 06-review/confirmed.json（stage="alignment"）',
-            '  · 若降级到 cue 级，storyboard.meta.anchorMode 必须标 "cue"',
+            '  · 若降级到 cue 级，motionboard.meta.anchorMode 必须标 "cue"',
             `  · 低置信词：${r.lowConfidenceWords.slice(0, 20).join(', ')}${r.lowConfidenceWords.length > 20 ? ' …' : ''}`,
             '  ⚠️ 阈值 0.60 / 30% 是初值，待实测校准（§10.5）。',
           ].join('\n'),
@@ -215,7 +210,6 @@ async function main(): Promise<ExitCode> {
       const outcome = runStoryboard({
         jobId: args.job,
         jobsDir: args.jobsDir,
-        ...(args.draft ? { draftPath: args.draft } : {}),
       });
       if (outcome.safetyValve) {
         log.warn('安全阀触发：整批 sim_max 中位数 < 0.4 → 整批转 custom + 人审（未降阈值硬套库）');

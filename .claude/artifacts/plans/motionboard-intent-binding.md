@@ -1,6 +1,9 @@
 # motionboard × storyboard 整合 Implementation Plan（v2，Wave 5 整合版）
 
-> Status: APPROVED（v2；含 2 条 Critic reservations）
+> Status: APPROVED —— IMPLEMENTED（2026-10-21 实施完成；验证证据见下「Verification steps」各项）
+> 实施偏差记录：①intent 条目 sim_max 采用候选档位递减（0.85 − 0.05×order，与 plan 一致）；
+> ②钉死条目缺省 sim_max = 1.0；③字幕轨探测按**条目 motion** 而非轨道 id（demo 的字幕轨叫 `caption-bar`）。
+> 两条 reservations 仍开放：intent 词表零命中回填、真实模型会话起草验证。
 > Source: [.claude/artifacts/designs/motionboard-intent-binding.md](../designs/motionboard-intent-binding.md)（v2）
 > Mode: (default)；Iterations: 2 / 3（v1 三分支方案被 Wave 5 推翻后重写）
 > Author: user

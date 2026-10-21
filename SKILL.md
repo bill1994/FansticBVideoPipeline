@@ -5,7 +5,7 @@ description: >-
   （字幕条 / 大字强调 / 数字卡 / 分屏 / 推近等），产出可直接发布的成片。
   当用户给出「口播视频 + 一份编辑好的 SRT」，想要字幕、动效、版式装饰时使用。
   本管线既可以由模型逐阶段操作（本文件就是给模型读的契约），
-  也可以由内置生成器产出起草稿（`draft.json`）；确定性底座（对齐/感知/烘焙/校验/渲染）不依赖特定模型。
+  也可以由内置生成器产出意图底稿（`motionboard.json`）；确定性底座（对齐/感知/烘焙/校验/渲染）不依赖特定模型。
   五阶段：align → perceive → storyboard → validate → render。
 ---
 
@@ -41,14 +41,14 @@ description: >-
 |---|---|---|---|
 | `align` | `npm run pipeline -- align --job <id>` | `words.json`（词级时间戳）+ `align-report.json` | 机器（whisper + DP） |
 | `perceive` | `npm run pipeline -- perceive --job <id>` | `shots.json` + `regions.json` | 机器（scdet + YuNet + 显著性） |
-| `storyboard` | `npm run pipeline -- storyboard --job <id> --draft <draft.json>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `draft.json`（或由内置生成器产出） |
+| `storyboard` | `npm run pipeline -- storyboard --job <id>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `motionboard.json`（缺失时内置生成器产出意图底稿） |
 | `validate` | `npm run pipeline -- validate --job <id>` | `validate-report.json`（18 项 + 2 条 extra） | 机器 |
 | `render` | `npm run pipeline -- render --job <id>` | `out.mp4` | 机器（Remotion） |
 
 ### 各阶段什么时候该停
 
 - **`align` 门控不过**（`alignedRatio` / 均值置信度 / 低置信占比）→ 退出码 2。**不要绕过**：先查 SRT 与音频是否真的对得上。
-- **`validate` 有 error** → 必须停，回 `storyboard` 改 `draft.json` 重跑。warning 不拦。
+- **`validate` 有 error** → 必须停，回 `storyboard` 改 `motionboard.json` 重跑。warning 不拦。
 - **`render` 报 fullscreen 未确认** → 读 `06-review/confirmed.json` 的 `acknowledgedFullscreen`，这是人工闸，**不要替用户填**。
 
 ## 三条铁律（写在代码里，不靠自觉）
@@ -71,7 +71,7 @@ description: >-
 
 ### 2. 你只填表，不写样式
 
-`draft.json` 里每条的 `params` 只填模板声明的键。**禁止**写坐标、帧号、颜色、CSS、`window`。
+`motionboard.json` 里每条的 `params` 只填模板声明的键。**禁止**写坐标、帧号、颜色、CSS、`window`。
 `window` 是校验期写入的系统字段，填了会被拒。
 
 ### 3. 确定性

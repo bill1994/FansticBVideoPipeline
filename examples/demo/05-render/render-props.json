@@ -466,6 +466,7 @@
   "durationInFrames": 900,
   "fps": 30,
   "hasVideo": false,
+  "height": 1080,
   "jobId": "demo",
   "stacks": {
     "background": [
@@ -691,5 +692,131 @@
       }
     ]
   },
-  "video": "public/raw.mp4"
+  "templates": [
+    {
+      "family": "caption",
+      "footprint": [
+        0.1,
+        0.86,
+        0.8,
+        0.1
+      ],
+      "id": "caption/karaoke-word@1.0",
+      "layer": 90,
+      "minVisibleInFrames": 12,
+      "occludesSubject": false,
+      "paramsSchema": {
+        "boxed": "boolean"
+      },
+      "scope": "overlay-safe",
+      "status": "core",
+      "subtype": "karaoke-word",
+      "version": "1.0"
+    },
+    {
+      "family": "cinematic",
+      "footprint": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "id": "cinematic/punch-in@1.0",
+      "layer": 1,
+      "minVisibleInFrames": 24,
+      "occludesSubject": true,
+      "paramsSchema": {
+        "scale": "number"
+      },
+      "scope": "footage-transform",
+      "status": "core",
+      "subtype": "punch-in",
+      "version": "1.0"
+    },
+    {
+      "family": "data",
+      "footprint": [
+        0.62,
+        0.12,
+        0.32,
+        0.24
+      ],
+      "id": "data/stat-card@1.0",
+      "layer": 55,
+      "minVisibleInFrames": 45,
+      "occludesSubject": false,
+      "paramsSchema": {
+        "unit": "string",
+        "value": "string"
+      },
+      "requiredParams": [
+        "value"
+      ],
+      "scope": "overlay-safe",
+      "status": "core",
+      "subtype": "stat-card",
+      "textMetrics": {
+        "fontSizePx": 44,
+        "paddingPx": 48
+      },
+      "version": "1.0"
+    },
+    {
+      "family": "typography",
+      "footprint": [
+        0,
+        0.72,
+        0.42,
+        0.18
+      ],
+      "id": "typography/kinetic-line@1.0",
+      "layer": 60,
+      "minVisibleInFrames": 30,
+      "occludesSubject": false,
+      "paramsSchema": {
+        "enter": "string",
+        "text": "string"
+      },
+      "requiredParams": [
+        "text"
+      ],
+      "scope": "overlay-safe",
+      "status": "core",
+      "subtype": "kinetic-line",
+      "textMetrics": {
+        "fontSizePx": 54,
+        "paddingPx": 20
+      },
+      "version": "1.0"
+    },
+    {
+      "family": "typography",
+      "footprint": [
+        0.5,
+        0.1,
+        0.3,
+        0.2
+      ],
+      "id": "typography/tag-float@1.0",
+      "layer": 60,
+      "minVisibleInFrames": 36,
+      "occludesSubject": false,
+      "paramsSchema": {
+        "text": "string"
+      },
+      "requiredParams": [
+        "text"
+      ],
+      "scope": "overlay-safe",
+      "status": "core",
+      "subtype": "tag-float",
+      "textMetrics": {
+        "fontSizePx": 24,
+        "paddingPx": 40
+      },
+      "version": "1.0"
+    }
+  ],
+  "video": "public/raw.mp4",
+  "width": 1920
 }

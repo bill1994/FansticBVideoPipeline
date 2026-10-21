@@ -217,13 +217,13 @@ describe('parseCnNumber —— 中文数量词最小实现', () => {
   });
 });
 
-describe('storyboard 接线：自动生成 vs --draft（向后兼容）', () => {
+describe('storyboard 接线：motionboard 生成 / 钉死直通 / 无字幕拦截（Wave 5 整合）', () => {
   const tmpDirs: string[] = [];
   afterEach(() => {
     for (const d of tmpDirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
   });
 
-  function makeJob(): { jobsDir: string; jobId: string; base: string } {
+  function makeJob(mode: 'aligned' | 'no-subtitle' = 'aligned'): { jobsDir: string; jobId: string; base: string } {
     const jobsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-rhythm-'));
     tmpDirs.push(jobsDir);
     const jobId = 'j';
@@ -236,7 +236,7 @@ describe('storyboard 接线：自动生成 vs --draft（向后兼容）', () => 
     });
     writeJson(path.join(base, '01-align', 'align-report.json'), {
       fps: 30,
-      mode: 'aligned',
+      mode,
       meanConfidence: 0.9,
       lowConfidenceRatio: 0.01,
       gatePassed: true,
@@ -258,7 +258,7 @@ describe('storyboard 接线：自动生成 vs --draft（向后兼容）', () => 
     return { jobsDir, jobId, base };
   }
 
-  it('无 draft → 生成 pacing.json + draft.synth.json + storyboard（caption 2 / motion 1）', () => {
+  it('无 motionboard → 生成 pacing.json + motionboard.json（intent 底稿）+ bind-report + storyboard', () => {
     const { jobsDir, jobId, base } = makeJob();
     const outcome = runStoryboard({ jobId, jobsDir });
 
@@ -271,31 +271,42 @@ describe('storyboard 接线：自动生成 vs --draft（向后兼容）', () => 
     expect(pacing.cues[0]!.skipped).toBe('too-short');
     expect(pacing.cues[1]!.decide).toBe('motion');
 
-    // 产品缺口修复：synth 结果要落成**可改的文件**，但不能叫 draft.json ——
-    // 否则下次就命中「有起草稿 → 走旧路径」，内置生成器再也不会执行。
-    const synthFile = path.join(base, '03-storyboard', 'draft.synth.json');
-    expect(fs.existsSync(synthFile)).toBe(true);
-    const synth = JSON.parse(fs.readFileSync(synthFile, 'utf8')) as {
-      tracks: { id: string; items: unknown[] }[];
+    // 底稿落成**可改的文件** motionboard.json：intent 形态，人/模型可直接改
+    const mbFile = path.join(base, '03-storyboard', 'motionboard.json');
+    expect(fs.existsSync(mbFile)).toBe(true);
+    const board = JSON.parse(fs.readFileSync(mbFile, 'utf8')) as {
+      meta: { fps: number };
+      tracks: { id: string; items: { intent?: string; motion?: string }[] }[];
     };
-    expect(synth.tracks.map((t) => t.id)).toEqual(['caption', 'motion']);
+    expect(board.meta.fps).toBe(30);
+    expect(board.tracks.map((t) => t.id)).toEqual(['caption', 'motion']);
+    expect(board.tracks[1]!.items[0]!.intent).toBe('closing-verdict');
+    expect(board.tracks[1]!.items[0]!.motion).toBeUndefined();
     expect(fs.existsSync(path.join(base, '03-storyboard', 'draft.json'))).toBe(false);
+    expect(fs.existsSync(path.join(base, '03-storyboard', 'draft.synth.json'))).toBe(false);
+
+    // 绑定产物：caption 2 / motion 1 + bind-report 溯源
+    const bindFile = path.join(base, '03-storyboard', 'bind-report.json');
+    expect(fs.existsSync(bindFile)).toBe(true);
+    const bind = JSON.parse(fs.readFileSync(bindFile, 'utf8')) as { noFits: number; records: { status: string; source: string }[] };
+    expect(bind.noFits).toBe(0);
+    expect(bind.records.every((r) => r.source === 'intent' || r.source === 'pinned')).toBe(true);
 
     const tracks = outcome.storyboard.tracks;
     expect(tracks.map((t) => t.id)).toEqual(['caption', 'motion']);
     expect(tracks[0]!.items).toHaveLength(2);
     expect(tracks[1]!.items).toHaveLength(1);
 
-    // 幂等：再跑一次仍走内置生成器（draft.json 不存在），结果不变
+    // AC-5：第二次跑**不改写** motionboard.json（文件归用户/模型，管线只读）
+    const stat = fs.statSync(mbFile);
     const again = runStoryboard({ jobId, jobsDir });
-    expect(again.storyboard.tracks.map((t) => t.id)).toEqual(['caption', 'motion']);
     expect(again.storyboard.tracks[0]!.items).toHaveLength(2);
+    expect(fs.statSync(mbFile).mtimeMs).toBe(stat.mtimeMs);
   });
 
-  it('显式 --draft → 走旧路径，且不生成 pacing.json', () => {
+  it('手写 motionboard.json（钉死条目）→ 直接绑定烘焙，不生成 pacing.json', () => {
     const { jobsDir, jobId, base } = makeJob();
-    const draftFile = path.join(base, '03-storyboard', 'draft.json');
-    writeJson(draftFile, {
+    writeJson(path.join(base, '03-storyboard', 'motionboard.json'), {
       meta: { fps: 30, anchorMode: 'word', alignmentConfidence: 0.9 },
       tracks: [
         {
@@ -318,18 +329,17 @@ describe('storyboard 接线：自动生成 vs --draft（向后兼容）', () => 
 
     const outcome = runStoryboard({ jobId, jobsDir });
     expect(fs.existsSync(path.join(base, '03-storyboard', 'pacing.json'))).toBe(false);
-    expect(outcome.storyboard.tracks.map((t) => t.id)).toEqual(['t']);
+    const bind = JSON.parse(
+      fs.readFileSync(path.join(base, '03-storyboard', 'bind-report.json'), 'utf8'),
+    ) as { records: { pinned: boolean; status: string }[] };
+    expect(bind.records[0]!.pinned).toBe(true);
+    // 字幕轨恒在：手写 motionboard 未声明 caption 轨 → 绑定器按 cue 自动铺
+    expect(outcome.storyboard.tracks.map((t) => t.id)).toEqual(['t', 'caption']);
+    expect(outcome.storyboard.tracks[1]!.items).toHaveLength(2);
   });
 
-  it('显式 --draft 指向不存在的文件 → ConfigError（不悄悄改用内置生成器）', () => {
-    const { jobsDir, jobId, base } = makeJob();
-    expect(() =>
-      runStoryboard({
-        jobId,
-        jobsDir,
-        draftPath: path.join(base, '03-storyboard', 'nope.json'),
-      }),
-    ).toThrow(ConfigError);
-    expect(fs.existsSync(path.join(base, '03-storyboard', 'pacing.json'))).toBe(false);
+  it('无字幕模式且无 motionboard → ConfigError（提示手写 abs: 锚点底稿）', () => {
+    const { jobsDir, jobId } = makeJob('no-subtitle');
+    expect(() => runStoryboard({ jobId, jobsDir })).toThrow(/无字幕模式/);
   });
 });

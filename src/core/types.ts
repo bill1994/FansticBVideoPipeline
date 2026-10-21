@@ -447,3 +447,126 @@ export interface SourceManifest {
   width?: number;
   height?: number;
 }
+
+// ─────────────────────────────────────────────────────────────
+// motionboard.json —— 统一可编辑意图层（Wave 5 整合，2026-10-21）
+// ─────────────────────────────────────────────────────────────
+//
+// 一份文件承载「生成 → 人改 → 绑定」全生命周期：
+//   · 规则生成器首跑产出（intent 形态底稿）；
+//   · 模型读 skill 精修；人工增删改（可把 intent 换成钉死 motion）。
+// 管线除首跑生成外**只读**本文件；绑定器（调度前解析步）把 intent 解析成
+// 模板绑定，intent 随 `_author` 在 bake 时「用完即弃」→ storyboard.json。
+
+export interface MotionBoardItem {
+  /** 作者语法层：锚点 + 偏移（复用 C2，烘焙后剥离）。 */
+  _author: AuthorAnchor;
+  /**
+   * 动效意图（受控词表，见 `core/motionboard.ts` 的 `MOTIONBOARD_INTENTS`）。
+   * 与 `motion` **二选一** —— 由 `assertMotionboardKeys` 强制。
+   */
+  intent?: string;
+  /** 钉死条目：直接指定模板 id（人工兜底 / 已知确切模板时）。 */
+  motion?: string;
+  /** 模型提炼的文案（修「文字提取生硬」）；缺省时绑定器机械提取。 */
+  featuredText?: string;
+  /** 人读备注（为什么这么配）；绑定器零消费，不进任何判定。 */
+  note?: string;
+  /** 模型自评置信度（闸2 输入）。必填。 */
+  confidence: number;
+  /** 钉死条目的模板参数（直通，#16 兜底）；intent 条目一般不写（绑定器填）。 */
+  params?: Record<string, unknown>;
+  /** 覆盖模板默认占位矩形。 */
+  footprint?: Footprint;
+  /** 互斥组名。 */
+  exclusive?: string;
+  /** 相交检测降级为 warning（C3）。 */
+  footprintAnimates?: boolean;
+  /** 显式载体退路（人工返修可手填；绑定器也会按区域预算自动声明）。 */
+  carrier?: CarrierRef;
+  /** 显式帧（逃生口；正常路径由锚点烘焙）。 */
+  fromFrame?: number;
+  durationInFrames?: number;
+  /** 调度分（人工可保留旧值；缺省由绑定器按钉死/候选档位赋值）。 */
+  sim_max?: number;
+}
+
+export interface MotionBoardTrack {
+  id: string;
+  layer: number;
+  handoffTo?: string | null;
+  items: MotionBoardItem[];
+}
+
+export interface MotionBoard {
+  meta: {
+    fps: number;
+    /** 省略 = 'word'。无字幕模式手写文件无此约束（只用 abs: 锚点）。 */
+    anchorMode?: AnchorMode;
+    alignmentConfidence: number;
+    version?: string;
+    author?: string;
+    confirmedBy?: string;
+    confirmedAt?: string;
+  };
+  tracks: MotionBoardTrack[];
+  noMotionRanges: NoMotionRange[];
+}
+
+/** 绑定溯源单条记录（`bind-report.json`）。 */
+export interface BindRecord {
+  /** `trackId/000` 形式的条目引用。 */
+  ref: string;
+  source: 'intent' | 'pinned';
+  intent?: string;
+  /** 解析结果（intent 命中的模板 / 钉死值）。 */
+  motion: string;
+  /** 命中候选序（0 起）；钉死条目无此字段。 */
+  candidateOrder?: number;
+  /** intent 实际尝试过的候选（按序）。 */
+  candidatesTried?: string[];
+  pinned?: boolean;
+  featuredText?: string;
+  status: 'bound' | 'no-fits';
+  reason: string;
+}
+
+export interface BindReport {
+  fps: number;
+  records: BindRecord[];
+  /** no-fits 条数（显式计数，绝不静默）。 */
+  noFits: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 绑定产物（烘焙输入）—— 原定义于 stages/storyboard.ts，
+// Wave 5 整合时上提至 core（绑定器在 core，不得反向依赖 stages）。
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 绑定后的起草稿 item（烘焙输入）。
+ *
+ * 与最终契约的差别（都来自「模型只填表不写代码」这条铁律）：
+ *  · `fromFrame` / `durationInFrames` **可省略** —— 前者由锚点烘焙得出，
+ *    后者由 `max(模板 minVisibleInFrames, 锚定词区间长度)` 推导。
+ *  · 额外允许携带 `sim_max` 与 `confidence`，它们是闸1 / 闸2 的输入。
+ */
+export type DraftItem = Omit<StoryboardItem, 'fromFrame' | 'durationInFrames'> & {
+  fromFrame?: number;
+  durationInFrames?: number;
+  sim_max?: number;
+  confidence?: number;
+};
+
+export interface DraftTrack {
+  id: string;
+  layer: number;
+  handoffTo?: string | null;
+  items: DraftItem[];
+}
+
+export interface DraftStoryboard {
+  meta: StoryboardMeta;
+  tracks: DraftTrack[];
+  noMotionRanges: Storyboard['noMotionRanges'];
+}

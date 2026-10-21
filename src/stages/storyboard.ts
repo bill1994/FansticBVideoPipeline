@@ -18,10 +18,13 @@ import { log } from '../core/log.ts';
 import { bake } from '../core/bake.ts';
 import { computeThreshold, decide, routingFloor, maxReview } from '../core/schedule.ts';
 import { buildRhythmTable } from '../core/rhythm.ts';
-import { synthDraft } from '../core/rhythm-rules.ts';
+import { generateMotionboard } from '../core/rhythm-rules.ts';
+import { assertMotionboardKeys, bindMotionboard } from '../core/motionboard.ts';
 import type {
   AlignWords,
   BakeReport,
+  DraftStoryboard,
+  MotionBoard,
   PerceiveRegion,
   SourceManifest,
   Storyboard,
@@ -29,29 +32,8 @@ import type {
 } from '../core/types.ts';
 import { assertNoCrossStageReference } from '../core/io.ts';
 
-/**
- * 起草稿的 item。
- *
- * 与最终契约的差别（都来自「模型只填表不写代码」这条铁律）：
- *  · `fromFrame` / `durationInFrames` **可省略** —— 前者由锚点烘焙得出，
- *    后者由 `max(模板 minVisibleInFrames, 锚定词区间长度)` 推导。
- *    模型禁写帧数，所以正常路径下这两个字段都不该出现。
- *  · 额外允许携带匹配器给出的 `sim_max` 与模型的 `confidence`，
- *    它们是闸1 / 闸2 的输入。
- */
-export type DraftItem = Omit<StoryboardItem, 'fromFrame' | 'durationInFrames'> & {
-  fromFrame?: number;
-  durationInFrames?: number;
-  sim_max?: number;
-  confidence?: number;
-};
-
-export interface DraftTrack {
-  id: string;
-  layer: number;
-  handoffTo?: string | null;
-  items: DraftItem[];
-}
+// 绑定产物类型已上提至 core/types.ts（绑定器在 core，不得反向依赖 stages）。
+export type { DraftItem, DraftTrack, DraftStoryboard } from '../core/types.ts';
 
 /**
  * 起草稿 item 的**允许键**（`P5` 裁决，2026-10-19）。
@@ -124,23 +106,9 @@ export function assertDraftItemKeys(draft: DraftStoryboard): void {
   }
 }
 
-export interface DraftStoryboard {
-  meta: {
-    fps: number;
-    anchorMode: Storyboard['meta']['anchorMode'];
-    alignmentConfidence: number;
-    confirmedBy?: string;
-    confirmedAt?: string;
-  };
-  tracks: DraftTrack[];
-  noMotionRanges: Storyboard['noMotionRanges'];
-}
-
 export interface StoryboardOptions {
   jobId: string;
   jobsDir?: string;
-  /** 起草稿路径。省略时读 `03-storyboard/draft.json`。 */
-  draftPath?: string;
 }
 
 export interface StoryboardOutcome {
@@ -220,39 +188,26 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   //    产出的 storyboard 会在 validate 撞 E-D4-01（基线实测，见节奏表基线报告 §4）。
   const regions = readJson<PerceiveRegion[]>(regionsFile);
 
-  const draftFile = opts.draftPath ?? path.join(outDir, 'draft.json');
-  let draft: DraftStoryboard;
-  if (exists(draftFile)) {
-    // ── 旧路径（逐字节保持原行为）────────────────────────────
-    // 有起草稿就用起草稿：不论来自外部模型、人工返修还是上一轮内置生成器落下的
-    // `draft.json`，都走同一套「键检查 → 调度 → 烘焙 → 落盘」。
-    draft = readJson<DraftStoryboard>(draftFile);
-  } else if (opts.draftPath !== undefined) {
-    // 显式 `--draft` 指向一个不存在的文件：这是参数错误，不能悄悄改成内置生成。
-    throw new ConfigError(
-      `--draft 指定的起草稿不存在：${draftFile}\n` +
-        `  若要使用内置生成器，请去掉 --draft 并确保 03-storyboard/draft.json 不存在。`,
-    );
-  } else if (noSubtitle) {
-    // 🔴 M-1g：无字幕模式没有 cue，内置生成器无从铺层。
-    //    保持「无 cue 不得生成 storyboard」的既有约束，而不是产出一份空壳。
-    throw new ConfigError(
-      '本 job 是**无字幕模式**（align-report.mode = no-subtitle）—— ' +
-        '内置生成器依赖 SRT cue 才能铺字幕轨与节奏表，没有 cue 无法生成起草稿。\n' +
-        '  ↳ 用 --draft <file> 提供手写起草稿（只可用 abs: 锚点），或去掉 --no-subtitle 重跑 align。',
-    );
-  } else {
-    // ── 内置确定性生成器（P1，2026-10-20）──────────────────────
-    // 没有起草稿、有 cue ⇒ 用节奏表直接合成 draft：
-    //   buildRhythmTable（纯函数判断每条 cue 配不配 motion）
-    //   → 落 pacing.json（可人工核对判断依据）
-    //   → synthDraft（每条 cue 一条 caption + 命中的 MG）
-    //   → 继续走既有的调度 / 烘焙 / 落盘流程。
+  // ── motionboard：唯一可编辑意图层（Wave 5 整合，2026-10-21）──
+  // 三个来源写同一份文件：生成器首跑底稿 / 模型读 skill 精修 / 人工增删改。
+  // 管线除首跑生成外只读它；绑定器把 intent 解析成模板绑定后，
+  // intent 随 `_author` 在 bake 时「用完即弃」→ storyboard.json。
+  const mbFile = path.join(outDir, 'motionboard.json');
+  if (!exists(mbFile)) {
+    if (noSubtitle) {
+      // 🔴 M-1g：无字幕模式没有 cue，生成器无从铺层；保持「无 cue 不得生成」约束。
+      throw new ConfigError(
+        '本 job 是**无字幕模式**（align-report.mode = no-subtitle）—— ' +
+          '没有 cue 无法生成 motionboard。\n' +
+          '  ↳ 手写 03-storyboard/motionboard.json（只可用 abs: 锚点、不可用字幕模板），' +
+          '或去掉 --no-subtitle 重跑 align。',
+      );
+    }
     const cues = aligned.cues ?? [];
     if (cues.length === 0) {
       throw new ConfigError(
-        '01-align/words.json 没有 cues —— 内置生成器需要按 cue 铺字幕与节奏表。\n' +
-          '  ↳ 若本片其实有 SRT，请重跑 align；否则用 --draft 提供手写起草稿。',
+        '01-align/words.json 没有 cues —— 无法生成 motionboard。\n' +
+          '  ↳ 若本片其实有 SRT，请重跑 align；否则手写 03-storyboard/motionboard.json（abs: 锚点）。',
       );
     }
 
@@ -268,32 +223,53 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
       jobsDir: opts.jobsDir,
     });
 
-    draft = synthDraft(table, cues, {
+    const board = generateMotionboard(table, cues, {
       fps: source.fps,
       alignmentConfidence: alignReport.meanConfidence,
-      regions,
     });
-
-    // 🔴 落 `draft.synth.json` 而不是 `draft.json`（产品缺口修复，2026-10-20）：
-    //    用户跑完内置生成器后需要一个**可改的文件**，否则想手工调整时手上什么都没有。
-    //    但一旦写成 `draft.json`，下次就会命中上面「有起草稿 → 走旧路径」的分支，
-    //    内置生成器**再也不会执行** —— 等于「跑一次就固化」。
-    //    `draft.synth.json` 刻意不参与读盘判断（分支只看 `opts.draftPath ?? draft.json`）。
+    // 首跑生成：此后本文件归用户/模型所有，管线只读。重新从规则生成 = 删除它再跑。
     writeStageJson({
       jobId: opts.jobId,
       self: STAGES.storyboard,
       target: STAGES.storyboard,
-      file: 'draft.synth.json',
-      data: draft,
+      file: 'motionboard.json',
+      data: board,
       jobsDir: opts.jobsDir,
     });
-
     const motionCount = table.cues.filter((c) => c.decide === 'motion').length;
     const skippedShort = table.cues.filter((c) => c.skipped === 'too-short').length;
     log.info(
       `内置生成器：${table.cues.length} 条 cue → ${motionCount} 条 motion / ` +
         `${table.cues.length} 条 caption（too-short ${skippedShort} 条），已落 pacing.json；` +
-        `已落 draft.synth.json（要手工调整请复制为 draft.json 后修改并重跑）`,
+        `已生成 motionboard.json（意图底稿，可人工/模型修改后重跑）`,
+    );
+  }
+
+  const board = readJson<MotionBoard>(mbFile);
+  assertMotionboardKeys(board, source.fps);
+
+  // 绑定器：调度前解析步 —— intent → 模板绑定（钉死条目直通）。
+  const { draft, report: bindReport } = bindMotionboard(board, {
+    cues: aligned.cues ?? [],
+    words: aligned.words,
+    source: { fps: source.fps, alignmentConfidence: alignReport.meanConfidence },
+    regions,
+  });
+  writeStageJson({
+    jobId: opts.jobId,
+    self: STAGES.storyboard,
+    target: STAGES.storyboard,
+    file: 'bind-report.json',
+    data: bindReport,
+    jobsDir: opts.jobsDir,
+  });
+  if (bindReport.noFits > 0) {
+    const details = bindReport.records
+      .filter((r) => r.status === 'no-fits')
+      .map((r) => `  · ${r.ref} ${r.intent ?? ''}：${r.reason}`);
+    log.warn(
+      `绑定 no-fits ${bindReport.noFits} 条（不产 MG，字幕不受影响；详见 bind-report.json）：\n` +
+        details.join('\n'),
     );
   }
   assertDraftItemKeys(draft);
@@ -332,11 +308,7 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     log.info('无字幕模式：已校验全部 item 均用 abs: 锚点且不含字幕模板（M-1g）。');
   }
 
-  if (draft.meta.fps !== source.fps) {
-    throw new ConfigError(
-      `起草稿 fps ${draft.meta.fps} 与素材清单 ${source.fps} 不一致 —— fps 与烘焙绑定，必须先统一`,
-    );
-  }
+  // fps 一致性已由 assertMotionboardKeys 校验（绑定产物 meta.fps 恒取 source.fps）。
 
   // ── 调度：闸1 路由 + 闸2 审核强度 + 产路地板 ────────────────
   const scores = draft.tracks.flatMap((t) => t.items.map((i) => i.sim_max));
@@ -395,8 +367,8 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
 
   // 回填 meta（5 个字段，见 SPEC §1.2）
   // 🔴 放行记录优先于 `draft.meta`：前者是人工签的凭据，后者只是模型填的草稿字段。
-  const metaConfirmedBy = alignWaiver?.by ?? draft.meta.confirmedBy;
-  const metaConfirmedAt = alignWaiver?.at ?? draft.meta.confirmedAt;
+  const metaConfirmedBy = alignWaiver?.by ?? board.meta.confirmedBy;
+  const metaConfirmedAt = alignWaiver?.at ?? board.meta.confirmedAt;
   const baked: Storyboard = {
     meta: {
       fps: source.fps,

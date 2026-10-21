@@ -157,7 +157,7 @@ npm run typecheck && npm test
 **③ 端到端 demo（无需真实素材）**
 
 ```bash
-npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
+npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
@@ -174,7 +174,7 @@ npm run pipeline -- init       --job my-job
 # 把视频与 SRT 放进 jobs/my-job/00-input/，填好 source.json（video / srt / fps / durationInFrames）
 npm run pipeline -- align      --job my-job      # whisper small：约 14 分钟
 npm run pipeline -- perceive   --job my-job
-npm run pipeline -- storyboard --job my-job --draft jobs/my-job/03-storyboard/draft.json
+npm run pipeline -- storyboard --job my-job
 npm run pipeline -- validate   --job my-job
 npm run pipeline -- render     --job my-job      # 6667 帧 1080p60：约 20–22 分钟
 ```

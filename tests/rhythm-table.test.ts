@@ -19,7 +19,8 @@ import {
   cueTerms,
   detectSignals,
 } from '../src/core/rhythm.ts';
-import { synthDraft } from '../src/core/rhythm-rules.ts';
+import { generateMotionboard } from '../src/core/rhythm-rules.ts';
+import { bindMotionboard } from '../src/core/motionboard.ts';
 import type { Cue, PerceiveRegion, RhythmTable } from '../src/core/types.ts';
 import { rectArea, rectOverlapArea } from '../src/validate/context.ts';
 
@@ -216,15 +217,26 @@ describe('buildRhythmTable —— 门槛与快照', () => {
   });
 });
 
-describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
+describe('generateMotionboard → bindMotionboard —— 字幕恒在，MG 只按节奏表', () => {
+  /** 生成 → 绑定（等价于 storyboard 阶段对底稿做的事）。 */
+  function genAndBind(cues: Cue[], regions: PerceiveRegion[] = []) {
+    const table = buildRhythmTable(cues, 30, 'aligned');
+    const board = generateMotionboard(table, cues, { fps: 30, alignmentConfidence: 0.9 });
+    return bindMotionboard(board, {
+      cues,
+      words: [],
+      source: { fps: 30, alignmentConfidence: 0.9 },
+      regions,
+    });
+  }
+
   it('每条 cue 都有一条 caption item（含 <门槛 的短 cue）', () => {
     const cues = [
       cue(0, 0, 9, '这里有3个要点'), // too-short，但字幕必须有
       cue(1, 9, 129, '但这一步别再拖了'), // turn + contrast，120 帧
-      cue(2, 129, 141, '结束语'), // 末条 closing，但 12 帧无模板可用
+      cue(2, 129, 141, '结束语'), // 末条 closing，但 13 帧无模板可用 → no-fits
     ];
-    const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
+    const { draft, report } = genAndBind(cues);
 
     const caption = draft.tracks.find((t) => t.id === 'caption')!;
     const motion = draft.tracks.find((t) => t.id === 'motion')!;
@@ -237,18 +249,19 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
       'caption/karaoke-word@1.0',
       'caption/karaoke-word@1.0',
     ]);
-    expect(caption.items.map((i) => i._author.anchor)).toEqual(['cue:0', 'cue:1', 'cue:2']);
+    expect(caption.items.map((i) => i._author!.anchor)).toEqual(['cue:0', 'cue:1', 'cue:2']);
 
-    // 短 cue 不产 MG；末条 12 帧也不产
+    // 短 cue 不产 MG；末条 13 帧也不产 —— 但这在**表级**就定了（decide=none +
+    // skipped: 'no-template-fits'），绑定器 noFits 恒 0（它只对手写 intent 负责）
     expect(motion.items).toHaveLength(1);
-    expect(motion.items[0]!._author.anchor).toBe('cue:1');
+    expect(motion.items[0]!._author!.anchor).toBe('cue:1');
     expect(motion.items[0]!.motion).toBe('typography/kinetic-line@1.0');
+    expect(report.noFits).toBe(0);
   });
 
-  it('模拟强度固定：caption 1.0 / 规则命中 0.85，confidence 1.0', () => {
+  it('调度分：caption 1.0 / 绑定意图首选 0.85，confidence 恒 1.0（规则置信度）', () => {
     const cues = [cue(0, 0, 90, '这里有3个要点')];
-    const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
+    const { draft } = genAndBind(cues);
     expect(draft.tracks[0]!.items[0]!.sim_max).toBe(1);
     expect(draft.tracks[0]!.items[0]!.confidence).toBe(1);
     const mg = draft.tracks[1]!.items[0]!;
@@ -258,8 +271,7 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
 
   it('footprint 直接取模板声明（不自造坐标）', () => {
     const cues = [cue(0, 0, 90, '这里有3个要点')];
-    const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
+    const { draft } = genAndBind(cues);
     // 与 templates/builtin.ts 的声明一致
     expect(draft.tracks[0]!.items[0]!.footprint).toEqual([0.1, 0.86, 0.8, 0.1]);
     expect(draft.tracks[1]!.items[0]!.footprint).toEqual([0.62, 0.12, 0.32, 0.24]);
@@ -268,112 +280,14 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
   it('节奏表与 cue 数量不一致 → 抛 ConfigError（必须同源）', () => {
     const table = buildRhythmTable([cue(0, 0, 90, '一句话')], 30, 'aligned');
     expect(() =>
-      synthDraft(table, [cue(0, 0, 90, '一句话'), cue(1, 90, 180, '两句')], {
+      generateMotionboard(table, [cue(0, 0, 90, '一句话'), cue(1, 90, 180, '两句')], {
         fps: 30,
         alignmentConfidence: 0.9,
-        regions: [],
       }),
     ).toThrow(/必须用同一份/);
   });
-});
 
-describe('synthDraft —— 区域感知的载体退路声明（E-D4-01 修复）', () => {
-  // 复刻基线肇事数据：jobs/baseline-kukini-1021 的 r-handheld-s14（handheld 预算 20%）
-  const HANDHELD_S14: PerceiveRegion = {
-    id: 'r-handheld-s14',
-    kind: 'handheld',
-    shotId: 's14',
-    fromFrame: 2372,
-    durationInFrames: 965,
-    box: [0.254, 0.106, 0.422, 0.797],
-  };
-  // face 预算 0%：与 center-emphasis 默认 footprint 有交叠 → 任何重叠都不允许
-  const FACE: PerceiveRegion = {
-    id: 'r-face-x',
-    kind: 'face',
-    shotId: 's1',
-    fromFrame: 0,
-    durationInFrames: 600,
-    box: [0.386, 0.106, 0.158, 0.324],
-  };
-  const CENTER = 'typography/center-emphasis@1.0'; // 首批唯一 occludesSubject: true 的叠加模板
-
-  /** 手工构造「cue 配 center-emphasis」的节奏表行（单测聚焦 synthDraft 的区域感知）。 */
-  function motionTable(cueIndex: number, fromFrame: number, durationInFrames: number): RhythmTable {
-    return {
-      meta: { fps: 30, mode: 'aligned', version: '1.0' },
-      cues: [
-        {
-          cueIndex,
-          fromFrame,
-          durationInFrames,
-          decide: 'motion',
-          motion: CENTER,
-          reason: '测试行',
-          signal: [],
-        },
-      ],
-    };
-  }
-
-  it('footprint 与 handheld 区域超预算 → 声明 carrier 退路，且展示条真的清掉预算', () => {
-    const cues = [cue(0, 3275, 3325, '总之这双联名鞋值回票价')];
-    const draft = synthDraft(motionTable(0, 3275, 51), cues, {
-      fps: 30,
-      alignmentConfidence: 0.9,
-      regions: [HANDHELD_S14],
-    });
-    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
-    expect(item.carrier).toBeDefined();
-    expect(item.carrier!.template).toBe('carrier/split-frame@1.0');
-    // 🔴 断言用 tier2 的终判口径（occlusion.ts resolveOcclusion 第②步）：
-    //   声明的 side/ratio 算出的展示条 ∩ 区域 ≤ 该区域预算 —— 光声明不够，
-    //   默认右半屏对 r-handheld-s14 仍有 41.8% 重叠，会炸成 E-D2-01。
-    const display = carrierDisplayRect(
-      readCarrierSide(item.carrier!.params),
-      readCarrierRatio(item.carrier!.params),
-    );
-    expect(rectOverlapArea(display, HANDHELD_S14.box) / rectArea(HANDHELD_S14.box)).toBeLessThanOrEqual(
-      0.2,
-    );
-  });
-
-  it('face 预算 0% → 展示条必须完全让出人脸', () => {
-    const cues = [cue(0, 0, 90, '总之这双鞋值得买')];
-    const draft = synthDraft(motionTable(0, 0, 91), cues, {
-      fps: 30,
-      alignmentConfidence: 0.9,
-      regions: [FACE],
-    });
-    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
-    expect(item.carrier).toBeDefined();
-    const display = carrierDisplayRect(
-      readCarrierSide(item.carrier!.params),
-      readCarrierRatio(item.carrier!.params),
-    );
-    expect(rectOverlapArea(display, FACE.box)).toBe(0);
-  });
-
-  it('无区域 / 预算内 → 不声明退路（不多不少）；caption 恒不声明', () => {
-    const cues = [cue(0, 0, 90, '总之这双鞋值得买')];
-    const empty = synthDraft(motionTable(0, 0, 91), cues, {
-      fps: 30,
-      alignmentConfidence: 0.9,
-      regions: [],
-    });
-    expect(empty.tracks.find((t) => t.id === 'motion')!.items[0]!.carrier).toBeUndefined();
-
-    // 区域远离 footprint（左上角 1% 小框 vs 中部大字）→ 预算内，不声明
-    const far = synthDraft(motionTable(0, 0, 91), cues, {
-      fps: 30,
-      alignmentConfidence: 0.9,
-      regions: [
-        { id: 'r-broll-1', kind: 'broll', shotId: 's1', fromFrame: 0, durationInFrames: 600, box: [0, 0, 0.01, 0.01] },
-      ],
-    });
-    expect(far.tracks.find((t) => t.id === 'motion')!.items[0]!.carrier).toBeUndefined();
-
-    // caption/karaoke-word 声明 occludesSubject: false → 永不进遮挡预算，也不声明退路
-    expect(empty.tracks.find((t) => t.id === 'caption')!.items[0]!.carrier).toBeUndefined();
-  });
+  // 🔴 区域感知载体退路（E-D4-01 修复）的行为测试已随意图层迁移：
+  //   tests/motionboard.test.ts「face 预算 0% → carrier 退路」覆盖同一链路
+  //   （生成器→绑定器继承 carrierRouteForSpan），fixture 与断言口径不变。
 });

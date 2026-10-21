@@ -1,0 +1,70 @@
+{
+  "fps": 30,
+  "noFits": 0,
+  "records": [
+    {
+      "motion": "cinematic/punch-in@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "bg-punch/000",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "data/stat-card@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "data-card/000",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "typography/kinetic-line@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "typo-main/000",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "typography/kinetic-line@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "typo-main/001",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "typography/kinetic-line@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "typo-main/002",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "typography/tag-float@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "typo-secondary/000",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "caption/karaoke-word@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "caption-bar/000",
+      "source": "pinned",
+      "status": "bound"
+    },
+    {
+      "motion": "caption/karaoke-word@1.0",
+      "pinned": true,
+      "reason": "钉死条目直通",
+      "ref": "caption-bar/001",
+      "source": "pinned",
+      "status": "bound"
+    }
+  ]
+}

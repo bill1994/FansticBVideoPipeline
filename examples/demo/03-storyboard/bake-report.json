@@ -3,6 +3,7 @@
   "records": [
     {
       "anchor": "word:8",
+      "cueIndex": -1,
       "fromFrame": 156,
       "itemIndex": 0,
       "offset": "-8f",
@@ -13,6 +14,7 @@
     },
     {
       "anchor": "word:40",
+      "cueIndex": -1,
       "fromFrame": 582,
       "itemIndex": 0,
       "offset": "+2f",
@@ -23,6 +25,7 @@
     },
     {
       "anchor": "word:4",
+      "cueIndex": -1,
       "fromFrame": 104,
       "itemIndex": 0,
       "offset": "-8f",
@@ -33,6 +36,7 @@
     },
     {
       "anchor": "word:12",
+      "cueIndex": -1,
       "fromFrame": 208,
       "itemIndex": 1,
       "offset": "-8f",
@@ -43,6 +47,7 @@
     },
     {
       "anchor": "word:22",
+      "cueIndex": -1,
       "fromFrame": 338,
       "itemIndex": 2,
       "offset": "-8f",
@@ -53,6 +58,7 @@
     },
     {
       "anchor": "word:30",
+      "cueIndex": -1,
       "fromFrame": 452,
       "itemIndex": 0,
       "offset": "+2f",
@@ -63,6 +69,7 @@
     },
     {
       "anchor": "word:2",
+      "cueIndex": -1,
       "fromFrame": 78,
       "itemIndex": 0,
       "offset": "-8f",
@@ -73,6 +80,7 @@
     },
     {
       "anchor": "word:50",
+      "cueIndex": -1,
       "fromFrame": 712,
       "itemIndex": 1,
       "offset": "+2f",

@@ -18,6 +18,34 @@ agent_created: true
 - `perceive` 完成（`02-perceive/` 就绪）时。
 - 重跑代价最低的一步：返修通常只重跑本阶段及其后（`validate` / `render`），所以**迭代都发生在这里**。
 
+## 0. 你写的是 motionboard（意图层），不是模板绑定（Wave 5 整合）
+
+你要产出的文件是 `03-storyboard/motionboard.json` —— **唯一的可编辑意图层**。
+缺失时内置生成器会按节奏表产出 intent 底稿；你的工作是**精修它**：
+
+```jsonc
+// 意图条目（常态）：绑定器按受控词表解析模板，你只表达创意意图
+{ "_author": { "anchor": "cue:12", "offset": "-8f" },
+  "intent": "number-emphasis",        // 词表：number-emphasis / contrast-turn / question / enum /
+                                      // repetition-term / closing-verdict / definition / keypoint
+  "featuredText": "三倍防泼水",        // 提炼短语（不是原句复读）；缺省时绑定器机械提取
+  "confidence": 0.8,                  // 你的自评（闸2 输入）
+  "note": "卡片跳出感，别压鞋" }       // 人读备注，不进任何判定
+
+// 钉死条目（兜底）：确切知道要哪个模板时直接写 motion + params
+{ "_author": { "anchor": "cue:30" },
+  "motion": "typography/kinetic-line@1.0",
+  "params": { "text": "还有前掌的这个EVA" }, "confidence": 0.9 }
+```
+
+**可读的资源**：`01-align/words.json`（cues/词时间戳）、`02-perceive/shots.json` 与
+`regions.json`（安全区/遮挡预算）、`03-storyboard/pacing.json`（规则生成的意图底稿，
+含每条 cue 的 signal 与 reason —— 在它的基础上增删改，别从零重写）。
+
+**纪律**：intent 与 motion 二选一；featuredText 必须是提炼短语；`note` 不进任何判定；
+禁写坐标/帧数/颜色/CSS。绑定失败（候选全不满足时长门控）会在 `bind-report.json`
+记 no-fits 并告警 —— 看到后换 intent 或删条目，不要硬塞。
+
 ## 铁律 1：模型只填表，不写代码
 
 只做两件事：**挑模板 + 填文字**。
@@ -202,7 +230,7 @@ storyboard 只能引用 `01-align/` 与 `02-perceive/` 的产物。
 
 | 阶段 | 位置 | 谁填 |
 |---|---|---|
-| **起草稿 `draft.json`** | item **顶层**，只填 `sim_max` 与 `confidence` —— 它们是闸1/闸2 的**输入** | 模型 |
+| **意图底稿 `motionboard.json`** | intent 条目只填 `confidence`（绑定器按候选档位赋 `sim_max`）；钉死条目可带 `sim_max` —— 它们是闸1/闸2 的**输入** | 模型 / 绑定器 |
 | **产物 `storyboard.json`** | `item.decision.{ sim_max, confidence, routing, review }` —— 四个值都是**输出** | 烘焙器（`core/schedule.ts`） |
 
 即：模型**不写** `routing` / `review`（那是算出来的），也不要自己套一层 `decision` 对象。

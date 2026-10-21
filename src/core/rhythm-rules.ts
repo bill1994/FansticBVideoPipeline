@@ -35,6 +35,8 @@ import type {
   CarrierRef,
   Cue,
   Footprint,
+  MotionBoard,
+  MotionBoardItem,
   PerceiveRegion,
   RhythmSignal,
   RhythmTable,
@@ -624,59 +626,13 @@ export function decideMotion(
 }
 
 // ─────────────────────────────────────────────────────────────
-// 节奏表 → 起草稿
+// 规则底稿 → 意图层：轨道常量与共享件（绑定器复用，见 core/motionboard.ts）
 // ─────────────────────────────────────────────────────────────
 
-/** 起草稿 item 的结构化形状（与 `stages/storyboard.ts` 的 `DraftItem` 兼容）。 */
-export interface SynthDraftItem {
-  _author: { anchor: string };
-  motion: string;
-  footprint: Footprint;
-  params?: Record<string, unknown>;
-  /**
-   * 载体退路声明（E-D4-01 修复，2026-10-21）。
-   *
-   * 区域预算预测超支时给出 tier2 路由 —— tier1 平移仍优先（`resolveOcclusion`
-   * 先试 nudge），这里只是让「退路存在」。不预测超支就**不声明**（不多不少）。
-   */
-  carrier?: CarrierRef;
-  sim_max: number;
-  confidence: number;
-}
-
-export interface SynthDraftTrack {
-  id: string;
-  layer: number;
-  items: SynthDraftItem[];
-}
-
-export interface SynthDraft {
-  meta: {
-    fps: number;
-    anchorMode: 'word' | 'cue';
-    alignmentConfidence: number;
-  };
-  tracks: SynthDraftTrack[];
-  noMotionRanges: [];
-}
-
-/** `synthDraft` 需要的上游事实。 */
-export interface SynthSource {
-  fps: number;
-  alignmentConfidence: number;
-  /**
-   * `02-perceive/regions.json` 的区域清单 —— 遮挡预算预测的输入。
-   *
-   * 🔴 必填（2026-10-21）：基线实测证明不读区域的合成路径会产出
-   *   validate 拦下的 storyboard（E-D4-01）—— 画面全盲不是可选项。
-   */
-  regions: readonly PerceiveRegion[];
-}
-
-/** 字幕轨 / MG 轨的固定划分（规格 P1 第三节：不按模板各开一轨）。 */
-const CAPTION_TRACK = { id: 'caption', layer: 90 } as const;
-const MOTION_TRACK = { id: 'motion', layer: 60 } as const;
-const CAPTION_MOTION = 'caption/karaoke-word@1.0';
+/** 字幕轨 / MG 轨的固定划分（规格 P1 第三节：不按模板各开一轨）。导出供绑定器复用。 */
+export const CAPTION_TRACK = { id: 'caption', layer: 90 } as const;
+export const MOTION_TRACK = { id: 'motion', layer: 60 } as const;
+export const CAPTION_MOTION = 'caption/karaoke-word@1.0';
 
 // ─────────────────────────────────────────────────────────────
 // 区域感知的载体退路（E-D4-01 修复，2026-10-21）
@@ -778,7 +734,7 @@ function chooseCarrierRoute(conflicts: readonly PerceiveRegion[]): CarrierRef {
  * **叠加类**模板（fullscreen 归 D3 人工确认，不进遮挡预算，也不声明退路）。
  * 预测帧区间与 bake 的隐式时长同口径：`max(minVisibleInFrames, toFrame-fromFrame+1)`。
  */
-function carrierRouteIfNeeded(
+export function carrierRouteIfNeeded(
   registry: TemplateLookup,
   motion: string,
   cue: Cue,
@@ -788,9 +744,31 @@ function carrierRouteIfNeeded(
   if (!tpl || !tpl.occludesSubject) return undefined;
   if (!isOverlayScope(tpl.scope) || tpl.scope === 'fullscreen') return undefined;
   const byCue = cue.toFrame - cue.fromFrame + 1;
-  const start = cue.fromFrame;
-  const end = start + Math.max(tpl.minVisibleInFrames, byCue);
-  const conflicts = predictedConflicts(tpl.footprint, start, end, regions);
+  return carrierRouteForSpan(
+    registry,
+    motion,
+    cue.fromFrame,
+    cue.fromFrame + Math.max(tpl.minVisibleInFrames, byCue),
+    regions,
+  );
+}
+
+/**
+ * 载体退路声明（区间版）—— 供绑定器按锚点解析出的任意区间调用
+ * （intent 条目可能是 word:/cue:/abs: 锚点，不天然对应一条 cue）。
+ * 准入与 `carrierRouteIfNeeded` 相同；abs/无区间场景由调用方跳过。
+ */
+export function carrierRouteForSpan(
+  registry: TemplateLookup,
+  motion: string,
+  startFrame: number,
+  endFrame: number,
+  regions: readonly PerceiveRegion[],
+): CarrierRef | undefined {
+  const tpl = registry.get(motion);
+  if (!tpl || !tpl.occludesSubject) return undefined;
+  if (!isOverlayScope(tpl.scope) || tpl.scope === 'fullscreen') return undefined;
+  const conflicts = predictedConflicts(tpl.footprint, startFrame, endFrame, regions);
   if (conflicts.length === 0) return undefined;
   if (!registry.get(CARRIER_ROUTE_TEMPLATE)) {
     throw new ConfigError(
@@ -810,98 +788,105 @@ function carrierRouteIfNeeded(
  *    规则命中恒 0.85（高于 T 上限 0.80 ⇒ 走 template 产路，不误触安全阀）。
  */
 const CAPTION_SIM_MAX = 1.0;
-const RULE_SIM_MAX = 0.85;
 const RULE_CONFIDENCE = 1.0;
 
-/** 取模板声明的默认 footprint；缺失即配置错误，不自己发明坐标。 */
-function footprintOf(registry: TemplateLookup, motion: string): Footprint {
-  const tpl = registry.get(motion);
-  if (!tpl) {
-    throw new ConfigError(`synthDraft 引用了未注册的模板：${motion}`);
+// ─────────────────────────────────────────────────────────────
+// 规则底稿生成（Wave 5 整合）：节奏表 → motionboard.json（intent 形态）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 信号 → intent 的映射（优先级序：先命中先得）。
+ *
+ * 🔴 单一真源约束：绑定器的模板解析只认 `core/motionboard.ts` 的
+ *   `MOTIONBOARD_INTENTS`；本表只做「信号 → 意图」的翻译，
+ *   不再各自维护「信号 → 模板」的第二份映射。
+ */
+const SIGNAL_INTENT_PRIORITY: readonly {
+  readonly signals: readonly RhythmSignal[];
+  readonly intent: string;
+}[] = [
+  { signals: ['number'], intent: 'number-emphasis' },
+  { signals: ['closing'], intent: 'closing-verdict' },
+  { signals: ['question'], intent: 'question' },
+  { signals: ['turn', 'contrast'], intent: 'contrast-turn' },
+  { signals: ['enum'], intent: 'enum' },
+  { signals: ['definition'], intent: 'definition' },
+  { signals: ['repetition', 'short-after-long'], intent: 'repetition-term' },
+];
+
+/** 信号集 → intent；无命中归口 `keypoint`（词表中的泛称意图）。 */
+export function intentFromSignals(signals: readonly RhythmSignal[]): string {
+  const has = new Set(signals);
+  for (const rule of SIGNAL_INTENT_PRIORITY) {
+    if (rule.signals.some((s) => has.has(s))) return rule.intent;
   }
-  return [...tpl.footprint] as Footprint;
+  return 'keypoint';
 }
 
 /**
- * 由节奏表合成起草稿（`draft.json` 的内存形态）。
+ * 由节奏表生成 motionboard 底稿（intent 形态，可编辑）。
  *
- * 产出规则（规格 P1 第三节）：
- *   · **每条 cue 恒有一条 caption item**（含 `<门槛` 的短 cue）——
+ * 产出规则（规格 P1 第三节 + Wave 5 整合）：
+ *   · **每条 cue 恒有一条 caption item**（钉死形态，含 `<门槛` 的短 cue）——
  *     字幕层独立于 motion 门槛，它按 SRT 区间铺，不受「要不要配动效」影响。
- *   · `decide === 'motion'` 的 cue 额外产出一条 MG item。
+ *   · `decide === 'motion'` 的 cue 额外产出一条 **intent 条目**（不写 motion id、
+ *     不写坐标/帧数）—— 模板选择交给绑定器按 `MOTIONBOARD_INTENTS` 解析。
+ *   · `params` 预填 `decideMotion` 判定时的机械提取结果（同信号同口径），
+ *     人工/模型可直接在文件里看到并修改文案；候选降档时绑定器会按新模板重提取。
  *   · track 只有两条：`caption`（layer 90）/ `motion`（layer 60）。
- *   · 全部用 `cue:N` 锚点，**不写 `fromFrame` / `durationInFrames`**：
- *     帧由烘焙器按 cue 区间算，避免「模型手算帧」（C2 铁律 2），
- *     同时保证 motion 时长与该句话严格一致（不做任何时长推导）。
- *     ⚠️ 字幕例外：`bake()` 对隐式时长取 `max(minVisibleInFrames, cue 区间)`，
- *     所以短于 12 帧的 cue，其 caption 会被抬高到 12 帧 —— 这是模板下限
- *     （模板声明、非模型选择），不是「时长推导」。
+ *   · 全部用 `cue:N` 锚点，**不写 `fromFrame` / `durationInFrames`**（C2 铁律 2）。
  *
  * @param table `buildRhythmTable` 的产出
- * @param cues 与 `table` 同源的 cue 列表（用于 caption 锚点与文案提取）
- * @param source fps 与对齐置信度（写进 draft.meta）
+ * @param cues 与 `table` 同源的 cue 列表
+ * @param source fps 与对齐置信度（写进 meta）
  * @param registry 模板查询表；默认内置模板库
  */
-export function synthDraft(
+export function generateMotionboard(
   table: RhythmTable,
   cues: readonly Cue[],
-  source: SynthSource,
+  source: { fps: number; alignmentConfidence: number },
   registry: TemplateLookup = builtinTemplateLookup(),
-): SynthDraft {
+): MotionBoard {
   if (table.cues.length !== cues.length) {
     throw new ConfigError(
-      `synthDraft：节奏表有 ${table.cues.length} 行，但 cue 有 ${cues.length} 条 —— ` +
+      `generateMotionboard：节奏表有 ${table.cues.length} 行，但 cue 有 ${cues.length} 条 —— ` +
         `必须用同一份 01-align 产物生成，否则锚点会指向不存在的 cue`,
     );
   }
 
-  const captionItems: SynthDraftItem[] = [];
-  const motionItems: SynthDraftItem[] = [];
-  const regions = source.regions;
+  const captionItems: MotionBoardItem[] = [];
+  const motionItems: MotionBoardItem[] = [];
 
   cues.forEach((cue, i) => {
     const anchor = `cue:${cue.index}`;
 
-    // 字幕层：恒存在，不受 motion 门槛约束。
-    // 退路判定同样过一遍准入（karaoke-word occludesSubject=false ⇒ 恒不声明），
-    // 数据驱动而非按模板名特判 —— 将来新增遮挡型字幕模板时零维护。
-    const captionRoute = carrierRouteIfNeeded(registry, CAPTION_MOTION, cue, regions);
+    // 字幕层：恒存在，不受 motion 门槛约束（钉死条目）。
     captionItems.push({
       _author: { anchor },
       motion: CAPTION_MOTION,
-      footprint: footprintOf(registry, CAPTION_MOTION),
-      ...(captionRoute ? { carrier: captionRoute } : {}),
-      sim_max: CAPTION_SIM_MAX,
       confidence: RULE_CONFIDENCE,
+      sim_max: CAPTION_SIM_MAX,
     });
 
     const row = table.cues[i];
     if (!row || row.decide !== 'motion' || row.motion === undefined) return;
 
+    // params 预填判定时的机械提取（同信号同口径）；提取失败不拦 ——
+    // 绑定器会按候选再提取 / 记 no-fits，不在这里二次报错。
     const params = paramsForMotion(row.motion, cue.text ?? '', row.signal);
-    if (!params) {
-      throw new ConfigError(
-        `synthDraft：节奏表判定 cue#${cue.index} 配 ${row.motion}，但文案提取失败 —— ` +
-          `节奏表与 cue 文本可能不同源（节奏表应在同一次构建中生成）`,
-      );
-    }
-
-    const motionRoute = carrierRouteIfNeeded(registry, row.motion, cue, regions);
-    motionItems.push({
+    const item: MotionBoardItem = {
       _author: { anchor },
-      motion: row.motion,
-      footprint: footprintOf(registry, row.motion),
-      params,
-      ...(motionRoute ? { carrier: motionRoute } : {}),
-      sim_max: RULE_SIM_MAX,
+      intent: intentFromSignals(row.signal ?? []),
       confidence: RULE_CONFIDENCE,
-    });
+      note: row.reason,
+    };
+    if (params) item.params = params;
+    motionItems.push(item);
   });
 
   return {
     meta: {
       fps: source.fps,
-      anchorMode: 'word',
       alignmentConfidence: source.alignmentConfidence,
     },
     tracks: [
