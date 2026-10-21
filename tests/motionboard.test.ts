@@ -11,12 +11,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildRhythmTable } from '../src/core/rhythm.ts';
-import { builtinTemplateLookup, generateMotionboard } from '../src/core/rhythm-rules.ts';
 import {
-  assertMotionboardKeys,
-  bindMotionboard,
+  builtinTemplateLookup,
+  generateMotionboard,
   MOTIONBOARD_INTENTS,
-} from '../src/core/motionboard.ts';
+} from '../src/core/rhythm-rules.ts';
+import { assertMotionboardKeys, bindMotionboard } from '../src/core/motionboard.ts';
 import type { Cue, MotionBoard, MotionBoardItem, WordTimestamp } from '../src/core/types.ts';
 
 const FPS = 30;
@@ -212,6 +212,33 @@ describe('bindMotionboard —— intent 解析（调度前解析步）', () => {
     expect(report.records[0]).toMatchObject({ status: 'no-fits', intent: 'number-emphasis' });
   });
 
+  it('featuredText 按模板 paramsSchema 落语义键：stat-card → value（不静默丢弃）', () => {
+    const cues = [cue(0, 0, 90, '大概有3个卖点')];
+    const { draft, report } = bindMotionboard(
+      mb(
+        [intentItem({ anchor: 'cue:0', intent: 'number-emphasis', featuredText: '三个核心卖点' })],
+        cues,
+      ),
+      bindCtx(cues),
+    );
+    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
+    expect(item.motion).toBe('data/stat-card@1.0');
+    // 机械提取产出 {value:'3'}，但模型 featuredText 必须覆盖语义键 —— 不能被静默丢弃
+    expect(item.params).toEqual({ value: '三个核心卖点' });
+    expect(report.records[0]!.featuredText).toBe('三个核心卖点');
+  });
+
+  it('featuredText → lower-third 的 title 键', () => {
+    const cues = [cue(0, 0, 90, '首先是准备素材')];
+    const { draft } = bindMotionboard(
+      mb([intentItem({ anchor: 'cue:0', intent: 'enum', featuredText: '准备素材' })], cues),
+      bindCtx(cues),
+    );
+    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
+    expect(item.motion).toBe('typography/lower-third@1.0');
+    expect(item.params).toEqual({ title: '准备素材' });
+  });
+
   it('钉死条目直通：motion/params/footprint/exclusive/sim_max 保留，report 标 pinned', () => {
     const cues = [cue(0, 0, 90, '一句话')];
     const pinned: MotionBoardItem = {
@@ -357,6 +384,7 @@ describe('generateMotionboard —— 规则底稿（intent 形态）', () => {
       [[cue(0, 0, 90, '为什么要这样做但其实不是'), TAIL], 'typography/kinetic-line@1.0'],
       [[cue(0, 0, 90, '大概有3个步骤'), TAIL], 'data/stat-card@1.0'],
       [[cue(0, 0, 90, '总之这双联名鞋值回票价'), TAIL], 'typography/center-emphasis@1.0'],
+      [[cue(0, 0, 90, '这个叫做强制对齐'), TAIL], 'typography/center-emphasis@1.0'],
       [[cue(0, 0, 90, LONG), cue(1, 90, 180, '首先是准备素材'), TAIL], 'typography/lower-third@1.0'],
     ];
     for (const [cues, expectedMotion] of cases) {
@@ -365,6 +393,10 @@ describe('generateMotionboard —— 规则底稿（intent 形态）', () => {
       const { draft } = bindMotionboard(board, bindCtx(cues));
       const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
       expect(item.motion, cues.map((c) => c.text).join('|')).toBe(expectedMotion);
+      // 🔴 单一真源护栏：节奏表选型与绑定结果必须同源（评审 P1：definition 曾漂移）
+      const anchorCue = Number.parseInt(item._author!.anchor.slice('cue:'.length), 10);
+      const row = table.cues.find((r) => r.cueIndex === anchorCue)!;
+      expect(row.motion, cues.map((c) => c.text).join('|')).toBe(item.motion);
     }
   });
 

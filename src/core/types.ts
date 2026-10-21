@@ -462,7 +462,7 @@ export interface MotionBoardItem {
   /** 作者语法层：锚点 + 偏移（复用 C2，烘焙后剥离）。 */
   _author: AuthorAnchor;
   /**
-   * 动效意图（受控词表，见 `core/motionboard.ts` 的 `MOTIONBOARD_INTENTS`）。
+   * 动效意图（受控词表，见 `core/rhythm-rules.ts` 的 `MOTIONBOARD_INTENTS`）。
    * 与 `motion` **二选一** —— 由 `assertMotionboardKeys` 强制。
    */
   intent?: string;

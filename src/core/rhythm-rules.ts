@@ -438,7 +438,8 @@ export function extractExcerpt(
 }
 
 /**
- * 按模板 id 产出参数 —— `decideMotion` 与 `synthDraft` **共用同一实现**。
+ * 按模板 id 产出参数 —— `decideMotion`（判定）与绑定器 `bindMotionboard`
+ * （候选降档重提取）**共用同一实现**。
  *
  * 🔴 为什么必须共用：节奏表契约（`RhythmCue`）刻意**不存 params** ——
  *    参数是「文本的函数」，存一份就会在 SRT 修订后与文本不一致。
@@ -474,59 +475,55 @@ export function paramsForMotion(
   }
 }
 
-interface CandidateRule {
-  /** 该规则介入所需的信号条件。 */
-  matches: (signals: ReadonlySet<RhythmSignal>) => boolean;
-  motion: string;
-  /** 人读的选型说明，写进 `reason`。 */
-  label: string;
-}
-
 /**
- * 模板选型表（规格 P1 第三节，顺序即优先级）。
+ * intent 词表 —— **唯一真源**（规格 P1 第三节选型表 + Wave 5 整合）。
+ *
+ * 候选按优先级排序，两处消费同一份：
+ *  · `decideMotion`（节奏表选型）：`intentFromSignals` 定 intent → 按候选序尝试；
+ *  · 绑定器 `bindMotionboard`（core/motionboard.ts）：intent → 候选逐个过时长门控。
+ * 单一真源保证「节奏表选的」与「绑定器绑的」永不漂移（评审 P1，2026-10-21）。
  *
  * 只用 9 个已实现模板中的 5 个：`stat-card` / `center-emphasis` /
  * `lower-third` / `kinetic-line` / `tag-float`。其余 4 个
  * （`caption/karaoke-word`、`punch-in`、`noise-grain`、`split-frame`）
- * 不是「这句话的伴生图形」，P1 不选它们。
+ * 不是「这句话的伴生图形」，不进词表。
  */
-const CANDIDATES: readonly CandidateRule[] = [
-  {
-    matches: (s) => s.has('number'),
-    motion: 'data/stat-card@1.0',
-    label: '数字 → 数据卡',
+export const MOTIONBOARD_INTENTS: Readonly<
+  Record<string, { readonly candidates: readonly string[]; readonly description: string }>
+> = {
+  'number-emphasis': {
+    candidates: ['data/stat-card@1.0', 'typography/kinetic-line@1.0'],
+    description: '数字 / 数据点强调',
   },
-  {
-    matches: (s) => s.has('definition'),
-    motion: 'typography/center-emphasis@1.0',
-    label: '下定义 → 居中强调',
+  'contrast-turn': {
+    candidates: ['typography/kinetic-line@1.0'],
+    description: '转折 / 对比',
   },
-  {
-    matches: (s) => s.has('closing'),
-    motion: 'typography/center-emphasis@1.0',
-    label: '收束 → 居中强调',
+  question: {
+    candidates: ['typography/kinetic-line@1.0'],
+    description: '提问 / 悬念',
   },
-  {
-    matches: (s) => s.has('enum'),
-    motion: 'typography/lower-third@1.0',
-    label: '列举 → 下三分之一条',
+  enum: {
+    candidates: ['typography/lower-third@1.0', 'typography/kinetic-line@1.0'],
+    description: '列举 / 并列要点',
   },
-  {
-    matches: (s) => s.has('turn') || s.has('contrast'),
-    motion: 'typography/kinetic-line@1.0',
-    label: '转折 / 对比 → 动势单行',
+  'repetition-term': {
+    candidates: ['typography/tag-float@1.0'],
+    description: '全片复现关键词浮签',
   },
-  {
-    matches: (s) => s.has('question'),
-    motion: 'typography/kinetic-line@1.0',
-    label: '提问 → 动势单行',
+  'closing-verdict': {
+    candidates: ['typography/center-emphasis@1.0', 'typography/kinetic-line@1.0'],
+    description: '收束 / 总评',
   },
-  {
-    matches: (s) => s.has('repetition') || s.has('short-after-long'),
-    motion: 'typography/tag-float@1.0',
-    label: '复现 / 短句承接 → 浮签',
+  definition: {
+    candidates: ['typography/center-emphasis@1.0', 'typography/kinetic-line@1.0'],
+    description: '定义句式',
   },
-];
+  keypoint: {
+    candidates: ['typography/kinetic-line@1.0', 'typography/tag-float@1.0'],
+    description: '要点泛称（材质 / 推荐 / 无更强语义时的归口）',
+  },
+};
 
 /** 降级兜底模板：文字类里最通用的一个（`minVisibleInFrames = 30`）。 */
 const FALLBACK_MOTION = 'typography/kinetic-line@1.0';
@@ -542,8 +539,9 @@ function describeSignals(signals: readonly RhythmSignal[]): string {
  * 步骤（顺序不可换）：
  *   1. 无信号 → 不做（`reason: '无走势信号'`）
  *   2. 强度门槛 → 只有弱信号且仅 1 个 → 不做（`reason: '信号强度不足'`）
- *   3. 按选型表顺序尝试：参数提取成功 **且** 时长满足模板 `minVisibleInFrames` → 选中
- *   4. 信号候选全部不满足 → 降级到 `kinetic-line`（文字类兜底）
+ *   3. `intentFromSignals` 定 intent（单一真源）→ 按词表候选序尝试：
+ *      参数提取成功 **且** 时长满足模板 `minVisibleInFrames` → 选中
+ *   4. 词表候选全部不满足 → 降级到 `kinetic-line`（文字类兜底）
  *   5. 仍不满足 → 不做（`skipped: 'no-template-fits'`）
  *
  * ⚠️ 第 4 步的兜底是规格「按上表向下尝试次优先模板」的落地：
@@ -573,28 +571,33 @@ export function decideMotion(
     };
   }
 
-  for (const rule of CANDIDATES) {
-    if (!rule.matches(hit)) continue;
+  // intent 单一真源：先定 intent，再按词表候选序尝试（与绑定器同源同序，
+  // 保证 pacing.json 的选型与 bind-report 的绑定永不漂移）。
+  const intent = intentFromSignals(signals);
+  const intentDef = MOTIONBOARD_INTENTS[intent]!;
+  for (let order = 0; order < intentDef.candidates.length; order += 1) {
+    const motion = intentDef.candidates[order]!;
 
-    const tpl = registry.get(rule.motion);
+    const tpl = registry.get(motion);
     if (!tpl) {
       // 模板查不到属配置错误（与 registry.getTemplate 的口径一致），不静默跳过。
       throw new ConfigError(
-        `节奏规则引用了未注册的模板：${rule.motion} —— 检查 templates/builtin.ts 是否改名/降版本`,
+        `节奏规则引用了未注册的模板：${motion} —— 检查 templates/builtin.ts 是否改名/降版本`,
       );
     }
 
-    const params = paramsForMotion(rule.motion, cue.text, signals);
+    const params = paramsForMotion(motion, cue.text, signals);
     if (!params) continue; // 文案提取不出 → 降级到下一候选
 
     if (cue.durationInFrames < tpl.minVisibleInFrames) continue; // 模板门控 → 降级
 
     return {
       decide: 'motion',
-      motion: rule.motion,
+      motion,
       params,
       reason:
-        `信号 ${describeSignals(signals)} → ${rule.label}（${rule.motion}）；` +
+        `信号 ${describeSignals(signals)} → ${intentDef.description}（${motion}` +
+        `${order > 0 ? `，降级候选 ${order + 1}` : ''}）；` +
         `${cue.durationInFrames} 帧 ≥ minVisible ${tpl.minVisibleInFrames}`,
     };
   }
@@ -629,15 +632,15 @@ export function decideMotion(
 // 规则底稿 → 意图层：轨道常量与共享件（绑定器复用，见 core/motionboard.ts）
 // ─────────────────────────────────────────────────────────────
 
-/** 字幕轨 / MG 轨的固定划分（规格 P1 第三节：不按模板各开一轨）。导出供绑定器复用。 */
+/** 字幕轨 / MG 轨的固定划分（规格 P1 第三节：不按模板各开一轨）。CAPTION_* 导出供绑定器复用。 */
 export const CAPTION_TRACK = { id: 'caption', layer: 90 } as const;
-export const MOTION_TRACK = { id: 'motion', layer: 60 } as const;
+const MOTION_TRACK = { id: 'motion', layer: 60 } as const;
 export const CAPTION_MOTION = 'caption/karaoke-word@1.0';
 
 // ─────────────────────────────────────────────────────────────
 // 区域感知的载体退路（E-D4-01 修复，2026-10-21）
 // ─────────────────────────────────────────────────────────────
-// 基线实测（docs/reviews/2026-10-21-节奏表基线报告.md §4）：synthDraft 只读
+// 基线实测（docs/reviews/2026-10-21-节奏表基线报告.md §4）：当时的规则合成路径只读
 // cues、不读 02-perceive/regions.json，footprint 全取模板默认值 →
 // center-emphasis 压住 handheld 区域 27.6% > 预算 20%，且 item 未声明
 // carrier ⇒ 三级退让无法启动 → E-D4-01，validate 阻断。
@@ -797,20 +800,24 @@ const RULE_CONFIDENCE = 1.0;
 /**
  * 信号 → intent 的映射（优先级序：先命中先得）。
  *
- * 🔴 单一真源约束：绑定器的模板解析只认 `core/motionboard.ts` 的
- *   `MOTIONBOARD_INTENTS`；本表只做「信号 → 意图」的翻译，
- *   不再各自维护「信号 → 模板」的第二份映射。
+ * 分组顺序与规格 P1 第三节选型表一致（number → definition/closing → enum →
+ * 文字类 → repetition），保证多信号时选中的模板与选型表逐案一致；
+ * `question` 与 `contrast-turn` 同选 kinetic-line，组内顺序沿旧词表序
+ * （question 在前）以稳定 intent 标签。
+ *
+ * 🔴 单一真源约束：本表只做「信号 → 意图」的翻译；模板候选序一律取
+ *   `MOTIONBOARD_INTENTS`，不另维护「信号 → 模板」的第二份映射。
  */
 const SIGNAL_INTENT_PRIORITY: readonly {
   readonly signals: readonly RhythmSignal[];
   readonly intent: string;
 }[] = [
   { signals: ['number'], intent: 'number-emphasis' },
+  { signals: ['definition'], intent: 'definition' },
   { signals: ['closing'], intent: 'closing-verdict' },
+  { signals: ['enum'], intent: 'enum' },
   { signals: ['question'], intent: 'question' },
   { signals: ['turn', 'contrast'], intent: 'contrast-turn' },
-  { signals: ['enum'], intent: 'enum' },
-  { signals: ['definition'], intent: 'definition' },
   { signals: ['repetition', 'short-after-long'], intent: 'repetition-term' },
 ];
 

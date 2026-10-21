@@ -141,4 +141,7 @@ Pros：单一入口、复用全部防线、生成器与绑定共用同一解析�
 - **Wave 5 用户修订**：不要 draft 存在；整合 storyboard 与 motionboard → v2 重写（本版）。
 - v2 Critic 复核：AC-5/AC-7 新增可验证；reservations 沿用 v1 两条 —— ①intent 词表静态推导需首跑回填零命中项；
   ②「模型照 skill 产出合法 motionboard」待真实模型会话验证（实施后第一件事）。
-- Final iterations: 2 / 3。
+- 实施后评审修复（2026-10-21）：`MOTIONBOARD_INTENTS` 迁至 `core/rhythm-rules.ts` 并由 `decideMotion`
+  派生选型（步骤 2 与步骤 4 存在隐性冲突——词表在 motionboard.ts 会使派生成环，落地以步骤 4 单一真源为准）；
+  `definition` 词表候选修正为 `[center-emphasis, kinetic-line]` 对齐规格 P1 选型表；featuredText 改为
+  schema 感知覆盖语义键（text/value/title）。Final iterations: 2 / 3。

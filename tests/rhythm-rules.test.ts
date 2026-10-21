@@ -2,7 +2,7 @@
  * 节奏规则（decideMotion）与 caption 豁免（B1）—— P1，2026-10-20。
  *
  * 覆盖规格第五节「模板选型 / 强度规则 / 模板门控」与第六节「校验豁免」，
- * 以及第七节第 9 条「有 --draft 时不生成 pacing.json」。
+ * 以及「手写 motionboard（钉死条目）时不生成 pacing.json」。
  */
 
 import fs from 'node:fs';

@@ -52,27 +52,6 @@ const BASE_RECORD = {
   confirmedAt: '2026-10-19T22:30:00+08:00',
 };
 
-const DRAFT = {
-  meta: { fps: 30, anchorMode: 'word', alignmentConfidence: 0.41 },
-  tracks: [
-    {
-      id: 't1',
-      layer: 50,
-      items: [
-        {
-          _author: { anchor: 'abs:0' },
-          motion: 'typography/kinetic-line@1.0',
-          footprint: [0.1, 0.1, 0.3, 0.1],
-          params: { text: 'x' },
-          sim_max: 0.9,
-          confidence: 0.9,
-        },
-      ],
-    },
-  ],
-  noMotionRanges: [],
-};
-
 interface JobOpts {
   gatePassed?: boolean;
   confirmed?: unknown;
@@ -108,7 +87,6 @@ function makeJob(opts: JobOpts = {}): void {
     { id: 's0', fromFrame: 0, durationInFrames: 300, safeArea: null },
   ]);
   writeAt('02-perceive/regions.json', []);
-  writeAt('03-storyboard/draft.json', DRAFT);
 
   if (opts.withRenderable) {
     writeAt('03-storyboard/storyboard.json', {

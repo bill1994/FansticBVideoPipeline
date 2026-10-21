@@ -227,7 +227,7 @@ function assertStageOrderIsSane(base: string): void {
       `\n\n  后果：本次校验报告的一切数字都不可信 —— 它在用旧的下游配新的上游比对。\n` +
       `  （实测案例：W-C3-01 因此从真实的 14 条报成过时的 4 条，而报告仍显示 ok:true。）\n` +
       `  正确做法：按顺序重跑下游阶段。\n` +
-      `    npm run pipeline -- storyboard --job <id> --draft <draft.json>\n` +
+      `    npm run pipeline -- storyboard --job <id>\n` +
       `    npm run pipeline -- validate   --job <id>\n` +
       `  阶段目录是不可变快照，本工具**不会**替你重跑 —— 是否该重跑由你判断。\n` +
       `  ⚠️ 本检查比的是文件修改时间，不是数据依赖（cp / 解压会改写 mtime）。`,

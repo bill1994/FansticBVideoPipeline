@@ -17,7 +17,15 @@
  */
 
 import { ConfigError } from './exit-code.ts';
-import { builtinTemplateLookup, carrierRouteForSpan, paramsForMotion, CAPTION_MOTION, CAPTION_TRACK, type TemplateLookup } from './rhythm-rules.ts';
+import {
+  builtinTemplateLookup,
+  carrierRouteForSpan,
+  paramsForMotion,
+  CAPTION_MOTION,
+  CAPTION_TRACK,
+  MOTIONBOARD_INTENTS,
+  type TemplateLookup,
+} from './rhythm-rules.ts';
 import type {
   BindRecord,
   BindReport,
@@ -29,44 +37,6 @@ import type {
   PerceiveRegion,
   WordTimestamp,
 } from './types.ts';
-
-/** intent 词表 —— **唯一真源**。候选按优先级排序，绑定器逐个过时长门控。 */
-export const MOTIONBOARD_INTENTS: Readonly<
-  Record<string, { readonly candidates: readonly string[]; readonly description: string }>
-> = {
-  'number-emphasis': {
-    candidates: ['data/stat-card@1.0', 'typography/kinetic-line@1.0'],
-    description: '数字 / 数据点强调',
-  },
-  'contrast-turn': {
-    candidates: ['typography/kinetic-line@1.0'],
-    description: '转折 / 对比',
-  },
-  question: {
-    candidates: ['typography/kinetic-line@1.0'],
-    description: '提问 / 悬念',
-  },
-  enum: {
-    candidates: ['typography/lower-third@1.0', 'typography/kinetic-line@1.0'],
-    description: '列举 / 并列要点',
-  },
-  'repetition-term': {
-    candidates: ['typography/tag-float@1.0'],
-    description: '全片复现关键词浮签',
-  },
-  'closing-verdict': {
-    candidates: ['typography/center-emphasis@1.0', 'typography/kinetic-line@1.0'],
-    description: '收束 / 总评',
-  },
-  definition: {
-    candidates: ['typography/kinetic-line@1.0'],
-    description: '定义句式',
-  },
-  keypoint: {
-    candidates: ['typography/kinetic-line@1.0', 'typography/tag-float@1.0'],
-    description: '要点泛称（材质 / 推荐 / 无更强语义时的归口）',
-  },
-};
 
 /** motionboard item 顶层允许键。多一个都拦 —— 否则会原样落进 storyboard.json。 */
 const ALLOWED_MOTIONBOARD_ITEM_KEYS = new Set([
@@ -198,12 +168,12 @@ function paramsWithFeatured(
   params: Record<string, unknown> | null,
   featuredText: string,
 ): Record<string, unknown> | null {
-  if (params !== null && 'text' in params) return { ...params, text: featuredText };
-  if (params !== null) return params; // value/title 等语义键保留机械提取结果
-  if ('text' in tplParamsSchema) return { text: featuredText };
-  if ('value' in tplParamsSchema) return { value: featuredText };
-  if ('title' in tplParamsSchema) return { title: featuredText };
-  return null;
+  // 模板声明的文案语义键：text → value → title（取第一个声明者）。
+  // 无论机械提取是否已产出 params，featuredText 一律覆盖语义键 ——
+  // 模型的提炼文案优先于机械提取（评审 P1：此前 value/title 键会被静默丢弃）。
+  const textKey = ['text', 'value', 'title'].find((k) => k in tplParamsSchema);
+  if (!textKey) return params; // 模板无文案键 → featuredText 无处可落，保留原 params
+  return { ...(params ?? {}), [textKey]: featuredText };
 }
 
 export interface BindSource {
