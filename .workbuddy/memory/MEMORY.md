@@ -8,7 +8,7 @@
 
 - Remotion 视频动效叠加管线：在实拍口播粗剪上叠 motion-graphic overlay。Node ≥22.19 / ESM / tsx / MIT。
 - 两工作区共用 **PUBLIC** 远端 `github.com/bill1994/FansticBVideoPipeline`（main）⇒ `docs/proposals/` 与 `.workbuddy/memory/` 随仓库公开。
-- 🔴 **定位 = 「确定性底座 + 可插拔起草稿来源」**：管线负责对齐/感知/烘焙/校验/渲染这些确定性部分；`03-storyboard/draft.json` 是起草稿的落盘等价物，可由模型填表产出，**也可由内置生成器（draft/motion 生成阶段）产出**。
+- 🔴 **定位 = 「确定性底座 + 可插拔起草稿来源」**：管线负责对齐/感知/烘焙/校验/渲染这些确定性部分；`03-storyboard/motionboard.json` 是**唯一可编辑意图层**（intent/钉死混合条目，2026-10-21 Wave 5 整合，绑定器在调度前解析、产 `bind-report.json`），可由模型填表产出，**也可由内置生成器首跑产出**。
   此前「被模型读取、模型即操作者、仓库不调模型」的红线已于 **2026-10-20 由用户解除**；引用旧文档时注意那是历史裁决。
 
 ## 命令
@@ -20,7 +20,7 @@ npm run doctor                  # 7 项环境自检（换机第一步；fail 都
 npm run placeholders            # 占位值计数 + 重新生成 PARAM-DECISIONS.md（--check 只校验）
 ```
 
-demo（无需真实素材）：`storyboard`（须带 `--draft`）→ `validate` → `render`，`--jobs-dir examples`。
+demo（无需真实素材）：`storyboard`（读 `03-storyboard/motionboard.json`，缺失则生成器产出）→ `validate` → `render`，`--jobs-dir examples`。
 ⚠️ **阶段目录是不可变快照**：存在即跳过，改了对齐/感知代码后必须加 `--force`，否则白等。
 ⚠️ **长任务别 `| tail`**：会把错误吞掉，失败时只剩「渲染失败」四个字。一律重定向到日志再 grep。
 
@@ -201,8 +201,9 @@ OPEN 清单：`C2-2` 阈值实测 / `C2-3` BGM 分离倾向不做 / `M-1d` 静�
 ## git
 
 - 仓库级 noreply 身份；`gh auth setup-git` 做凭证，**别用 GCM**（wincredman 校验会失败）。
-- 🔴 **git 的代理端口就是 `13145`（2026-10-20 用户确认）**。仓库/全局 `http.proxy=http://127.0.0.1:13145` 是**对的，别拿环境变量去覆盖它**：
-  环境变量 `HTTP_PROXY`/`HTTPS_PROXY` 是宿主每会话注入的另一个值（本次 `2435`），实测走它拉到 19% 只有 20 KiB/s，换 `13145` **5 秒**拉完 6 个提交。
+- 🔴 **git 代理端口以实测为准，别死磕历史值**：2026-10-20 确认 `13145`，2026-10-21 实测已连不上、**`11933` 可用**（user profile 同步记录）。
+  仓库/全局 `http.proxy` 当前为空，push 用 `git -c http.proxy=http://127.0.0.1:<port> push` 单次注入。
+  环境变量 `HTTP_PROXY`/`HTTPS_PROXY` 是宿主每会话注入的另一个值（曾实测 `2435` 拉到 19% 只有 20 KiB/s）。
   判据：`git ls-remote` 慢 ≠ 网络差，先看是不是被环境变量带偏。曾用 `-c http.proxy=…:4436` 连续 5 次失败而 curl 却通 —— **别用 curl 通推断 git 通**。偶发 502 → 重试即通。
 - ⚠️ **Windows 上 `git fetch` 偶发 `fatal: unpack-objects failed`**（本次遇到）：pack < `unpackLimit` 时走 unpack-objects 卡死。绕法：`git -c fetch.unpackLimit=1 fetch …` 强制走 `index-pack`，并先 `rm -f .git/objects/pack/tmp_pack_*` 清残留。
 - 双工作区并行提交会产生「同内容不同 hash」重复提交：先建 `backup/pre-pull-<date>`，`git diff` 为空再 `reset --hard origin/main`。
