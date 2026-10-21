@@ -15,7 +15,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, SHADOW } from '../tokens.ts';
-import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 支持的入场预设。**封闭枚举** —— 键就是 `params.enter` 的合法取值。
@@ -75,7 +75,10 @@ export const KineticLine: TemplateComponent = ({ frame, durationInFrames, item, 
       data-template="kinetic-line"
       data-enter={str(item.params, 'enter') || 'from-left'}
       style={{
-        ...footprintStyle(item),
+        // MotionItem 外层已按 footprint 定位/定尺寸；这里只占满父容器
+        position: 'absolute',
+        inset: 0,
+        boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-start',

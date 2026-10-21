@@ -9,7 +9,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 /**
  * 🔴 **刻意不做 digit roll（数字滚动）** —— 虽然 D3b 把 `DigitRoll.tsx`
@@ -42,7 +42,10 @@ export const StatCard: TemplateComponent = ({ frame, durationInFrames, item, can
       data-template="stat-card"
       data-has-unit={unit ? '1' : '0'}
       style={{
-        ...footprintStyle(item),
+        // MotionItem 外层已按 footprint 定位/定尺寸；这里只占满父容器
+        position: 'absolute',
+        inset: 0,
+        boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

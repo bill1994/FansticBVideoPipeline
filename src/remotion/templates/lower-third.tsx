@@ -9,7 +9,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 export const LowerThird: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const title = str(item.params, 'title');
@@ -27,7 +27,10 @@ export const LowerThird: TemplateComponent = ({ frame, durationInFrames, item, c
       data-template="lower-third"
       data-has-subtitle={subtitle ? '1' : '0'}
       style={{
-        ...footprintStyle(item),
+        // MotionItem 外层已按 footprint 定位/定尺寸；这里只占满父容器
+        position: 'absolute',
+        inset: 0,
+        boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'flex-start',

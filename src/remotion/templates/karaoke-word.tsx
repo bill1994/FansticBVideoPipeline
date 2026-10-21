@@ -32,7 +32,7 @@ import {
   wordsInWindow,
 } from '../caption.ts';
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { bool, footprintStyle, type TemplateComponent } from './contract.tsx';
+import { bool, type TemplateComponent } from './contract.tsx';
 
 const TEXT: CSSProperties = {
   fontFamily: FONT.sans,
@@ -111,7 +111,10 @@ export const KaraokeWord: TemplateComponent = ({ frame, durationInFrames, item, 
       data-template="karaoke-word"
       data-active-word={active}
       style={{
-        ...footprintStyle(item),
+        // MotionItem 外层已按 footprint 定位/定尺寸；这里只占满父容器
+        position: 'absolute',
+        inset: 0,
+        boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

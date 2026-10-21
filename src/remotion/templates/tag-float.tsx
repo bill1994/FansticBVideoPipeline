@@ -11,7 +11,7 @@
  */
 
 import { COLOR, enterExitProgress, FONT, RADIUS, SHADOW } from '../tokens.ts';
-import { fitScaleFor, footprintStyle, str, type TemplateComponent } from './contract.tsx';
+import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item, canvasWidth }) => {
   const text = str(item.params, 'text');
@@ -25,7 +25,10 @@ export const TagFloat: TemplateComponent = ({ frame, durationInFrames, item, can
     <div
       data-template="tag-float"
       style={{
-        ...footprintStyle(item),
+        // MotionItem 外层已按 footprint 定位/定尺寸；这里只占满父容器
+        position: 'absolute',
+        inset: 0,
+        boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'flex-end',
