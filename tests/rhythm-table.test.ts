@@ -8,6 +8,11 @@
 import { describe, expect, it } from 'vitest';
 import { RHYTHM } from '../src/core/config.ts';
 import {
+  carrierDisplayRect,
+  readCarrierRatio,
+  readCarrierSide,
+} from '../src/core/carrier-window.ts';
+import {
   buildRepeatedTerms,
   buildRhythmTable,
   countChars,
@@ -15,7 +20,8 @@ import {
   detectSignals,
 } from '../src/core/rhythm.ts';
 import { synthDraft } from '../src/core/rhythm-rules.ts';
-import type { Cue } from '../src/core/types.ts';
+import type { Cue, PerceiveRegion, RhythmTable } from '../src/core/types.ts';
+import { rectArea, rectOverlapArea } from '../src/validate/context.ts';
 
 function cue(index: number, fromFrame: number, toFrame: number, text: string): Cue {
   return { index, fromFrame, toFrame, text };
@@ -218,7 +224,7 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
       cue(2, 129, 141, '结束语'), // 末条 closing，但 12 帧无模板可用
     ];
     const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9 });
+    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
 
     const caption = draft.tracks.find((t) => t.id === 'caption')!;
     const motion = draft.tracks.find((t) => t.id === 'motion')!;
@@ -242,7 +248,7 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
   it('模拟强度固定：caption 1.0 / 规则命中 0.85，confidence 1.0', () => {
     const cues = [cue(0, 0, 90, '这里有3个要点')];
     const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9 });
+    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
     expect(draft.tracks[0]!.items[0]!.sim_max).toBe(1);
     expect(draft.tracks[0]!.items[0]!.confidence).toBe(1);
     const mg = draft.tracks[1]!.items[0]!;
@@ -253,7 +259,7 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
   it('footprint 直接取模板声明（不自造坐标）', () => {
     const cues = [cue(0, 0, 90, '这里有3个要点')];
     const table = buildRhythmTable(cues, 30, 'aligned');
-    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9 });
+    const draft = synthDraft(table, cues, { fps: 30, alignmentConfidence: 0.9, regions: [] });
     // 与 templates/builtin.ts 的声明一致
     expect(draft.tracks[0]!.items[0]!.footprint).toEqual([0.1, 0.86, 0.8, 0.1]);
     expect(draft.tracks[1]!.items[0]!.footprint).toEqual([0.62, 0.12, 0.32, 0.24]);
@@ -265,7 +271,109 @@ describe('synthDraft —— 字幕层恒存在，MG 只按节奏表', () => {
       synthDraft(table, [cue(0, 0, 90, '一句话'), cue(1, 90, 180, '两句')], {
         fps: 30,
         alignmentConfidence: 0.9,
+        regions: [],
       }),
     ).toThrow(/必须用同一份/);
+  });
+});
+
+describe('synthDraft —— 区域感知的载体退路声明（E-D4-01 修复）', () => {
+  // 复刻基线肇事数据：jobs/baseline-kukini-1021 的 r-handheld-s14（handheld 预算 20%）
+  const HANDHELD_S14: PerceiveRegion = {
+    id: 'r-handheld-s14',
+    kind: 'handheld',
+    shotId: 's14',
+    fromFrame: 2372,
+    durationInFrames: 965,
+    box: [0.254, 0.106, 0.422, 0.797],
+  };
+  // face 预算 0%：与 center-emphasis 默认 footprint 有交叠 → 任何重叠都不允许
+  const FACE: PerceiveRegion = {
+    id: 'r-face-x',
+    kind: 'face',
+    shotId: 's1',
+    fromFrame: 0,
+    durationInFrames: 600,
+    box: [0.386, 0.106, 0.158, 0.324],
+  };
+  const CENTER = 'typography/center-emphasis@1.0'; // 首批唯一 occludesSubject: true 的叠加模板
+
+  /** 手工构造「cue 配 center-emphasis」的节奏表行（单测聚焦 synthDraft 的区域感知）。 */
+  function motionTable(cueIndex: number, fromFrame: number, durationInFrames: number): RhythmTable {
+    return {
+      meta: { fps: 30, mode: 'aligned', version: '1.0' },
+      cues: [
+        {
+          cueIndex,
+          fromFrame,
+          durationInFrames,
+          decide: 'motion',
+          motion: CENTER,
+          reason: '测试行',
+          signal: [],
+        },
+      ],
+    };
+  }
+
+  it('footprint 与 handheld 区域超预算 → 声明 carrier 退路，且展示条真的清掉预算', () => {
+    const cues = [cue(0, 3275, 3325, '总之这双联名鞋值回票价')];
+    const draft = synthDraft(motionTable(0, 3275, 51), cues, {
+      fps: 30,
+      alignmentConfidence: 0.9,
+      regions: [HANDHELD_S14],
+    });
+    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
+    expect(item.carrier).toBeDefined();
+    expect(item.carrier!.template).toBe('carrier/split-frame@1.0');
+    // 🔴 断言用 tier2 的终判口径（occlusion.ts resolveOcclusion 第②步）：
+    //   声明的 side/ratio 算出的展示条 ∩ 区域 ≤ 该区域预算 —— 光声明不够，
+    //   默认右半屏对 r-handheld-s14 仍有 41.8% 重叠，会炸成 E-D2-01。
+    const display = carrierDisplayRect(
+      readCarrierSide(item.carrier!.params),
+      readCarrierRatio(item.carrier!.params),
+    );
+    expect(rectOverlapArea(display, HANDHELD_S14.box) / rectArea(HANDHELD_S14.box)).toBeLessThanOrEqual(
+      0.2,
+    );
+  });
+
+  it('face 预算 0% → 展示条必须完全让出人脸', () => {
+    const cues = [cue(0, 0, 90, '总之这双鞋值得买')];
+    const draft = synthDraft(motionTable(0, 0, 91), cues, {
+      fps: 30,
+      alignmentConfidence: 0.9,
+      regions: [FACE],
+    });
+    const item = draft.tracks.find((t) => t.id === 'motion')!.items[0]!;
+    expect(item.carrier).toBeDefined();
+    const display = carrierDisplayRect(
+      readCarrierSide(item.carrier!.params),
+      readCarrierRatio(item.carrier!.params),
+    );
+    expect(rectOverlapArea(display, FACE.box)).toBe(0);
+  });
+
+  it('无区域 / 预算内 → 不声明退路（不多不少）；caption 恒不声明', () => {
+    const cues = [cue(0, 0, 90, '总之这双鞋值得买')];
+    const empty = synthDraft(motionTable(0, 0, 91), cues, {
+      fps: 30,
+      alignmentConfidence: 0.9,
+      regions: [],
+    });
+    expect(empty.tracks.find((t) => t.id === 'motion')!.items[0]!.carrier).toBeUndefined();
+
+    // 区域远离 footprint（左上角 1% 小框 vs 中部大字）→ 预算内，不声明
+    const far = synthDraft(motionTable(0, 0, 91), cues, {
+      fps: 30,
+      alignmentConfidence: 0.9,
+      regions: [
+        { id: 'r-broll-1', kind: 'broll', shotId: 's1', fromFrame: 0, durationInFrames: 600, box: [0, 0, 0.01, 0.01] },
+      ],
+    });
+    expect(far.tracks.find((t) => t.id === 'motion')!.items[0]!.carrier).toBeUndefined();
+
+    // caption/karaoke-word 声明 occludesSubject: false → 永不进遮挡预算，也不声明退路
+    expect(empty.tracks.find((t) => t.id === 'caption')!.items[0]!.carrier).toBeUndefined();
   });
 });

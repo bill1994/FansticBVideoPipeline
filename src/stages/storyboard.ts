@@ -22,6 +22,7 @@ import { synthDraft } from '../core/rhythm-rules.ts';
 import type {
   AlignWords,
   BakeReport,
+  PerceiveRegion,
   SourceManifest,
   Storyboard,
   StoryboardItem,
@@ -157,8 +158,14 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   const alignReportFile = path.join(base, STAGES.align, 'align-report.json');
   const wordsFile = path.join(base, STAGES.align, 'words.json');
   const shotsFile = path.join(base, STAGES.perceive, 'shots.json');
+  const regionsFile = path.join(base, STAGES.perceive, 'regions.json');
   if (!exists(alignReportFile) || !exists(wordsFile)) {
     throw new StageBlockedError('01-align 未就绪 —— 不得跳过对齐直接起草 storyboard');
+  }
+  if (!exists(shotsFile) || !exists(regionsFile)) {
+    throw new StageBlockedError(
+      '02-perceive 未就绪（shots.json / regions.json 缺失）—— 不得跳过感知直接起草 storyboard',
+    );
   }
   const alignReport = readJson<{ gatePassed: boolean; meanConfidence: number; mode?: string }>(
     alignReportFile,
@@ -202,9 +209,6 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   }
   /** 🔴 `M-1g`：本job 是否走无字幕模式（详见下方「硬约束」）。 */
   const noSubtitle = alignReport.mode === 'no-subtitle';
-  if (!exists(shotsFile)) {
-    throw new StageBlockedError('02-perceive 未就绪 —— 不得跳过感知直接起草 storyboard');
-  }
 
   // 禁跨级引用自检：本阶段实际读的就是 00/01/02，其中不得出现 05-render / 06-review
   const referencedStages: string[] = [STAGES.input, STAGES.align, STAGES.perceive];
@@ -212,6 +216,9 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
 
   const source = readJson<SourceManifest>(path.join(base, STAGES.input, 'source.json'));
   const aligned = readJson<AlignWords>(wordsFile);
+  // 🔴 E-D4-01 修复（2026-10-21）：内置生成器必须读区域 —— 不读就是画面全盲，
+  //    产出的 storyboard 会在 validate 撞 E-D4-01（基线实测，见节奏表基线报告 §4）。
+  const regions = readJson<PerceiveRegion[]>(regionsFile);
 
   const draftFile = opts.draftPath ?? path.join(outDir, 'draft.json');
   let draft: DraftStoryboard;
@@ -264,6 +271,7 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     draft = synthDraft(table, cues, {
       fps: source.fps,
       alignmentConfidence: alignReport.meanConfidence,
+      regions,
     });
 
     // 🔴 落 `draft.synth.json` 而不是 `draft.json`（产品缺口修复，2026-10-20）：

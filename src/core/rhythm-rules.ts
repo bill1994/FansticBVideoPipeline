@@ -20,9 +20,25 @@
  */
 
 import { ConfigError } from './exit-code.ts';
+import { OCCLUSION_BUDGET } from './config.ts';
+import {
+  carrierDisplayRect,
+  CARRIER_RATIO_DEFAULT,
+  CARRIER_RATIO_MIN,
+  CARRIER_SIDE_DEFAULT,
+  type CarrierSide,
+} from './carrier-window.ts';
 import { listTemplates } from '../templates/registry.ts';
+import { isOverlayScope } from '../templates/types.ts';
 import type { TemplateDeclaration } from '../templates/types.ts';
-import type { Cue, Footprint, RhythmSignal, RhythmTable } from './types.ts';
+import type {
+  CarrierRef,
+  Cue,
+  Footprint,
+  PerceiveRegion,
+  RhythmSignal,
+  RhythmTable,
+} from './types.ts';
 
 /** 模板查询表 —— 只读 `get`，便于测试注入。 */
 export interface TemplateLookup {
@@ -617,6 +633,13 @@ export interface SynthDraftItem {
   motion: string;
   footprint: Footprint;
   params?: Record<string, unknown>;
+  /**
+   * 载体退路声明（E-D4-01 修复，2026-10-21）。
+   *
+   * 区域预算预测超支时给出 tier2 路由 —— tier1 平移仍优先（`resolveOcclusion`
+   * 先试 nudge），这里只是让「退路存在」。不预测超支就**不声明**（不多不少）。
+   */
+  carrier?: CarrierRef;
   sim_max: number;
   confidence: number;
 }
@@ -641,12 +664,141 @@ export interface SynthDraft {
 export interface SynthSource {
   fps: number;
   alignmentConfidence: number;
+  /**
+   * `02-perceive/regions.json` 的区域清单 —— 遮挡预算预测的输入。
+   *
+   * 🔴 必填（2026-10-21）：基线实测证明不读区域的合成路径会产出
+   *   validate 拦下的 storyboard（E-D4-01）—— 画面全盲不是可选项。
+   */
+  regions: readonly PerceiveRegion[];
 }
 
 /** 字幕轨 / MG 轨的固定划分（规格 P1 第三节：不按模板各开一轨）。 */
 const CAPTION_TRACK = { id: 'caption', layer: 90 } as const;
 const MOTION_TRACK = { id: 'motion', layer: 60 } as const;
 const CAPTION_MOTION = 'caption/karaoke-word@1.0';
+
+// ─────────────────────────────────────────────────────────────
+// 区域感知的载体退路（E-D4-01 修复，2026-10-21）
+// ─────────────────────────────────────────────────────────────
+// 基线实测（docs/reviews/2026-10-21-节奏表基线报告.md §4）：synthDraft 只读
+// cues、不读 02-perceive/regions.json，footprint 全取模板默认值 →
+// center-emphasis 压住 handheld 区域 27.6% > 预算 20%，且 item 未声明
+// carrier ⇒ 三级退让无法启动 → E-D4-01，validate 阻断。
+//
+// 修法（最小且诚实）：合成时按 validate 的**同一几何口径**预测预算超支，
+// 超了才声明 carrier 退路 —— tier1 平移仍优先（`resolveOcclusion` 先试
+// nudge，已在预算内则幂等跳过），tier2 只是「退路存在」。声明前先验证
+// 展示条真的清得掉预算（否则只是把 E-D4-01 换成 E-D2-01）；挑不出能清掉
+// 的 side/ratio 时声明**最接近达标**的候选，让 tier2 按事实报 E-D2-01
+// （退路不够），而不是 E-D4-01（退路不存在）—— 两者语义本就互斥。
+//
+// 🔴 几何真源：展示条矩形一律取自 `core/carrier-window.ts`（唯一真源），
+//   不得在此重算；AABB 相交面积因 core 不得反向依赖 validate/context.ts
+//   而在此独立实现（口径与 `rectOverlapArea` 逐位一致）。若两边分叉，
+//   validate 仍是权威 —— 后果是声明了用不上的路由（响）或 validate 报错（更响），
+//   不会静默。
+
+/** 退路声明用的载体模板 —— 当前唯一可被 tier2 消费的载体类模板。 */
+const CARRIER_ROUTE_TEMPLATE = 'carrier/split-frame@1.0';
+
+/** 归一化矩形相交面积（与 validate/context.ts 的 `rectOverlapArea` 同口径）。 */
+function overlapArea(a: Footprint, b: Footprint): number {
+  const x = Math.max(a[0], b[0]);
+  const y = Math.max(a[1], b[1]);
+  const right = Math.min(a[0] + a[2], b[0] + b[2]);
+  const bottom = Math.min(a[1] + a[3], b[1] + b[3]);
+  const w = right - x;
+  const h = bottom - y;
+  if (w <= 0 || h <= 0) return 0;
+  return w * h;
+}
+
+/** item 覆盖面占区域面积的比例（occlusion.ts `occlusionRatio` 同口径）。 */
+function occlusionRatioOf(item: Footprint, box: Footprint): number {
+  const area = Math.max(0, box[2]) * Math.max(0, box[3]);
+  if (area <= 0) return 0;
+  return overlapArea(item, box) / area;
+}
+
+/**
+ * 预测超预算的区域集合（validate `collectHits` 的同款准入：
+ * 帧区间相交 + 遮挡率超该区域等级预算）。
+ */
+function predictedConflicts(
+  footprint: Footprint,
+  startFrame: number,
+  endFrame: number,
+  regions: readonly PerceiveRegion[],
+): PerceiveRegion[] {
+  return regions.filter((r) => {
+    const regionEnd = r.fromFrame + r.durationInFrames;
+    if (startFrame >= regionEnd || r.fromFrame >= endFrame) return false;
+    return occlusionRatioOf(footprint, r.box) > OCCLUSION_BUDGET[r.kind];
+  });
+}
+
+/**
+ * 挑一条真的能过 tier2 终判的载体路由（side × ratio 固定枚举顺序，可复现）。
+ *
+ * 终判口径与 `resolveOcclusion` 第②步一致：展示条（`carrierDisplayRect`）
+ * 对**每个**冲突区域的遮挡率 ≤ 该区域预算。全部候选不达标时取
+ * 「超出量最小」的 —— 退路仍声明，失败形态交给 tier2 如实报 E-D2-01。
+ */
+function chooseCarrierRoute(conflicts: readonly PerceiveRegion[]): CarrierRef {
+  const sides: CarrierSide[] = [
+    CARRIER_SIDE_DEFAULT,
+    CARRIER_SIDE_DEFAULT === 'right' ? 'left' : 'right',
+  ];
+  const ratios = [CARRIER_RATIO_DEFAULT, CARRIER_RATIO_MIN];
+  let best: { side: CarrierSide; ratio: number; worstExcess: number } | null = null;
+  for (const side of sides) {
+    for (const ratio of ratios) {
+      const display = carrierDisplayRect(side, ratio);
+      let worstExcess = -Infinity;
+      let ok = true;
+      for (const r of conflicts) {
+        const excess = occlusionRatioOf(display, r.box) - OCCLUSION_BUDGET[r.kind];
+        if (excess > worstExcess) worstExcess = excess;
+        if (excess > 0) ok = false;
+      }
+      if (ok) {
+        return { template: CARRIER_ROUTE_TEMPLATE, params: { side, ratio } };
+      }
+      if (!best || worstExcess < best.worstExcess) best = { side, ratio, worstExcess };
+    }
+  }
+  return { template: CARRIER_ROUTE_TEMPLATE, params: { side: best!.side, ratio: best!.ratio } };
+}
+
+/**
+ * 需要时声明载体退路；不需要就返回 undefined（不多不少）。
+ *
+ * 准入与 validate `collectHits` 完全一致：只看 `occludesSubject: true` 的
+ * **叠加类**模板（fullscreen 归 D3 人工确认，不进遮挡预算，也不声明退路）。
+ * 预测帧区间与 bake 的隐式时长同口径：`max(minVisibleInFrames, toFrame-fromFrame+1)`。
+ */
+function carrierRouteIfNeeded(
+  registry: TemplateLookup,
+  motion: string,
+  cue: Cue,
+  regions: readonly PerceiveRegion[],
+): CarrierRef | undefined {
+  const tpl = registry.get(motion);
+  if (!tpl || !tpl.occludesSubject) return undefined;
+  if (!isOverlayScope(tpl.scope) || tpl.scope === 'fullscreen') return undefined;
+  const byCue = cue.toFrame - cue.fromFrame + 1;
+  const start = cue.fromFrame;
+  const end = start + Math.max(tpl.minVisibleInFrames, byCue);
+  const conflicts = predictedConflicts(tpl.footprint, start, end, regions);
+  if (conflicts.length === 0) return undefined;
+  if (!registry.get(CARRIER_ROUTE_TEMPLATE)) {
+    throw new ConfigError(
+      `需要声明载体退路，但模板未注册：${CARRIER_ROUTE_TEMPLATE} —— 检查 templates/builtin.ts 是否改名/降版本`,
+    );
+  }
+  return chooseCarrierRoute(conflicts);
+}
 
 /**
  * 调度强度固定值 —— **规则置信度，不是模型自评**。
@@ -705,15 +857,20 @@ export function synthDraft(
 
   const captionItems: SynthDraftItem[] = [];
   const motionItems: SynthDraftItem[] = [];
+  const regions = source.regions;
 
   cues.forEach((cue, i) => {
     const anchor = `cue:${cue.index}`;
 
     // 字幕层：恒存在，不受 motion 门槛约束。
+    // 退路判定同样过一遍准入（karaoke-word occludesSubject=false ⇒ 恒不声明），
+    // 数据驱动而非按模板名特判 —— 将来新增遮挡型字幕模板时零维护。
+    const captionRoute = carrierRouteIfNeeded(registry, CAPTION_MOTION, cue, regions);
     captionItems.push({
       _author: { anchor },
       motion: CAPTION_MOTION,
       footprint: footprintOf(registry, CAPTION_MOTION),
+      ...(captionRoute ? { carrier: captionRoute } : {}),
       sim_max: CAPTION_SIM_MAX,
       confidence: RULE_CONFIDENCE,
     });
@@ -729,11 +886,13 @@ export function synthDraft(
       );
     }
 
+    const motionRoute = carrierRouteIfNeeded(registry, row.motion, cue, regions);
     motionItems.push({
       _author: { anchor },
       motion: row.motion,
       footprint: footprintOf(registry, row.motion),
       params,
+      ...(motionRoute ? { carrier: motionRoute } : {}),
       sim_max: RULE_SIM_MAX,
       confidence: RULE_CONFIDENCE,
     });
