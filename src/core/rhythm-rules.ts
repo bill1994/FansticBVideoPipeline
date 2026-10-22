@@ -124,6 +124,8 @@ const CN_PERCENT_RE = /百分之([零〇一二三四五六七八九十百千万�
  *
  * ⚠️ 「步」刻意**不在**标记里：「这一步 / 第一步」是**指代**而不是数量，
  *    实测它会把「但这一步别再拖了」误判成「1」并弹出数据卡。
+ * ⚠️ 「个」虽在标记里，但**单字「一」+「个」是例外**（见 `parseCnNumber` 内联判）：
+ *    「一个」是冠词不是数量（「一个呢就是…」「还是一个运动裤」曾弹假 "1" 卡）。
  */
 const CN_QUANTITY_MARKERS = new Set([
   '倍', '成', '%', '元', '个', '次', '人', '天', '年', '条', '份', '岁', '位', '家', '种',
@@ -203,6 +205,13 @@ export function parseCnNumber(text: string): { value: string; unit?: string } | 
     const n = cnRunToInt(run);
     const next = src[m.index + run.length] ?? '';
     if (n !== null) {
+      // 「一个」是不定冠词不是数量（2026-10-22 Reservation ① 语料校准）：
+      // 「一个呢就是…」「还是一个运动裤」曾各弹出一张写着 "1" 的假数据卡。
+      // 多字 run（「三万五千个」）与阿拉伯数字（「3个」）不受影响。
+      if (run === '一' && next === '个') {
+        m = CN_RUN_RE.exec(src);
+        continue;
+      }
       // 句尾的数字（如「一共一」）与多字数字（一百 / 十二 / 三万五千）都算数量。
       if (next === '' || [...run].length >= 2) {
         return { value: String(n) };
@@ -251,12 +260,26 @@ export const ENUM_WORDS = [
 ] as const;
 /** 收束词。 */
 export const CLOSING_WORDS = ['总之', '总结', '最后', '记住'] as const;
-/** 定义句式词。 */
-export const DEFINITION_WORDS = ['叫', '是指', '也就是说', '所谓', '本质是', '意思是'] as const;
+/**
+ * 定义句式词。
+ *
+ * 「就是」为 2026-10-22 Reservation ① 回填：kukini 真实语料中原六词零命中
+ * （基线报告 §3），而「就是」型定义句有 3 处——「就是耐克和Stussy联名…」/
+ * 「一个呢就是这个鞋面…」/「核心优势就是它的百搭」。
+ * ⚠️ 须搭配 `rhythm.ts` 定义信号判据的 minChars=4：口语里「就是」后 2 字
+ *     多为指代残尾（「后掌就是这个」），不足 4 字不当定义。
+ */
+export const DEFINITION_WORDS = ['叫', '是指', '也就是说', '所谓', '本质是', '意思是', '就是'] as const;
 /** 因果词。 */
 export const CAUSE_EFFECT_WORDS = ['因为', '所以', '因此', '导致', '于是', '结果'] as const;
 /** 疑问句式（不含问号收尾，那部分由 `detectSignals` 的尾正则判）。 */
 export const QUESTION_PATTERNS = ['是不是', '为什么', '怎么', '什么'] as const;
+/**
+ * 「怎么」的信号级反向护栏：`(?<!不)怎么` —— 「并不怎么样」「也不怎么好」
+ * 是陈述不是提问（kukini cue20/30/32 曾误判，2026-10-22 校准）。
+ * 只用于 `detectSignals` 的信号判定；`QUESTION_PATTERNS` 仍供文案定位使用。
+ */
+export const QUESTION_ZENME_RE = /(?<!不)怎么/;
 
 /** 中文短句分隔符（规格指定：，。！？；、）。 */
 const CLAUSE_SPLIT_RE = /[，。！？；、]/;

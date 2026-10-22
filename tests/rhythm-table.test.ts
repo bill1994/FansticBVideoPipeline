@@ -65,6 +65,11 @@ describe('detectSignals —— 10 个信号的正例与反例', () => {
     expect(signalsOf('这样真的好吗？')).toContain('question');
     expect(signalsOf('你知道吗')).toContain('question');
     expect(signalsOf('为什么要这样做')).toContain('question');
+    // 「不怎么」是陈述不是提问（Reservation ① 校准：kukini cue20/30/32 曾误判）
+    expect(signalsOf('它的存在感并不怎么样')).not.toContain('question');
+    expect(signalsOf('耐磨性也不怎么好')).not.toContain('question');
+    // 真提问不受护栏影响
+    expect(signalsOf('为什么不怎么耐用？')).toContain('question');
     expect(signalsOf(NEUTRAL)).not.toContain('question');
   });
 
@@ -76,6 +81,9 @@ describe('detectSignals —— 10 个信号的正例与反例', () => {
     expect(signalsOf('一共两万')).toContain('number');
     // 「一些」不是数量（parseCnNumber 的负例），不能误命中
     expect(signalsOf('说一些话')).not.toContain('number');
+    // 「一个」是冠词不是数量（Reservation ① 校准：曾各弹一张假 "1" 数据卡）
+    expect(signalsOf('一个呢就是这个鞋面非常的容易脏')).not.toContain('number');
+    expect(signalsOf('还是一个运动裤')).not.toContain('number');
     expect(signalsOf(NEUTRAL)).not.toContain('number');
   });
 
@@ -98,6 +106,18 @@ describe('detectSignals —— 10 个信号的正例与反例', () => {
   it('definition：定义句式', () => {
     expect(signalsOf('这叫做强制对齐')).toContain('definition');
     expect(signalsOf(NEUTRAL)).not.toContain('definition');
+  });
+
+  it('definition：「就是」型定义句回填（Reservation ①，kukini 真实语料 3 处命中）', () => {
+    expect(signalsOf('就是耐克和Stussy联名的球鞋')).toContain('definition');
+    expect(signalsOf('核心优势就是它的百搭')).toContain('definition');
+  });
+
+  it('definition：「就是」后不足 4 字 → 指代残尾不算定义', () => {
+    // 「就是这个」是口语指代（kukini「后掌就是这个」），不当定义句
+    expect(signalsOf('后掌就是这个')).not.toContain('definition');
+    // 对照：其余定义词仍按默认 2 字判，不受本次 minChars 收紧影响
+    expect(signalsOf('这叫做强制对齐')).toContain('definition');
   });
 
   it('cause-effect：因果词', () => {

@@ -3,7 +3,8 @@
 > Status: APPROVED —— IMPLEMENTED（2026-10-21 实施完成；验证证据见下「Verification steps」各项）
 > 实施偏差记录：①intent 条目 sim_max 采用候选档位递减（0.85 − 0.05×order，与 plan 一致）；
 > ②钉死条目缺省 sim_max = 1.0；③字幕轨探测按**条目 motion** 而非轨道 id（demo 的字幕轨叫 `caption-bar`）。
-> 两条 reservations 仍开放：intent 词表零命中回填、真实模型会话起草验证。
+> 两条 reservations 均已关闭：② 真实模型会话起草验证（2026-10-21，见 Review trail 末）；
+> ① intent 词表零命中回填（2026-10-22，见 Review trail 末与基线报告 §9）。
 > Source: [.claude/artifacts/designs/motionboard-intent-binding.md](../designs/motionboard-intent-binding.md)（v2）
 > Mode: (default)；Iterations: 2 / 3（v1 三分支方案被 Wave 5 推翻后重写）
 > Author: user
@@ -150,3 +151,10 @@ Pros：单一入口、复用全部防线、生成器与绑定共用同一解析�
   绑定 noFits 0 → validate 0 error。底稿缺陷被模型纠出：「一个」误命中数字出假数据卡（cue25/37）、
   「怎么样/怎么」误命中 question（cue20/30/32）、机械提取残缺（cue44「么不管是…」）。
   Final iterations: 2 / 3。
+- **Reservation ① 关闭（2026-10-22）**：零命中项 = `definition`（kukini 语料逐条核实：原六词零出现，
+  但「就是」型定义句 4 处可命中）。回填「就是」进 `DEFINITION_WORDS` + 定义信号词后内容门槛 2→4 字
+  （挡「后掌就是这个」指代残尾）；并按用户裁决连带修正 Reservation ② 纠出的两处误命中——
+  「一个」判不定冠词不再出假 "1" 数据卡、「不怎么」加 `(?<!不)` 护栏不再误判提问。
+  复跑 baseline-kukini-1021：motion 12→14、definition 信号 0→4、假 "1" 卡与「不怎么」提问消失、
+  validate 0 error / noFits 0、测试 712/712。证据：[基线报告 §9](../../docs/reviews/2026-10-21-节奏表基线报告.md)、
+  [changelog 2026-10-22](../../docs/changelog/2026-10-22-词表回填.md)。

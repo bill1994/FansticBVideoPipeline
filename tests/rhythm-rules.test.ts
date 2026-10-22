@@ -205,6 +205,14 @@ describe('parseCnNumber —— 中文数量词最小实现', () => {
     expect(parseCnNumber('一定可以')).toBeNull();
   });
 
+  it('「一个」是不定冠词 → null（Reservation ① 校准：假 "1" 数据卡）', () => {
+    expect(parseCnNumber('一个呢就是这个鞋面非常的容易脏')).toBeNull();
+    expect(parseCnNumber('还是一个运动裤')).toBeNull();
+    // 真数量不受影响：量词照常判
+    expect(parseCnNumber('三个')).toEqual({ value: '3' });
+    expect(parseCnNumber('三万五千个')).toEqual({ value: '35000' });
+  });
+
   it('五成 → 5 / 成', () => {
     expect(parseCnNumber('成功了五成')).toEqual({ value: '5', unit: '成' });
   });

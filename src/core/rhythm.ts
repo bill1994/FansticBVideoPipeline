@@ -34,6 +34,7 @@ import {
   hasContentAfterWord,
   parseCnNumber,
   QUESTION_PATTERNS,
+  QUESTION_ZENME_RE,
   TURN_WORDS,
   type TemplateLookup,
 } from './rhythm-rules.ts';
@@ -144,7 +145,13 @@ export function detectSignals(
   if (hasContentAfterWord(text, TURN_WORDS)) signals.push('turn');
   if (containsAny(text, CONTRAST_WORDS)) signals.push('contrast');
   if (containsAny(text, ENUM_WORDS)) signals.push('enum');
-  if (QUESTION_TAIL_RE.test(text) || containsAny(text, QUESTION_PATTERNS)) {
+  // question：「怎么」走反向护栏 —— 「并不怎么样」「也不怎么好」是陈述不是提问；
+  // 「是不是 / 为什么 / 什么」与问号尾照旧。
+  if (
+    QUESTION_TAIL_RE.test(text) ||
+    containsAny(text, QUESTION_PATTERNS.filter((p) => p !== '怎么')) ||
+    QUESTION_ZENME_RE.test(text)
+  ) {
     signals.push('question');
   }
   // number：阿拉伯数字，或可解析的中文数量词（三倍 / 百分之三十 / 两万）。
@@ -162,7 +169,10 @@ export function detectSignals(
   if (ctx.isLast === true || hasContentAfterWord(text, CLOSING_WORDS)) {
     signals.push('closing');
   }
-  if (hasContentAfterWord(text, DEFINITION_WORDS)) signals.push('definition');
+  // definition 用 minChars=4（Reservation ① 回填校准，2026-10-22）：词表收了口语高频的
+  // 「就是」后，「就是」+2 字多为指代残尾（「后掌就是这个」），≥4 字才是真定义内容。
+  // 其余依赖后文的信号（turn / closing / cause-effect）沿用默认 2。
+  if (hasContentAfterWord(text, DEFINITION_WORDS, 4)) signals.push('definition');
   if (hasContentAfterWord(text, CAUSE_EFFECT_WORDS)) signals.push('cause-effect');
   if ((ctx.repeatedTerms ?? []).length > 0) signals.push('repetition');
 
