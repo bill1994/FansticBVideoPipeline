@@ -19,8 +19,11 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 ⇒ **真素材成片累计 3 条**。同日完成全量审计，**整体完成度约 88%**
 （功能层 100% / 质量层约 60%）。
 
+**2026-10-22 补充**：P0-1 模板预览画廊（`npm run templates:gallery`，17 个已实现模板 × 3 帧）
+与 P0-2 成片媒体 QA（`render-report.json.qa` + `contact-sheet.jpg`：解码/时长/黑场/静帧/音频）落地。
+
 **模板真实实现 9/11**（余 `pointer-callout` / `whip-pan`）。
-距「可直接发布」还差：占位值校准（**10 项**）、剩余 2 个模板、长文本溢出强制兜底。
+距「可直接发布」还差：占位值校准（**11 项**）、剩余 2 个模板、长文本溢出强制兜底。
 
 ---
 
@@ -53,12 +56,14 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**527 项全过**（34 文件，2026-10-19 23:34 实测，18.7s）。按文件：
-  fit-text 7 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 / template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 /
-  text-align 26 / srt 22 / bake 22 / zh-normalize 21 / validate 41 / schedule 19 / carrier 18 /
-  yunet 17 / params-schema 17 / shot-detect 14 / split-frame 14 / placeholders 12 / region-derive 12 /
-  doctor 11 / occlusion-tier 11 / subject-visible 10 / carrier-contract 10 / align-gate 9 /
-  carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 / whisper-path 3
+- **单测**：**709 项全过**（43 个测试文件，2026-10-22 实测，13.8s）。按文件：
+  fit-text 12 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
+  template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 / text-align 26 / srt 22 / bake 22 /
+  zh-normalize 21 / validate 41 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
+  split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
+  carrier-contract 10 / align-gate 9 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
+  whisper-path 3 / spec-contract 43 / spec-render 24 / motionboard 19 / rhythm-rules 33 / rhythm-table 29 /
+  registry 6 / stage-order 5 / template-gallery 7 / media-qa 11
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -221,6 +226,34 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 错的是三处 —— ① 时间取词落点（漂 7.06s）；② 文字用「窗口内的词」拼（时间一对齐就拼错句）；
 ③ 高亮由词时驱动（漂了就缺）。现统一为：**时间用 SRT、文字用 `cue.text`、高亮按字数权重重铺**。
 
+### 3.1.7 模板预览画廊（✅ 2026-10-21 · P0-1）
+
+改 motionboard 之前，先看见模板长什么样，不必等一次完整渲染。
+
+- **命令**：`npm run templates:gallery` → `out/template-gallery/`
+  （`gallery.html` + `images/<slug>-f{6,45,72}.png` + `catalog.json`）。
+- **覆盖**：19 个声明 = **17 个已实现 × 3 帧 = 51 张图** + 2 个未实现（`pointer-callout` / `whip-pan`，画廊里明确标「未实现」）。
+- **目录真源**：`src/templates/gallery.ts` 从注册表 + `isImplemented()` 派生，
+  不手抄模板表；未来 MCP `templates_list` 直接复用。
+- **预览合成**：`TemplateGallery` 只渲一个 item，但走 `MotionItem`（与成片同一条主链）；
+  背景是合成底板 + 主体剪影，`center-emphasis` / `split-frame` 的遮挡/分屏形态因此可见。
+- **确定性**：两次生成 51 张图里 50 张 SHA-256 一致；`punch-in` f72 有 1/255 GPU 抖动
+  （mean diff ≈ 5.6e-6、显著像素比 0），属内容稳定下的像素微差。
+- **测试**：`tests/template-gallery.test.ts` 7 项（覆盖性 / 实现状态 / 三帧 / 必填参数 / 字幕夹具 / HTML 离线转义 / slug）。
+
+### 3.1.8 成片媒体 QA + 联系表（✅ 2026-10-22 · P0-2）
+
+`render` 完成后自动跑一次成片体检，报告写进 `05-render/render-report.json.qa`：
+
+- **解码 / 时长**：全片解码 + `ffprobe` 时长对账（容差 `max(0.15, 2/fps)`）；不符记 error。
+- **黑场 / 静帧**：`blackdetect` + `freezedetect`；未闭合到片尾的区间按 1 段计，并注明起点。
+- **音频**：`volumedetect` 的 mean/max；静音或近满刻度记 warning；无音频流写 `audio:null`（不是 0）。
+- **联系表**：9 个等距帧拼 3×3 → `05-render/contact-sheet.jpg`。
+- **不阻断**：成片已产出，QA 是事后报告；ffmpeg/ffprobe 不可用只进 `unavailable`，不伪装成通过。
+  Windows shim 无法被 Node spawn 时用 `FFMPEG_BIN` / `FFPROBE_BIN` 指向真实 exe。
+- **实测**：demo 占位成片（30s、无素材底）被如实检出「1 段黑场 + 1 段整片静帧」，联系表正常产出；
+  时长 30.000s vs 预期 30.000s。测试 `tests/media-qa.test.ts` 11 项。
+
 ### 3.2 三条硬规则的代码化
 
 | 规则 | 实现方式 |
@@ -291,19 +324,20 @@ kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18
 > 折成**影子载体轨**接进背景链；并规定**只在 `params.window` 存在时合成**
 > （声明 ≠ 生效，否则 tier1 已解决的情况会莫名切画面）。
 
-### 3. ⚠️ 占位数值：**10 项 / 17 个数值**（唯一口径见 `docs/decisions/PARAM-DECISIONS.md`）
+### 3. ⚠️ 占位数值：**11 项 / 18 个数值**（唯一口径见 `docs/decisions/PARAM-DECISIONS.md`）
 
 > 🔴 **本节的表格已移除（2026-10-18，D6.4）** —— 手抄的表必然漂移。
 > 本节此前那张表同时犯了四个错：把 `DUR.enter/exit` 混进来（它是"已调优、待复核"，不是占位值）、
 > 把 `ALIGN_GATE` 拆成两行、漏掉 `CONFIDENCE_BANDS` 与 `CARRIER_RATIO_DEFAULT`
 > ⇒ 标题写「7」、表里 8 行、`MEMORY.md` 又按分组数出 8，**三方互不相等**。
 >
-> 现唯一口径：`npm run placeholders` 输出「10 项 / 17 个数值」，
+> 现唯一口径：`npm run placeholders` 输出「11 项 / 18 个数值」，
 > 明细**由代码生成**到 `docs/decisions/PARAM-DECISIONS.md`（真源 `src/core/placeholders.ts`）。
 > 口径定义：**一项 = 一个需要独立做出的校准决定**（同进同退的几个数算一项）；
 > 「数值个数」是另一口径，引用时必须说明指的是哪个。
 > ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`（4 个数）/ `reweigh-coverage-min`（0.8）。
-> 🔴 **`reweigh-coverage-min=0.8` 来源不明却已生效并写进产物** —— 10 项里唯一
+> ⚠️ 10-20 新增 1 项（节奏表生成器引入）：`rhythm-min-cue-frames`（`RHYTHM.minCueFramesForMotion` = 10）。
+> 🔴 **`reweigh-coverage-min=0.8` 来源不明却已生效并写进产物** —— 11 项里唯一
 > 「不知道凭什么」的阈值，**列为第一优先补依据**。
 
 按「现在最该动」排序的三个（其余见生成文档）：
@@ -427,7 +461,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 | # | 事项 | 说明 | 状态 |
 |---|------|------|------|
 | 9 | **对齐产物层修漂移** | M-1f 已落地（按 SRT 窗口铺词 + 产物层回写），kukini 静义词 9→0；余 `M-1d` 静义词门控判据未立 | 🔶 显示层+产物层已解，门控待立 |
-| 10 | **占位值校准（10 项 / 17 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）与 `DENSITY.maxItemsPerCue`（占位值却产 error） | ❌ 待做（现在有 3 条素材可用） |
+| 10 | **占位值校准（11 项 / 18 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）与 `DENSITY.maxItemsPerCue`（占位值却产 error） | ❌ 待做（现在有 3 条素材可用） |
 | 11 | **剩余 2 个模板** | `annotation/pointer-callout`（主体框已就绪）/ `transition/whip-pan`（fullscreen 闸已实装），**无外部阻塞** → 11/11 | ❌ 待做 |
 | 12 | **渲染基准量化（F4）** | 已有 3 条成片墙钟（6667 帧 1080p60 → 20–22 分钟 / 218MB；另两条 259MB / 256MB）⇒ 样本已够取中位数 | 🔶 3 条成片已就绪，待取中位数 |
 | 13 | **组合场景验证模板** | 今天 3 个 bug 全是「单链正常、双链同时存在才暴露」⇒ 每个新机制都要问「和已有机制**同时**启用时还成立吗」 | 🔶 已成纪律 |
@@ -460,17 +494,18 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 
 ## 七、当前真实数字
 
-> 复核日期：**2026-10-19 17:10**（全量审计当场复算，非转述；命令见审计报告 §零）
+> 复核日期：**2026-10-21**（计数复核：单测 / 错误码 / 登记册 / 占位值按当前代码复算；
+> 全量审计结论仍以 `docs/reviews/2026-10-19-全量进展审计报告.md` 为准）
 
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
-错误码      31 条（E-*/W-*，+W-DB-01）
-单测        527 项全过（34 文件）  ← 449 → 480 → 493 → 498 → 509 → 527（10-19 再 +18）
-测试文件    34 个（33 个测试 + 1 个共享夹具 tests/_ctx.ts）
+错误码      27 条（E-*/W-*，+W-DB-01）  ← src/core/errors.ts#ALL_CODES.length
+单测        709 项全过（43 个测试文件）  ← 449 → 480 → 493 → 498 → 509 → 527 → 672 → 691 → 698 → 709（10-22 +11）
+测试文件    43 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
-登记册      48 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算；+C2-6 / +D4-t3）
-            OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d / M-1e / M-1f / M-4未落
+登记册      50 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算）
+            OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d / M-1e / M-1f（共 5 条；M-4 已 RESOLVED）
 模板        11 个声明 / 9 个实现      ← 剩余 pointer-callout、whip-pan（均无外部阻塞）
 背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）
             机制：src/remotion/carrier.tsx **时间表渲染**（不再嵌套）+ carrier-synth.ts 影子载体轨
@@ -479,16 +514,18 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
 字幕通道    words.json 已接入 props，且字幕的**时间/文字/高亮全部以 SRT 为准**（C2-6）
             + M-1f 词时重铺（覆盖率 <0.8 时铺回 SRT 窗口）+ M-1g 无字幕模式
-占位数值    **10 项 / 17 个数值** —— **唯一口径：`npm run placeholders`**
+占位数值    **11 项 / 18 个数值** —— **唯一口径：`npm run placeholders`**
             ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`(4) / `reweigh-coverage-min`(0.8)
+            ⚠️ 10-20 新增 1 项（节奏表生成器引入）：`rhythm-min-cue-frames`(10)
             🔴 `reweigh-coverage-min=0.8` **来源不明**却已生效 ⇒ 第一优先补依据
             明细由代码生成到 docs/decisions/PARAM-DECISIONS.md（真源 src/core/placeholders.ts）
 手感表      docs/templates/2026-10-15-参数手感表.md（已建）
 成片基准    3 条真素材成片（kukini 218MB / fast-0322 259MB / fast-0528 256MB）
             ⚠️ **CPU 峰值不采集**（execFileSync 拿不到子进程 rusage，2026-10-19 裁决明确放弃）；
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
+成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 527 项全过（18.7s）· placeholders --check OK · git 干净
+工程健康    typecheck exit 0 · 709 项全过（13.8s）· placeholders --check OK · git 干净
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：
@@ -571,6 +608,9 @@ npm run pipeline -- render     --job e2e-perceive     # 约 20–22 分钟（666
 
 npm run typecheck
 npm test
+
+# 模板预览画廊（P0-1）：17 个已实现模板 × 3 帧 → out/template-gallery/
+npm run templates:gallery
 ```
 
 > `align` / `perceive` 未配置外部模型时**直接退出码 2**，绝不伪造结果 ——

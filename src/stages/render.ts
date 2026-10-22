@@ -25,6 +25,7 @@ import {
   resolveRenderSize,
 } from '../core/video-size.ts';
 import { log } from '../core/log.ts';
+import { runMediaQa } from '../core/media-qa.ts';
 import type { ValidateReport } from '../core/report.ts';
 import type { SourceManifest } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
@@ -349,6 +350,40 @@ export function runRender(opts: RenderOptions): RenderOutcome {
   const bytes = fs.existsSync(outVideo) ? fs.statSync(outVideo).size : 0;
 
   /**
+   * 成片媒体 QA（P0-2）：解码 / 时长 / 黑场 / 静帧 / 音频 / 联系表。
+   *
+   * 🔴 **不阻断**：成片已经产出，QA 是「事后报告」不是「门」。
+   *    ffmpeg / ffprobe 不可用时只进 `unavailable`，绝不伪装成通过；
+   *    黑场/静帧/音频异常进 warning，解码/时长不符进 error，
+   *    由用户决定是否作废这次成片。
+   *
+   * ⚠️ 这会**多解码一遍成片**：1080p60 的 2 分钟片约几十秒，
+   *    相对 20 分钟的渲染墙钟可接受；长片若明显拖慢，再考虑降采样。
+   */
+  const qa = runMediaQa({
+    file: outVideo,
+    expectedDurationSec: source.durationInFrames / source.fps,
+    fps: source.fps,
+    durationInFrames: source.durationInFrames,
+    contactSheetPath: path.join(outDir, 'contact-sheet.jpg'),
+  });
+  if (qa.unavailable.length > 0) {
+    log.warn(`媒体 QA 判据缺失（不阻断）：${qa.unavailable.join('; ')}`);
+  }
+  if (qa.errors.length > 0) {
+    log.warn(
+      `媒体 QA 发现 ${qa.errors.length} 个 error（成片已保留，请人工复核）：` +
+        qa.errors.join('; '),
+    );
+  }
+  if (qa.warnings.length > 0) {
+    log.warn(`媒体 QA warning：${qa.warnings.join('; ')}`);
+  }
+  if (qa.contactSheet !== null) {
+    log.info(`联系表：${qa.contactSheet}`);
+  }
+
+  /**
    * F4 基准量化 —— 墙钟与产物大小落盘，供多次取样取中位数。
    *
    * ⚠️ `cpuPeakPercent` 写 `null` 而不是 0：`execFileSync` 不暴露子进程 rusage，
@@ -379,6 +414,11 @@ export function runRender(opts: RenderOptions): RenderOutcome {
       note: 'cpuPeakPercent=null 表示未采集：execFileSync 不暴露子进程 rusage',
       // P3：人工改动清单（空数组 = 读了且没有；不像 null 那样含混）
       manualOverrides: overrides,
+      // P0-2：成片媒体 QA。联系表只记文件名，便于随 job 目录整体搬移。
+      qa: {
+        ...qa,
+        contactSheet: qa.contactSheet === null ? null : path.basename(qa.contactSheet),
+      },
     },
   });
 

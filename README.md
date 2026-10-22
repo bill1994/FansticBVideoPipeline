@@ -35,7 +35,7 @@
 | `perceive` | 抽帧、镜头切分、主体检测、安全区与区域预算基线 | **内置后端**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）→ 人脸框外扩（`handheld`）→ 无脸镜头显著性（`broll`）。未配 `PERCEIVER_CMD` 也能直接跑；配了则走外部感知器覆盖。低置信**不阻断**，走告警 + 人工兜底 |
 | `storyboard` | 按**词级锚点**起草并烘焙 `storyboard.json` | 安全阀 / fullscreen / custom 不许绕地板 |
 | `validate` | 跑构建期校验项（当前 18 项，纯 JSON→JSON） | **有 error 必须停**，不进渲染 |
-| `render` | C6 双栈映射 + 本地渲染 | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
+| `render` | C6 双栈映射 + 本地渲染 + 成片媒体 QA（解码/黑场/静帧/音频/联系表） | 校验未过 / fps 漂移 / 版本未锁 → 拒绝启动 |
 
 每阶段的详细行为契约见 [`.workbuddy/skills/`](.workbuddy/skills/) —— 那是**执行期读**的精简版，
 只保留「做什么、怎么调、什么情况必须停」。
@@ -87,7 +87,8 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：19 个测试文件 / 318 项（校验 41 · 模板渲染 31 · 文本对齐 26 · 文本溢出 26 · SRT 22 …）
+npm test            # vitest：43 个测试文件 / 709 项（校验 41 · 模板渲染 32 · 模板画廊 7 · 媒体 QA 11 …）
+npm run templates:gallery  # 生成模板预览画廊 → out/template-gallery/gallery.html
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```
 

@@ -70,9 +70,17 @@ ffmpeg -version
 ffprobe -version
 ```
 
-> ⚠️ 历史坑：某些安装方式下 Node 的 `spawnSync('ffmpeg')` 会报 `EBUSY`（bash 里却正常）。
-> 那是特定安装方式的问题，**不是项目 bug**；换 gyan.dev 的构建后未复现。
-> 兜底：手工 `ffmpeg -y -i raw.mp4 -vn -ac 1 -ar 16000 -f wav audio.wav` 后再跑后续阶段。
+> ⚠️ 历史坑：某些安装方式下 Node 的 `spawnSync('ffmpeg')` 会报 `EBUSY` / `EFTYPE`（bash 里却正常）。
+> 那是 Windows shim（WinGet / Scoop 的 app alias）问题，**不是项目 bug**。
+> 兜底：把 `FFMPEG_BIN` / `FFPROBE_BIN` 指向安装包里的真实 `.exe`，例如：
+>
+> ```powershell
+> $env:FFMPEG_BIN="C:\Users\<你>\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_...\bin\ffmpeg.exe"
+> $env:FFPROBE_BIN="C:\Users\<你>\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_...\bin\ffprobe.exe"
+> ```
+>
+> `align` / `perceive` 仍走 PATH；成片媒体 QA（`render-report.json.qa`）会优先用这两个变量。
+> 若 QA 仍报 `unavailable`，它只会在报告里如实标注判据缺失，不阻断渲染。
 
 ---
 
@@ -135,6 +143,8 @@ doctor 只报 ⚠️ 不报 ❌。
 | `PERCEIVER_CMD` | 外部感知器（配了就盖过内置） | — |
 | `PERCEIVE_MODEL` | YuNet onnx 路径 | `perceive-models/…official.onnx` |
 | `PERCEIVE_DEBUG` | `1` 打印 ffmpeg 抽帧调试 | — |
+| `FFMPEG_BIN` | 成片媒体 QA 用的 ffmpeg 绝对路径 | `ffmpeg`（PATH） |
+| `FFPROBE_BIN` | 成片媒体 QA 用的 ffprobe 绝对路径 | `ffprobe`（PATH） |
 
 ---
 
