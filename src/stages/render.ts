@@ -18,22 +18,11 @@ import { REMOTION_VERSION, STAGES } from '../core/config.ts';
 import { ConfigError, RenderFailedError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { lookupConfirmed, readConfirmedRecords } from '../core/confirmed.ts';
-import {
-  DEFAULT_RENDER_HEIGHT,
-  DEFAULT_RENDER_WIDTH,
-  probeVideoSize,
-  resolveRenderSize,
-} from '../core/video-size.ts';
 import { log } from '../core/log.ts';
 import { runMediaQa } from '../core/media-qa.ts';
 import type { ValidateReport } from '../core/report.ts';
-import type { SourceManifest } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
-import { resolveScene } from '../validate/occlusion.ts';
-import { isCarrierScope } from '../templates/types.ts';
-import type { TemplateDeclaration } from '../templates/types.ts';
-import { toCaptionData } from '../remotion/caption.ts';
-import { SHADOW_TRACK_PREFIX, synthesizeCarrierTracks } from '../remotion/carrier-synth.ts';
+import { composeRenderProps } from './render-props.ts';
 
 export interface RenderOptions {
   jobId: string;
@@ -121,14 +110,6 @@ export function assertVersionPinned(): void {
   }
 }
 
-/** 把 storyboard 切成两层栈（C6 ③：最易出错处）。 */
-export function splitStacks(jobId: string, jobsDir?: string): { background: string[]; overlay: string[] } {
-  const ctx = buildContext(jobId, jobsDir);
-  const background = ctx.scene.filter((s) => isCarrierScope(s.tpl.scope)).map((s) => s.ref);
-  const overlay = ctx.scene.filter((s) => !isCarrierScope(s.tpl.scope)).map((s) => s.ref);
-  return { background, overlay };
-}
-
 export function runRender(opts: RenderOptions): RenderOutcome {
   const base = jobDir(opts.jobId, opts.jobsDir);
   const outDir = stageDir(opts.jobId, STAGES.render, opts.jobsDir);
@@ -140,114 +121,11 @@ export function runRender(opts: RenderOptions): RenderOutcome {
   // ── 版本锚定自检 ───────────────────────────────────────────
   assertVersionPinned();
 
-  const source = readJson<SourceManifest>(path.join(base, STAGES.input, 'source.json'));
-
-  // ── 消解重算（通道方案 A，2026-10-17）────────────────────────────
-  // 🔴 **为什么必须在这里重跑**：遮挡消解（tier1 平移 / tier2 载体退让）改的是
-  //   `buildContext()` 读进来的**内存对象**，而本函数是**独立进程** ——
-  //   04-validate 跑完就退出，内存随之销毁。不重算则成片拿到的仍是原始
-  //   storyboard.json，退让「算了却没落地」（报告却写着已消解 ⇒ 假绿）。
-  //
-  //   历史：这一层假绿自 2026-10-13 起残留 —— 那次修掉了「只拼进 detail 字符串」，
-  //   但内存改写始终没有跨进程通道，直到本次才补上。
-  //
-  //   **为什么共用 validate 的几何逻辑**（而非在 remotion 侧重算）：
-  //   「校验时判的几何」与「渲染时用的几何」必须逐位一致。分叉两份实现，
-  //   报告会开始对成片说谎 —— 那比不同步更难排查。
-  //
-  //   不落新阶段产物文件（方案 A 的取舍）：`io.ts` 的不可变快照守卫本就禁止
-  //   04 阶段回写 03 的 storyboard.json，落一份 resolved 副本需扩展 SPEC §1
-  //   的阶段契约与守卫规则，代价大于收益。
-  const ctx = buildContext(opts.jobId, opts.jobsDir);
-  const resolvedCount = resolveScene(ctx);
-  if (resolvedCount > 0) {
-    log.info(
-      `遮挡消解已重算并应用到渲染输入：${resolvedCount} 个 item 的 footprint / carrier 被改写` +
-        `（tier1 平移与 tier2 载体退让现在会真正改变成片）`,
-    );
-  }
-  const storyboard = ctx.storyboard;
-
-  if (storyboard.meta.fps !== source.fps) {
-    throw new ConfigError(
-      `storyboard.meta.fps (${storyboard.meta.fps}) 与素材 (${source.fps}) 不一致 —— fps 与烘焙绑定，必须重新烘焙`,
-    );
-  }
-
-  const stacks = splitStacks(opts.jobId, opts.jobsDir);
-  log.stage(
-    'render',
-    `双栈分离：背景链 ${stacks.background.length} 项（串联） / 叠加栈 ${stacks.overlay.length} 项（并列）`,
-  );
-
-  // ── 影子载体轨（D4-t3，2026-10-18）────────────────────────────
-  // 🔴 为什么必须在这里合成：`validate` 把 tier2 的 `window` 写进**叠加 item** 的
-  //   `carrier.params`，而渲染层是按 **track 的 motion scope** 划分载体轨的 ——
-  //   没有这一层转换，载体档「算了、写了、报告说生效」，画面却分毫未动。
-  //   裁决要点：不新增组件、不改双栈、影子轨恒为最内层、**不落盘**。
-  const carrierTracks = synthesizeCarrierTracks(storyboard);
-  if (carrierTracks.length > 0) {
-    const n = carrierTracks.reduce((acc, t) => acc + t.items.length, 0);
-    log.info(
-      `影子载体轨：${carrierTracks.length} 条 / ${n} 段 ` +
-        `（${carrierTracks.map((t) => t.id.replace(SHADOW_TRACK_PREFIX, '')).join(', ')}）` +
-        ` —— 由叠加 item 的 carrier 声明合成，仅进渲染 props，不落 storyboard。`,
-    );
-  }
-
-  /**
-   * 字幕数据通道 —— `01-align/words.json`。
-   *
-   * 🔴 这是 `caption/karaoke-word` 的**唯一**文本来源：该模板刻意不声明
-   *    `text` 参数（P1：字幕文本来自 SRT，模型若也能写就会出现「字幕与语音
-   *    对不上」，而时序校验只看帧区间、任何校验项都拦不住）。
-   *
-   * 因此这里**不读就不给**：文件缺失时 `caption` 字段整个省略，
-   * 模板侧降级为空序列。绝不用 storyboard 里的文字凑 ——
-   * 那正是 P1 要防的第二个来源。
-   */
-  const wordsFile = path.join(base, STAGES.align, 'words.json');
-  const hasWords = exists(wordsFile);
-  if (!hasWords) {
-    log.warn(
-      `01-align/words.json 不存在 —— 字幕类 motion 将无文本可显示。` +
-        `align 未跑或门控未通过时会走到这里。`,
-    );
-  }
-  const caption = hasWords ? toCaptionData(readJson<unknown>(wordsFile)) : undefined;
-
-  /**
-   * 模板声明快照（S1b）：供浏览器侧 hydrate `custom/*`。
-   * 文件缺失 ⇒ `[]`（旧 job 兼容；内置模板已在模块初始化时注册）。
-   */
-  const snapshotFile = path.join(base, STAGES.storyboard, 'template-snapshot.json');
-  const templates = exists(snapshotFile)
-    ? readJson<TemplateDeclaration[]>(snapshotFile)
-    : [];
-
-  fs.mkdirSync(outDir, { recursive: true });
-  const videoAbs = path.join(base, STAGES.input, source.video);
-
-  /**
-   * 画面尺寸（`P4` 裁决，2026-10-19）：**清单 → ffprobe → 兜底**。
-   *
-   * 此前 `Root.tsx` 把 `Composition` 的宽高硬编码 1920×1080，而 `SourceManifest`
-   * 没有 width/height ⇒ **素材分辨率根本不进契约**。实测：640×360 素材渲出 1080p，
-   * 竖屏素材无路可走。
-   *
-   * ffprobe 不可用**不阻断渲染**（它只是「尺寸从哪来」的第二来源）——
-   * 但会在日志里说清楚走的是哪一条路。
-   */
-  const probed = (() => {
-    if (source.width !== undefined && source.height !== undefined) return null;
-    if (!fs.existsSync(videoAbs)) return null;
-    try {
-      return probeVideoSize(videoAbs);
-    } catch {
-      return null;
-    }
-  })();
-  const size = resolveRenderSize(source, probed);
+  // ── C6 映射（2026-10-22 抽取为 composeRenderProps，与 review 共用同一真源）──
+  // 🔴 消解重算 / 影子载体轨 / 字幕通道 / 模板快照 / 尺寸判定的全部理由与注释
+  //    见 `render-props.ts` —— 预览与成片必须走同一份映射，禁第二真源。
+  const composed = composeRenderProps(opts.jobId, opts.jobsDir);
+  const { props: data, size, source } = composed;
 
   /**
    * 人工改动留痕（`P3` 裁决，2026-10-19）。
@@ -268,15 +146,8 @@ export function runRender(opts: RenderOptions): RenderOutcome {
         `这是「签字说改了什么」，**未自动校验是否与产物一致**。`,
     );
   }
-  if (size.from === 'default') {
-    log.warn(
-      `未能确定画面尺寸（source.json 未填 width/height，且读不到视频）→ ` +
-        `按 ${DEFAULT_RENDER_WIDTH}×${DEFAULT_RENDER_HEIGHT} 渲染。` +
-        `竖屏素材请在 00-input/source.json 填 width/height。`,
-    );
-  } else if (size.from === 'ffprobe') {
-    log.info(`画面尺寸：${size.width}×${size.height}（ffprobe 从素材读得）`);
-  }
+
+  fs.mkdirSync(outDir, { recursive: true });
 
   // 🔴 落盘走 writeStageJson：不可变快照守卫的唯一执行点（2026-10-18 接线）。
   const propsFile = writeStageJson({
@@ -285,38 +156,12 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     target: STAGES.render,
     file: 'render-props.json',
     jobsDir: opts.jobsDir,
-    data: {
-    jobId: opts.jobId,
-    fps: source.fps,
-    durationInFrames: source.durationInFrames,
-    // 画面尺寸（P4）：由 `Root.tsx` 的 calculateMetadata 透传给 Composition
-    width: size.width,
-    height: size.height,
-    // 🔴 2026-10-18 实测修正：**不能传 `../00-input/x.mp4`，也不能只传文件名**。
-    //   `<OffthreadVideo src>` 由 Remotion 的静态服务器解析，而该服务器把 URL 路径
-    //   映射到 **bundle 目录**（`--public-dir` 的内容被复制进 `bundle/public/`）。
-    //   实测三种写法：
-    //     `../00-input/kukini.mp4` → 404（`bundle/00-input/...`）
-    //     `kukini.mp4`             → 404（`bundle/kukini.mp4`）
-    //     `public/kukini.mp4`      → ✅ 命中
-    //   demo job 一直是 `hasVideo: false`（走占位底分支），**这条路径从未被走过**，
-    //   缺陷直到第一次用真素材渲染才暴露。
-    video: `public/${path.basename(source.video)}`,
-    // 素材不存在时渲染占位底，而不是让 OffthreadVideo 去解一个空 src。
-    // demo job 没有真实视频，靠这条也能把「双栈 / z 序 / 时间映射」结构跑出来。
-    hasVideo: fs.existsSync(videoAbs),
-    storyboard,
-    stacks,
-    carrierTracks,
-    // S1b：模板声明快照（浏览器侧 hydrate `custom/*` 用）。
-    templates,
-    ...(caption ? { caption } : {}),
-    },
+    data,
   });
 
   if (opts.dryRun) {
     log.info(`dry-run：已生成 ${propsFile}，跳过实际渲染`);
-    return { propsFile, stacks };
+    return { propsFile, stacks: data.stacks };
   }
 
   // ── 实际渲染（必须显式 --gl=angle）─────────────────────────
@@ -426,5 +271,5 @@ export function runRender(opts: RenderOptions): RenderOutcome {
     `成片：${outVideo}（${(bytes / 1024 / 1024).toFixed(1)} MB，墙钟 ${(wallMs / 1000).toFixed(1)}s）` +
       `。F4 基准已写入 05-render/render-report.json。`,
   );
-  return { propsFile, stacks };
+  return { propsFile, stacks: data.stacks };
 }
