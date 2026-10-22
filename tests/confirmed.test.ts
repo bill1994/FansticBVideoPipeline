@@ -206,6 +206,46 @@ describe('lookupConfirmed —— 只认自己那一关', () => {
   });
 });
 
+describe('acknowledgedReview —— must_review 确认字段（P1-a 审核闸）', () => {
+  it('render 记录可带 acknowledgedReview，与 acknowledgedFullscreen 同记录共存（F3-1）', () => {
+    makeJob({
+      confirmed: {
+        records: [
+          BASE_RECORD,
+          {
+            ...BASE_RECORD,
+            stage: 'render',
+            acknowledgedFullscreen: ['fs/000'],
+            acknowledgedReview: ['x/000', 'y/001'],
+          },
+        ],
+      },
+    });
+    const rec = lookupConfirmed(JOB, 'render', root).record;
+    expect(rec?.acknowledgedReview).toEqual(['x/000', 'y/001']);
+    expect(rec?.acknowledgedFullscreen).toEqual(['fs/000']);
+  });
+
+  it('🔴 数组里混入非字符串 → ConfigError 点名字段（静默丢弃 = 闸形同虚设）', () => {
+    makeJob({
+      confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedReview: ['x/000', 7] },
+    });
+    expect(() => readConfirmedRecords(JOB, root)).toThrow(/acknowledgedReview/);
+  });
+
+  it('写字符串而非数组 → 同样拒绝', () => {
+    makeJob({
+      confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedReview: 'x/000' },
+    });
+    expect(() => readConfirmedRecords(JOB, root)).toThrow(/acknowledgedReview/);
+  });
+
+  it('不写该字段 → 不受影响（旧记录零成本兼容）', () => {
+    makeJob({ confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedFullscreen: ['fs/000'] } });
+    expect(lookupConfirmed(JOB, 'render', root).record?.acknowledgedReview).toBeUndefined();
+  });
+});
+
 describe('renderGate —— stage 必须匹配', () => {
   it('🔴 只有 alignment 凭据 → 拒绝，并提示「追加」而非覆盖', () => {
     makeJob({

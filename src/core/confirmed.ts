@@ -45,7 +45,7 @@
  * | 消费者 | 认哪个 stage | 用哪个字段 |
  * |--------|-------------|-----------|
  * | `stages/storyboard.ts` | `alignment` | `confirmedBy` / `confirmedAt`（回填 meta） |
- * | `stages/render.ts`     | `render`    | `acknowledgedFullscreen`（fullscreen 启动闸） |
+ * | `stages/render.ts`     | `render`    | `acknowledgedFullscreen`（fullscreen 启动闸）、`acknowledgedReview`（must_review 确认闸，P1-a） |
  */
 
 import path from 'node:path';
@@ -78,6 +78,13 @@ export interface ConfirmedRecord {
    * 必须覆盖 storyboard 内**全部** fullscreen 项，否则 render 启动闸拒绝启动。
    */
   acknowledgedFullscreen?: string[];
+  /**
+   * P1-a（2026-10-22）：已人工看片确认的 must_review item ref。
+   * 与 `acknowledgedFullscreen` 同记录共存（F3-1）：一个 job 既有 fullscreen
+   * 又有 must_review 时，写一条 render 记录带两个字段即可，不必拆两条
+   * （同一 stage 只许一条记录，拆开反而触发「凭据歧义」守卫）。
+   */
+  acknowledgedReview?: string[];
 }
 
 /** 查询结果。`available` 用于生成「你写的是哪些阶段」这类可执行报错。 */
@@ -140,6 +147,7 @@ function parseRecord(raw: unknown, jobId: string, index: number | null): Confirm
     ...(r.acknowledgedFullscreen !== undefined
       ? { acknowledgedFullscreen: r.acknowledgedFullscreen }
       : {}),
+    ...(r.acknowledgedReview !== undefined ? { acknowledgedReview: r.acknowledgedReview } : {}),
   };
 
   if (record.overrides !== undefined && !Array.isArray(record.overrides)) {
@@ -153,6 +161,16 @@ function parseRecord(raw: unknown, jobId: string, index: number | null): Confirm
     throw new ConfigError(
       `06-review/confirmed.json 的 \`acknowledgedFullscreen\` 必须是字符串数组${at}` +
         `（item ref 形如 \`trackId/000\`）。`,
+    );
+  }
+  if (
+    record.acknowledgedReview !== undefined &&
+    (!Array.isArray(record.acknowledgedReview) ||
+      record.acknowledgedReview.some((x) => typeof x !== 'string'))
+  ) {
+    throw new ConfigError(
+      `06-review/confirmed.json 的 \`acknowledgedReview\` 必须是字符串数组${at}` +
+        `（must_review item ref 形如 \`trackId/000\`）。`,
     );
   }
 
