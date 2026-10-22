@@ -22,7 +22,7 @@ import { log } from '../core/log.ts';
 import { runMediaQa } from '../core/media-qa.ts';
 import type { ValidateReport } from '../core/report.ts';
 import { buildContext } from '../validate/context.ts';
-import { composeRenderProps } from './render-props.ts';
+import { composeRenderProps, hashStoryboardFile } from './render-props.ts';
 
 export interface RenderOptions {
   jobId: string;
@@ -81,6 +81,57 @@ export function renderGate(jobId: string, jobsDir?: string): string | null {
         `存在未经人工确认的 fullscreen motion：${unacked.join(', ')}\n` +
         `  D3 规定 fullscreen 必然覆盖全画面，一律人工确认、不设自动放行规则。\n` +
         `  请在 06-review/confirmed.json 的 acknowledgedFullscreen 中列出已确认的 item ref。`
+      );
+    }
+  }
+
+  // ── must_review 硬闸（P1-a，2026-10-22）─────────────────────────
+  // 闸2/产路地板把 custom 产路抬到 must_review，但此前它的唯一消费者是
+  // validate 报告里的一行清单 —— 「建议看片」不拦任何东西。渲染一次 20 分钟，
+  // 这道闸必须在渲染前：不看片不给渲（用户裁决）。
+  const reviewRefs = ctx.scene
+    .filter((s) => s.item.decision?.review === 'must_review')
+    .map((s) => s.ref);
+  if (reviewRefs.length > 0) {
+    // ① 先跑过 review（产出 preview-props 且 hash 对得上当前 storyboard）——
+    //    hash 防漂移：review 之后 storyboard 再被改，当时的看片确认作废。
+    const previewFile = path.join(jobDir(jobId, jobsDir), STAGES.review, 'preview-props.json');
+    if (!exists(previewFile)) {
+      return (
+        `存在 ${reviewRefs.length} 条 must_review 条目（${reviewRefs.join(', ')}），` +
+        `但 06-review/preview-props.json 不存在 —— 尚未人工审核。\n` +
+        `  先执行：npm run pipeline -- review --job ${jobId}\n` +
+        `  在 Remotion Studio 里看片确认后，把确认写进 confirmed.json 再渲染。`
+      );
+    }
+    const preview = readJson<{ storyboardHash?: string }>(previewFile);
+    if (preview.storyboardHash !== hashStoryboardFile(jobId, jobsDir)) {
+      return (
+        `06-review/preview-props.json 的 storyboardHash 与当前 storyboard.json 不一致 —— ` +
+        `review 之后 storyboard 被改过，当时的看片确认作废。\n` +
+        `  请重跑 review（npm run pipeline -- review --job ${jobId}）并重新确认。`
+      );
+    }
+
+    // ② 确认凭据：render 记录的 acknowledgedReview 必须覆盖全部 must_review refs。
+    const { record: confirmed, available } = lookupConfirmed(jobId, 'render', jobsDir);
+    if (!confirmed && available.length > 0) {
+      return (
+        `06-review/confirmed.json 里没有 stage:"render" 的记录（现有：${available.join(', ')}）。\n` +
+        `  该文件支持多条记录，请**追加**一条 render 记录（含 acknowledgedReview），不要覆盖已有的：\n` +
+        `    { "jobId": "${jobId}", "stage": "render", "reason": "...",\n` +
+        `      "confirmedBy": "...", "confirmedAt": "...",\n` +
+        `      "acknowledgedReview": [${reviewRefs.map((r) => `"${r}"`).join(', ')}] }\n` +
+        `  ↳ 写在 \`{"records": [...]}\` 数组里（顶层单条记录的旧写法仍兼容）。`
+      );
+    }
+    const ackedReview = new Set(confirmed?.acknowledgedReview ?? []);
+    const unackedReview = reviewRefs.filter((r) => !ackedReview.has(r));
+    if (unackedReview.length > 0) {
+      return (
+        `存在未经人工看片确认的 must_review 条目：${unackedReview.join(', ')}\n` +
+        `  P1-a：must_review 条目必须逐条过目（先跑 review 在 Studio 里看片）。\n` +
+        `  请在 06-review/confirmed.json 的 render 记录 acknowledgedReview 中补齐这些 item ref。`
       );
     }
   }

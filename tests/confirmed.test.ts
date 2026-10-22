@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigError, StageBlockedError } from '../src/core/exit-code.ts';
 import { ensureJobDirs } from '../src/core/io.ts';
@@ -55,8 +56,16 @@ const BASE_RECORD = {
 interface JobOpts {
   gatePassed?: boolean;
   confirmed?: unknown;
-  /** 额外写出 03/04 产物，供 renderGate 用（含一个 fullscreen item）。 */
+  /** 额外写出 03/04 产物，供 renderGate 用。 */
   withRenderable?: boolean;
+  /**
+   * storyboard 含哪些 track：'fs' = fullscreen item（ambience/noise-grain），
+   * 'mr' = must_review item（typography/kinetic-line，overlay-safe —— 刻意不用
+   * fullscreen scope，否则先撞 fullscreen 闸，测不到 must_review 分支）。
+   */
+  sceneTracks?: ('fs' | 'mr')[];
+  /** 写出 06-review/preview-props.json：match = hash 与 storyboard 一致，stale = 不一致。 */
+  previewHash?: 'match' | 'stale';
 }
 
 function makeJob(opts: JobOpts = {}): void {
@@ -94,29 +103,55 @@ function makeJob(opts: JobOpts = {}): void {
   writeAt('02-perceive/regions.json', []);
 
   if (opts.withRenderable) {
+    const tracks = (opts.sceneTracks ?? ['fs']).map<unknown>((id) =>
+      id === 'fs'
+        ? {
+            id: 'fs',
+            layer: 100,
+            items: [
+              {
+                fromFrame: 0,
+                durationInFrames: 120,
+                motion: 'ambience/noise-grain@1.0',
+                footprint: [0, 0, 1, 1],
+                params: { opacity: 0.2 },
+              },
+            ],
+          }
+        : {
+            id: 'mr',
+            layer: 200,
+            items: [
+              {
+                fromFrame: 10,
+                durationInFrames: 60,
+                motion: 'typography/kinetic-line@1.0',
+                footprint: [0, 0.72, 0.42, 0.18],
+                params: { text: 'mr' },
+                // 产路地板形态：custom 产路被抬到 must_review
+                decision: { sim_max: 1.0, confidence: 0.9, routing: 'custom', review: 'must_review' },
+              },
+            ],
+          },
+    );
     writeAt('03-storyboard/storyboard.json', {
       // 必须与 01-align 的 meanConfidence 一致 —— `buildContext` 会做一致性断言
       // （手改置信度 = 伪造对齐置信度，见 context.ts）。
       meta: { fps: 30, anchorMode: 'word', alignmentConfidence: 0.41 },
-      tracks: [
-        {
-          id: 'fs',
-          layer: 100,
-          items: [
-            {
-              fromFrame: 0,
-              durationInFrames: 120,
-              motion: 'ambience/noise-grain@1.0',
-              footprint: [0, 0, 1, 1],
-              params: { opacity: 0.2 },
-            },
-          ],
-        },
-      ],
+      tracks,
       noMotionRanges: [],
     });
     writeAt('03-storyboard/bake-report.json', { fps: 30, records: [] });
     writeAt('04-validate/validate-report.json', { ok: true, summary: { error: 0 } });
+  }
+
+  if (opts.previewHash !== undefined) {
+    const sb = path.join(root, JOB, '03-storyboard/storyboard.json');
+    const real = createHash('sha256').update(fs.readFileSync(sb)).digest('hex');
+    writeAt('06-review/preview-props.json', {
+      jobId: JOB,
+      storyboardHash: opts.previewHash === 'match' ? real : '0'.repeat(64),
+    });
   }
 
   if (opts.confirmed !== undefined) writeAt('06-review/confirmed.json', opts.confirmed);
@@ -277,6 +312,79 @@ describe('renderGate —— stage 必须匹配', () => {
       confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedFullscreen: [] },
     });
     expect(renderGate(JOB, root)).toMatch(/fs\/000/);
+  });
+});
+
+describe('renderGate —— must_review 硬闸（P1-a）', () => {
+  it('🔴 有 must_review 条目但未跑 review（无 preview-props.json）→ 拒绝并指引先跑 review', () => {
+    makeJob({ withRenderable: true, sceneTracks: ['mr'] });
+    const blocked = renderGate(JOB, root);
+    expect(blocked).not.toBeNull();
+    expect(blocked).toMatch(/preview-props\.json/);
+    expect(blocked).toMatch(/review/);
+  });
+
+  it('preview-props 的 storyboardHash 与当前 storyboard.json 不一致 → 拒绝（确认不跨 storyboard 版本）', () => {
+    makeJob({ withRenderable: true, sceneTracks: ['mr'], previewHash: 'stale' });
+    const blocked = renderGate(JOB, root);
+    expect(blocked).not.toBeNull();
+    expect(blocked).toMatch(/hash|不一致|重跑/);
+  });
+
+  it('hash 一致但无 render 确认记录 → 拒绝，给出 acknowledgedReview 写法', () => {
+    makeJob({
+      withRenderable: true,
+      sceneTracks: ['mr'],
+      previewHash: 'match',
+      confirmed: BASE_RECORD, // 只有 alignment 记录：文件存在但缺 render 记录
+    });
+    const blocked = renderGate(JOB, root);
+    expect(blocked).not.toBeNull();
+    expect(blocked).toMatch(/acknowledgedReview/);
+    expect(blocked).toMatch(/mr\/000/);
+  });
+
+  it('acknowledgedReview 未覆盖全部 → 拒绝，逐一列出缺失 ref', () => {
+    makeJob({
+      withRenderable: true,
+      sceneTracks: ['mr'],
+      previewHash: 'match',
+      confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedReview: ['别的/001'] },
+    });
+    expect(renderGate(JOB, root)).toMatch(/mr\/000/);
+  });
+
+  it('🔴 acknowledgedReview 覆盖全部（且 hash 一致）→ 放行', () => {
+    makeJob({
+      withRenderable: true,
+      sceneTracks: ['mr'],
+      previewHash: 'match',
+      confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedReview: ['mr/000'] },
+    });
+    expect(renderGate(JOB, root)).toBeNull();
+  });
+
+  it('🔴 must_review 与 fullscreen 并存：一条 render 记录带两个字段 → 放行（F3-1）', () => {
+    makeJob({
+      withRenderable: true,
+      sceneTracks: ['fs', 'mr'],
+      previewHash: 'match',
+      confirmed: {
+        ...BASE_RECORD,
+        stage: 'render',
+        acknowledgedFullscreen: ['fs/000'],
+        acknowledgedReview: ['mr/000'],
+      },
+    });
+    expect(renderGate(JOB, root)).toBeNull();
+  });
+
+  it('🔴 无 must_review 条目的 job → 不要求 preview-props 与确认（AC-4 回归）', () => {
+    makeJob({
+      withRenderable: true,
+      confirmed: { ...BASE_RECORD, stage: 'render', acknowledgedFullscreen: ['fs/000'] },
+    });
+    expect(renderGate(JOB, root)).toBeNull();
   });
 });
 

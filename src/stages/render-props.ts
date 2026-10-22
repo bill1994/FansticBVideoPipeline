@@ -13,6 +13,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson } from '../core/io.ts';
@@ -50,6 +51,18 @@ export function splitStacks(jobId: string, jobsDir?: string): { background: stri
   const background = ctx.scene.filter((s) => isCarrierScope(s.tpl.scope)).map((s) => s.ref);
   const overlay = ctx.scene.filter((s) => !isCarrierScope(s.tpl.scope)).map((s) => s.ref);
   return { background, overlay };
+}
+
+/**
+ * `03-storyboard/storyboard.json` **文件字节**的 sha256 —— P1-a 防漂移锚。
+ *
+ * review 写进 `preview-props.json#storyboardHash`，renderGate 复算比对：
+ * review 之后 storyboard 再被改动（哪怕一个字节），当时的看片确认即作废。
+ * 用内容字节而非 mTime：git checkout / touch 不吃冤枉，改了内容才失效。
+ */
+export function hashStoryboardFile(jobId: string, jobsDir?: string): string {
+  const file = path.join(jobDir(jobId, jobsDir), STAGES.storyboard, 'storyboard.json');
+  return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
 /**
