@@ -15,6 +15,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { STAGES } from '../core/config.ts';
 import { StageBlockedError } from '../core/exit-code.ts';
@@ -26,6 +27,8 @@ import { composeRenderProps, hashStoryboardFile } from './render-props.ts';
 export interface ReviewOptions {
   jobId: string;
   jobsDir?: string;
+  /** 只产出 preview-props 与队列打印，不启动 Studio（脚本化退化路径，plan edge case）。 */
+  dryRun?: boolean;
 }
 
 export interface ReviewOutcome {
@@ -53,19 +56,6 @@ function validateGate(jobId: string, jobsDir?: string): string | null {
   return null;
 }
 
-/** 从 storyboard 里取 must_review 队列（ref 格式与 renderGate/buildContext 一致：`trackId/000`）。 */
-function collectMustReviewRefs(composed: ReturnType<typeof composeRenderProps>): string[] {
-  const refs: string[] = [];
-  composed.props.storyboard.tracks.forEach((track) => {
-    track.items.forEach((item, itemIndex) => {
-      if (item.decision?.review === 'must_review') {
-        refs.push(`${track.id}/${String(itemIndex).padStart(3, '0')}`);
-      }
-    });
-  });
-  return refs;
-}
-
 /**
  * 映射 + 落盘（无 Studio 副作用）—— 测试入口，也是 runReview 的第一步。
  *
@@ -90,9 +80,11 @@ export function writePreviewProps(opts: ReviewOptions): ReviewOutcome {
     data: { ...composed.props, storyboardHash },
   });
 
+  // must_review 队列来自 composeRenderProps 的同一份 ctx.scene —— 与 renderGate
+  // 单源，杜绝「review 打印的 ref 与 render 闸算的 ref 各走各的」。
   return {
     previewFile,
-    mustReviewRefs: collectMustReviewRefs(composed),
+    mustReviewRefs: composed.mustReviewRefs,
     storyboardHash,
   };
 }
@@ -100,15 +92,28 @@ export function writePreviewProps(opts: ReviewOptions): ReviewOutcome {
 /**
  * CLI 入口：映射落盘 → 打印 must_review 队列与确认写法 → 前台启动 Studio。
  * Studio 退出（关窗 / Ctrl+C）后提醒写 confirmed.json，再走 render。
+ * `dryRun` 时只做前两步（脚本化退化：无人看片，产物照出）。
  */
 export function runReview(opts: ReviewOptions): ReviewOutcome {
   const out = writePreviewProps(opts);
-  const inputDir = path.join(jobDir(opts.jobId, opts.jobsDir), STAGES.input);
+  const base = jobDir(opts.jobId, opts.jobsDir);
+  const inputDir = path.join(base, STAGES.input);
+
+  /**
+   * 上游 mTime 提示（plan Critic reservation ③）：hash 只锚 storyboard.json，
+   * 「上游语义变了、storyboard 重烘焙后字节恰好不变」的窄缝它不响 ——
+   * 把上游两份关键产物的修改时间摆在眼前，人工比对最便宜。
+   */
+  const mtime = (rel: string): string => {
+    const f = path.join(base, rel);
+    return exists(f) ? new Date(fs.statSync(f).mtime).toISOString() : '（缺失）';
+  };
 
   printBlock(
     [
       `preview-props 已生成：${out.previewFile}`,
       `storyboardHash：${out.storyboardHash.slice(0, 16)}…（render 闸将比对，storyboard 改动后需重跑 review）`,
+      `上游产物 mTime：words.json ${mtime(path.join(STAGES.align, 'words.json'))} / regions.json ${mtime(path.join(STAGES.perceive, 'regions.json'))}`,
       '',
       out.mustReviewRefs.length > 0
         ? `必须逐条过目的 must_review 条目（${out.mustReviewRefs.length} 条）：${out.mustReviewRefs.join(', ')}`
@@ -120,10 +125,14 @@ export function runReview(opts: ReviewOptions): ReviewOutcome {
       '    "confirmedBy": "…", "confirmedAt": "…",',
       `    "acknowledgedReview": [${out.mustReviewRefs.map((r) => `"${r}"`).join(', ')}]`,
       '  } ] }',
-      '',
-      '正在启动 Remotion Studio（关闭窗口或 Ctrl+C 退出）…',
+      ...(opts.dryRun ? ['', 'dry-run：不启动 Studio。'] : ['', '正在启动 Remotion Studio（关闭窗口或 Ctrl+C 退出）…']),
     ].join('\n'),
   );
+
+  if (opts.dryRun) {
+    log.info('dry-run：preview-props 已生成，跳过 Studio');
+    return out;
+  }
 
   try {
     execFileSync(

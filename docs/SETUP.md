@@ -169,8 +169,14 @@ npm run typecheck && npm test
 ```bash
 npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
+npm run pipeline -- review     --job demo --jobs-dir examples --dry-run
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
+
+⚠️ P1-a 审核闸：demo 会产出一条 must_review 条目（`typo-main/002`）—— `render`
+在其被确认前 exit 1。看片（或信任 fixture）后把 ref 写进
+`examples/demo/06-review/confirmed.json` 的 `acknowledgedReview` 数组，再跑
+`render --dry-run` 即放行；详见 README「端到端跑通仓库自带的示例」。
 
 `validate` 的预期输出：`checked=18 项 + 2 条起草原生约束, warning=2`（两条都是 `W-F6-01`）。
 ⚠️ 这个预期**只在用仓库里已有的 `examples/demo` 快照时成立**；重跑 `storyboard` 会重算烘焙，结果可能不同（见 `PROGRESS.md` 的雷区）。

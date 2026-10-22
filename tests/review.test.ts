@@ -13,11 +13,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// 🔴 必须 mock：runReview 的 spawn 是**前台阻塞**进程 —— 不 mock 的话，
+// 断言「不该 spawn」的用例会真的把 Studio 拉起来（首版测试就因此假绿：
+// 多传的 dryRun 参数被忽略，Studio 起了又退，用例 3.1s 后照样通过）。
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+
 import { StageBlockedError } from '../src/core/exit-code.ts';
 import { ensureJobDirs } from '../src/core/io.ts';
 import { runRender } from '../src/stages/render.ts';
-import { writePreviewProps } from '../src/stages/review.ts';
+import { runReview, writePreviewProps } from '../src/stages/review.ts';
 
 const JOB = 'j1';
 let root: string;
@@ -186,5 +193,32 @@ describe('review 起跑线 —— validate 必须先过', () => {
     makeJob();
     writeAt('04-validate/validate-report.json', { ok: false, summary: { error: 2 } });
     expect(() => writePreviewProps({ jobId: JOB, jobsDir: root })).toThrow(/ok=false|校验报告/);
+  });
+});
+
+describe('runReview —— spawn 构造与 dry-run 退化（plan edge case）', () => {
+  it('🔴 dryRun：只落 preview-props，不启动 Studio', () => {
+    const spawn = vi.mocked(execFileSync);
+    spawn.mockClear();
+    makeJob({ withMustReview: true });
+    const out = runReview({ jobId: JOB, jobsDir: root, dryRun: true });
+    expect(out.mustReviewRefs).toEqual(['ov/000']);
+    expect(fs.existsSync(previewFile())).toBe(true);
+    expect(fs.existsSync(renderPropsFile())).toBe(false);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('非 dry-run：以 --props 与 --public-dir 前台启动 Studio', () => {
+    const spawn = vi.mocked(execFileSync);
+    spawn.mockClear();
+    makeJob();
+    const out = runReview({ jobId: JOB, jobsDir: root });
+    expect(spawn).toHaveBeenCalledTimes(1);
+    const [cmd, args] = spawn.mock.calls[0]!;
+    expect(cmd).toBe('npx');
+    expect(args).toContain('remotion');
+    expect(args).toContain('studio');
+    expect(args).toContain(`--props=${out.previewFile}`);
+    expect(args!.join(' ')).toContain('--public-dir=');
   });
 });

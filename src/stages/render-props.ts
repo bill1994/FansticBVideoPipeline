@@ -43,6 +43,12 @@ export interface ComposedRenderProps {
   source: SourceManifest;
   /** 00-input 绝对路径（review 启 Studio 时作 --public-dir）。 */
   inputDir: string;
+  /**
+   * must_review 条目的 item ref 队列 —— 🔴 只在这里算一份（与 renderGate 同一
+   * ctx.scene 表达式），review 打印与 render 闸比对共用。此前 review.ts 手抄过
+   * 第三份 ref 格式，评审指出正是本项目「禁第二真源」要防的潜伏分叉。
+   */
+  mustReviewRefs: string[];
 }
 
 /** 把 storyboard 切成两层栈（C6 ③：最易出错处）。 */
@@ -220,5 +226,10 @@ export function composeRenderProps(jobId: string, jobsDir?: string): ComposedRen
     ...(caption ? { caption } : {}),
   };
 
-  return { props, size, source, inputDir: path.join(base, STAGES.input) };
+  // must_review 队列：与 renderGate 用同一份 ctx.scene 算（含 resolveScene 后的顺序与 ref 格式）。
+  const mustReviewRefs = ctx.scene
+    .filter((s) => s.item.decision?.review === 'must_review')
+    .map((s) => s.ref);
+
+  return { props, size, source, inputDir: path.join(base, STAGES.input), mustReviewRefs };
 }

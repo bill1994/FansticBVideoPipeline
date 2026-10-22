@@ -75,6 +75,7 @@ npm install
 
 npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
+npm run pipeline -- review     --job demo --jobs-dir examples --dry-run
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 
@@ -82,6 +83,20 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 并写出 `examples/demo/04-validate/validate-report.json`；
 那两条 warning 都是 `W-F6-01`（示例里 s2 镜头与其人脸区被故意标成低置信，用来演示 F6 的人工兜底通道）。
 注意 `checked` 只数清单内的 18 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
+
+**`review`（P1-a 审核闸）**：产出 `06-review/preview-props.json` 并（去掉 `--dry-run` 时）启动
+Remotion Studio 挂载**与 render 完全同源**的预览。demo 的产路地板恰好会产出一条
+must_review 条目（`typo-main/002`）—— `render` 在此条目被人工确认前会拒绝启动（exit 1）。
+确认方式：看片后把该 ref 写进 `examples/demo/06-review/confirmed.json`（文件不存在则新建）：
+
+```json
+{ "records": [ { "jobId": "demo", "stage": "render", "reason": "看片确认",
+  "confirmedBy": "你的名字", "confirmedAt": "2026-10-22T23:00:00+08:00",
+  "acknowledgedReview": ["typo-main/002"] } ] }
+```
+
+写完后 `render --dry-run` 即可放行。storyboard 被改动后需重跑 `review`
+（hash 防漂移：确认只对看片时的那个 storyboard 版本有效）。
 
 其他命令：
 

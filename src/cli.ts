@@ -228,7 +228,11 @@ async function main(): Promise<ExitCode> {
     }
 
     case 'review': {
-      runReview({ jobId: args.job, jobsDir: args.jobsDir });
+      runReview({
+        jobId: args.job,
+        jobsDir: args.jobsDir,
+        ...(args.dryRun ? { dryRun: true } : {}),
+      });
       return EXIT.OK;
     }
 
