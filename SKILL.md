@@ -25,9 +25,25 @@ description: >-
 |---|---|
 | **SRT 是用户编辑过的真值** | 文字权威归 SRT，时间由音频重新推导。SRT 不对，后面全错 |
 | **素材是「已粗剪拼接、无任何文字」** | 管线只叠加，不改剪辑 |
-| **`jobs/<id>/00-input/` 里放视频 + SRT，`source.json` 填好 fps 与 durationInFrames** | 阶段目录是不可变快照，缺上游直接报错，不会猜 |
+| **`jobs/<id>/00-input/` 里放视频 + SRT，`source.json` 填好 fps 与 durationInFrames**（由 AI 实测生成，见下节） | 阶段目录是不可变快照，缺上游直接报错，不会猜 |
 
 环境没装的先跑 `npm run doctor`，它一次说清缺什么。
+
+### 新 job 引导：source.json 由 AI 实测生成
+
+用户只放视频 + SRT，**从不手写 source.json**。AI 建立 job 时按固定四步执行：
+
+| 步 | 动作 | 判据 |
+|---|---|---|
+| 1 | 扫描 `00-input/` | 视频、SRT **各恰好一份** → 直接进入第 2 步；多份或缺失 → **这是唯一提问点**，请用户指认哪个配哪个 |
+| 2 | `ffprobe` 实测视频 | `fps`（r_frame_rate）、时长秒数、`width`/`height`；`durationInFrames = round(时长秒 × fps)`，若 ffprobe 给出 `nb_frames` 则交叉对账，不一致停下报告 |
+| 3 | 写 `source.json` | 四个必填字段 + 分辨率（竖屏素材**建议**显式填 width/height，不填则 render 阶段 ffprobe 自动探测） |
+| 4 | 向用户**报告实测值** | 「实测 30fps / 3337 帧 / 1920×1080，已写入」——报告事实，不是索要数据 |
+
+**纪律**：
+- 🔴 `fps` / `durationInFrames` **只能来自 ffprobe 实测**，禁止凭记忆、估算或「常见值」填写——它们是全管线时间轴的锚，填错则所有帧语义漂移
+- 🔴 `source.json` 已存在时**不改写**（与「管线只读用户文件」同一精神）；只在缺失时生成
+- 用户可手改 `source.json`；改了 `fps` ⇒ 全部已烘焙帧作废，须重跑 03 起的全部阶段
 
 ## 五阶段
 
