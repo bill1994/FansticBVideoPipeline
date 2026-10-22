@@ -5,6 +5,7 @@
  *   npx tsx src/cli.ts <stage> [options]
  *
  * 五个阶段按序：align → perceive → storyboard → validate → render
+ * render 之前可插入 `review`（P1-a）：Studio 人工看片，must_review 确认后才可渲染。
  * 另有 `init` 用于建出一个空 job 骨架。
  *
  * 退出码（§5.3 语义化退出码）：
@@ -22,6 +23,7 @@ import { runAlign, runNoSubtitleAlign } from './stages/align.ts';
 import { runPerceive } from './stages/perceive.ts';
 import { runStoryboard } from './stages/storyboard.ts';
 import { runValidateStage } from './stages/validate.ts';
+import { runReview } from './stages/review.ts';
 import { runRender } from './stages/render.ts';
 
 interface Args {
@@ -94,6 +96,8 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
   storyboard  读 03-storyboard/motionboard.json（缺失则按节奏表生成意图底稿）
               → 绑定器解析意图 → 烘焙 storyboard.json
   validate    跑构建期校验项（当前 18 项），产出 validate-report.json
+  review      产出 06-review/preview-props.json 并启动 Remotion Studio 人工看片
+              （P1-a：must_review 条目须确认后才可 render；hash 防 storyboard 漂移）
   render      C6 双栈映射 + 本地渲染（必须显式 --gl=angle）
 
 选项：
@@ -221,6 +225,11 @@ async function main(): Promise<ExitCode> {
     case 'validate': {
       const { report } = runValidateStage({ jobId: args.job, jobsDir: args.jobsDir });
       return report.ok ? EXIT.OK : EXIT.VALIDATION_FAILED;
+    }
+
+    case 'review': {
+      runReview({ jobId: args.job, jobsDir: args.jobsDir });
+      return EXIT.OK;
     }
 
     case 'render': {
