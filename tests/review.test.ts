@@ -21,10 +21,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // 多传的 dryRun 参数被忽略，Studio 起了又退，用例 3.1s 后照样通过）。
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 
-import { StageBlockedError } from '../src/core/exit-code.ts';
+import { StageBlockedError, ConfigError } from '../src/core/exit-code.ts';
 import { ensureJobDirs } from '../src/core/io.ts';
 import { runRender } from '../src/stages/render.ts';
 import { runReview, writePreviewProps } from '../src/stages/review.ts';
+import { hashStoryboardFile } from '../src/stages/render-props.ts';
 
 const JOB = 'j1';
 let root: string;
@@ -220,5 +221,37 @@ describe('runReview —— spawn 构造与 dry-run 退化（plan edge case）', 
     expect(args).toContain('studio');
     expect(args).toContain(`--props=${out.previewFile}`);
     expect(args!.join(' ')).toContain('--public-dir=');
+  });
+
+  it('🔴 Studio 异常退出（非中断退出码）→ 报错，不得假装看片完成', () => {
+    const spawn = vi.mocked(execFileSync);
+    spawn.mockImplementation(() => {
+      const e = new Error('Command failed: npx remotion studio') as Error & { status: number };
+      e.status = 1;
+      throw e;
+    });
+    makeJob();
+    expect(() => runReview({ jobId: JOB, jobsDir: root })).toThrow(ConfigError);
+    expect(() => runReview({ jobId: JOB, jobsDir: root })).toThrow(/看片未完成|Studio/);
+  });
+
+  it('用户中断（Windows 0xC000013A）→ 正常收尾，不算失败', () => {
+    const spawn = vi.mocked(execFileSync);
+    spawn.mockImplementation(() => {
+      const e = new Error('interrupted by user') as Error & { status: number };
+      e.status = 3221225786; // STATUS_CONTROL_C_EXIT
+      throw e;
+    });
+    makeJob();
+    const out = runReview({ jobId: JOB, jobsDir: root });
+    expect(out.previewFile).toBeTruthy();
+  });
+});
+
+describe('hashStoryboardFile —— 前置产物缺失的报错形态', () => {
+  it('🔴 缺 storyboard.json → ConfigError（exit 2 语义）而非裸 ENOENT（exit 6 堆栈）', () => {
+    ensureJobDirs(JOB, root);
+    expect(() => hashStoryboardFile(JOB, root)).toThrow(ConfigError);
+    expect(() => hashStoryboardFile(JOB, root)).toThrow(/缺少前置产物|storyboard/);
   });
 });

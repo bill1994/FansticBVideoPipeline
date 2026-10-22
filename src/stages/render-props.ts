@@ -68,6 +68,15 @@ export function splitStacks(jobId: string, jobsDir?: string): { background: stri
  */
 export function hashStoryboardFile(jobId: string, jobsDir?: string): string {
   const file = path.join(jobDir(jobId, jobsDir), STAGES.storyboard, 'storyboard.json');
+  if (!exists(file)) {
+    // 导出函数可能被未来的调用方直接使用（当前两个调用点都先经 buildContext
+    // 的 readJson 挡住了缺失）；裸 ENOENT 会以 exit 6 + 堆栈吓人，按项目惯例
+    // 报 ConfigError（exit 2，人话 + 指引）。
+    throw new ConfigError(
+      `缺少前置产物：${file}\n` +
+        `（阶段目录是不可变快照，缺失即为前置阶段未跑 —— 不要跳过上游直接跑下游）`,
+    );
+  }
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 

@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { STAGES } from '../core/config.ts';
-import { StageBlockedError } from '../core/exit-code.ts';
+import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, writeStageJson } from '../core/io.ts';
 import { log, printBlock } from '../core/log.ts';
 import type { ValidateReport } from '../core/report.ts';
@@ -147,8 +147,21 @@ export function runReview(opts: ReviewOptions): ReviewOutcome {
       { stdio: 'inherit', shell: true },
     );
   } catch (e) {
-    // 用户主动关窗 / Ctrl+C 是正常退出路径，preview-props 已落盘，不作错误处理。
-    log.warn(`Studio 已退出（${(e as Error).message.split('\n')[0]}）`);
+    const err = e as Error & { status?: number; signal?: string; code?: string };
+    // 用户中断（Ctrl+C / kill）是正常退出路径：preview-props 已落盘、看片凭
+    // 用户自觉，不作错误处理。0xC000013A = STATUS_CONTROL_C_EXIT（Windows）。
+    if (err.signal !== undefined || err.status === 3221225786) {
+      log.warn('Studio 被用户中断 —— preview-props 已落盘，看片确认照常有效。');
+    } else {
+      // 🔴 启动失败 / 崩溃不能假装「看完了」：preview-props 在 spawn 前就已
+      //    落盘，静默当成功会让人对着没看过的画面写确认 —— 审核闸被掏空。
+      throw new ConfigError(
+        `Remotion Studio 异常退出（${
+          err.status !== undefined ? `exit ${err.status}` : (err.code ?? err.message)
+        }）—— 本次看片未完成，不得据此写确认。\n` +
+          `  preview-props 已生成（${out.previewFile}）；请重跑 review，或排查 Studio 启动环境（npx / 端口 / node 版本）。`,
+      );
+    }
   }
 
   log.done('看片结束。确认写进 06-review/confirmed.json 后，执行 render。');
