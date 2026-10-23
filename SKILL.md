@@ -63,7 +63,7 @@ description: >-
 
 ### 各阶段什么时候该停
 
-- **`align` 门控不过**（`alignedRatio` / 均值置信度 / 低置信占比）→ 退出码 2。**不要绕过**：先查 SRT 与音频是否真的对得上。
+- **`align` 门控不过**（`alignedRatio` / 均值置信度 / 低置信占比）→ 退出码 1。**不要绕过**：先查 SRT 与音频是否真的对得上。
 - **`validate` 有 error** → 必须停，回 `storyboard` 改 `motionboard.json` 重跑。warning 不拦。
 - **`render` 报 fullscreen 未确认** → 读 `06-review/confirmed.json` 的 `acknowledgedFullscreen`，这是人工闸，**不要替用户填**。
 
@@ -108,7 +108,7 @@ description: >-
 
 ## 两条操作纪律
 
-- 🔴 **阶段目录是不可变快照**：存在即跳过。改了上游代码后必须加 `--force`，否则你会白等十几分钟。
+- 🔴 **阶段目录语义不对称，别搞混**：`align` / `perceive` 已有产物即跳过（不可变快照）—— 改了这两个阶段的代码必须加 `--force`，否则你会白等十几分钟；`storyboard` / `validate` / `render` 没有跳过逻辑，每次重算（改它们无需 `--force`）。
 - 🔴 **长任务别 `| tail`**：错误会被吞掉。重定向到日志文件再 `grep`。
 
 ## 数字从哪查（别凭记忆）

@@ -127,7 +127,7 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
       '三项**必须一次定完**。已知反例：kukini 三项全过（0.9113 / 3.19% / 1.000），' +
       '但词时仍漂 7.06s ⇒ 光调这三个数**修不了** `M-1d`，别指望它。',
     impact:
-      '偏严 → 好素材被误拦（退出码 2，用户无路可走）；' +
+      '偏严 → 好素材被误拦（退出码 1，用户无路可走）；' +
       '偏松 → 错位对齐静默通过，错误直到成片才看得见。',
     alignWith: ['confidence-bands'],
   },

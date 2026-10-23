@@ -55,7 +55,7 @@ npm run pipeline -- init --job my-first
 # 放入视频+SRT，填 00-input/source.json，然后按序：
 npm run pipeline -- align      --job my-first
 npm run pipeline -- perceive   --job my-first
-npm run pipeline -- storyboard --job my-first --draft path/to/draft.json
+npm run pipeline -- storyboard --job my-first
 npm run pipeline -- validate   --job my-first
 npm run pipeline -- render     --job my-first
 

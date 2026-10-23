@@ -182,7 +182,7 @@ export interface AlignReport {
    * 「未配置外部模型时直接报错退出，绝不伪造结果」的精神：
    * 一份对不上的 words.json 比一次显式失败危险得多。
    *
-   * 同时作为**门控项**：低于阈值 → 退出码 2，走 C2-4 已有的
+   * 同时作为**门控项**：低于阈值 → 退出码 1（`EXIT.VALIDATION_FAILED`），走 C2-4 已有的
    * 「人工确认后继续」通道。
    */
   alignedRatio: number;

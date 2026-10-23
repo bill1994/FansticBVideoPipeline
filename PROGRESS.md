@@ -56,13 +56,13 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**709 项全过**（43 个测试文件，2026-10-22 实测，13.8s）。按文件：
+- **单测**：**712 项全过**（43 个测试文件，2026-10-23 复核）。按文件：
   fit-text 12 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
   template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 / text-align 26 / srt 22 / bake 22 /
   zh-normalize 21 / validate 41 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
   carrier-contract 10 / align-gate 9 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
-  whisper-path 3 / spec-contract 43 / spec-render 24 / motionboard 19 / rhythm-rules 33 / rhythm-table 29 /
+  whisper-path 3 / spec-contract 43 / spec-render 24 / motionboard 19 / rhythm-rules 34 / rhythm-table 31 /
   registry 6 / stage-order 5 / template-gallery 7 / media-qa 11
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
@@ -469,7 +469,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 
 ### 阶段 3 · 可选评估
 
-- **创作期动效生成 + Remotion Studio 审核闸**（用户 10-22 提出）：无合适模板时按 prompt 生成新动效——随机性关在创作期（重掷自由、定稿冻结入库），渲染期确定性红线不改；渲染前加 Studio 人工审核，must_review 条目硬闸确认后才可渲染。提案：`docs/proposals/2026-10-22-创作期动效生成与Studio审核闸.md`（P1-a 审核闸 / P1-b 生成自动化，待裁决） | ❌ 待裁决
+- **创作期动效生成 + Remotion Studio 审核闸**（用户 10-22 提出）：无合适模板时按 prompt 生成新动效——随机性关在创作期（重掷自由、定稿冻结入库），渲染期确定性红线不改；渲染前加 Studio 人工审核，must_review 条目硬闸确认后才可渲染。提案：`docs/proposals/2026-10-22-创作期动效生成与Studio审核闸.md`（P1-a 审核闸 / P1-b 生成自动化）——提案头 Status: **ACCEPTED**（2026-10-22 四项待裁决问题经会话确认全部采纳；原文「待裁决」标记已过期，按提案为准） | ❌ 未落地（P1-a / P1-b 均未开工；另发现契约缺口：board 不产 motion prompt，见 2026-10-23 预期流程对比分析）
 - shot 级 VLM 兜底（替代 F6的人工兜底）—— 需先用官方文档核实模型能力
 - Qwen3-ForcedAligner 等专用对齐模型 —— ⚠️ 单次上限 5 分钟，
   长视频需切片，且引入 PyTorch 栈与「可复现性」立法意图冲突
@@ -501,7 +501,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
 错误码      27 条（E-*/W-*，+W-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        709 项全过（43 个测试文件）  ← 449 → 480 → 493 → 498 → 509 → 527 → 672 → 691 → 698 → 709（10-22 +11）
+单测        712 项全过（43 个测试文件）  ← 449 → 480 → 493 → 498 → 509 → 527 → 672 → 691 → 698 → 709 → 712（10-22 词表回填 +3）
 测试文件    43 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
@@ -526,7 +526,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 709 项全过（13.8s）· placeholders --check OK · git 干净
+工程健康    typecheck exit 0 · 712 项全过 · placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：
@@ -596,14 +596,14 @@ node --experimental-strip-types tools/setup-whisper.mts base
 #    doctor 会检查这一项。详见 docs/SETUP.md §4。
 
 # 无需真实素材的端到端 demo
-npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
+npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 # 真素材全流程（示例：jobs/e2e-perceive）
 npm run pipeline -- align      --job e2e-perceive     # 约 14 分钟（whisper small）
 npm run pipeline -- perceive   --job e2e-perceive
-npm run pipeline -- storyboard --job e2e-perceive --draft jobs/e2e-perceive/03-storyboard/draft.json
+npm run pipeline -- storyboard --job e2e-perceive
 npm run pipeline -- validate   --job e2e-perceive
 npm run pipeline -- render     --job e2e-perceive     # 约 20–22 分钟（6667 帧 1080p60）
 
@@ -617,7 +617,7 @@ npm run templates:gallery
 > `align` / `perceive` 未配置外部模型时**直接退出码 2**，绝不伪造结果 ——
 > 一条静默产出的错误 storyboard，比一次显式失败危险得多。
 
-🔴 **阶段目录是不可变快照**：已存在的阶段会**跳过**（`align` 会打印「沿用」）。
+🔴 **阶段目录语义不对称**：`align` / `perceive` 已有产物会**跳过**（`align` 会打印「沿用」）；`storyboard` / `validate` / `render` 每次重算。
 改了对齐/感知代码后必须加 **`--force`** 才会重跑 —— 否则你会以为代码没生效。
 （2026-10-18 踩过：改完 `builtin-align` 重跑，`words.json` 时间戳纹丝不动，白等 14 分钟。）
 

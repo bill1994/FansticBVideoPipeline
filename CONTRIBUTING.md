@@ -1,6 +1,6 @@
 # 协作者上手指南
 
-> 最近更新：2026-10-15
+> 最近更新：2026-10-23
 > 面向：**接手本项目继续开发**的人（人或 AI）
 > 真源优先级：`docs/decisions/OPEN-DECISIONS.md` > `PROGRESS.md` > 其他
 
@@ -11,10 +11,10 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 384 项全过（23 文件）
+npm test               # 应 712 项全过（43 文件）
 
 # 无需真实素材的端到端 demo
-npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
+npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
@@ -51,7 +51,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ### 坑1 · 契约层与实现层是两套东西，别混
 
 `src/templates/builtin.ts` 里 11 个模板的**声明**全在位，
-但 `src/remotion/templates/` 里**目前 8 个有真实实现**（其余 3 个待后续批次）。
+但 `src/remotion/templates/` 里**目前 9 个有真实实现**（其余 2 个：`annotation/pointer-callout` / `transition/whip-pan`，均无外部阻塞）。
 未实现的会落占位块（黄色斜纹 + `data-template-missing="1"`）。
 
 ⚠️ **别把「声明齐全」误读为「实现齐全」** —— 这正是 2026-10-15
@@ -115,7 +115,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 |---|---|---|---|
 | **D-A** | 新增「会遮挡主体的叠加模板」 | A1（居中大字） | ✅ 已实现：`typography/center-emphasis@1.0`（首批唯一遮挡型） |
 | **D-B2** | 逐模板文本度量表 | C（批量真渲实测） | ⏳ 待跑（真渲环境就绪后） |
-| **M-2** | perceive 运行时 | (b) 全 Node；模型起步 RTMO-S | ⏳ 随 perceive 接入实施 |
+| **M-2** | perceive 运行时 | (b) 全 Node | ✅ 已实现（2026-10-17 内置 YuNet 后端；`PERCEIVER_CMD` 仍可外部覆盖） |
 | **M-4** | VLM 替代检测 | 不接受（保留测量） | — |
 
 ⚠️ **D-A 的背景**：此前 **10 个模板无一能触发遮挡判定**（声明 `occludesSubject: true` 的 3 个全是载体类/fullscreen，被 scope 规则排除）。
@@ -128,8 +128,8 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ### ⬜ 其他待办
 - ~~批次 2 模板~~：✅ **已实现**（2026-10-15）：`cinematic/punch-in`（首个背景链实现，
   包裹视频的机制见 `src/remotion/carrier.tsx`）+ `ambience/noise-grain`（首个 fullscreen 实现）
-- **perceive 接入**：🔴 详见 `docs/proposals/`（方案正在讨论中，
-  关键分歧是「几何测量需确定性」vs「语义判断可交给大模型」）
+- ~~perceive 接入~~：✅ **已实现**（2026-10-17）：内置后端 ffmpeg `scdet` 镜头切分 + YuNet 人脸
+  → 人脸框外扩（handheld）→ 无脸镜头显著性（broll）三通道；未配 `PERCEIVER_CMD` 也能跑，配了走外部覆盖
 - ~~D7 环境可移植~~：✅ **已修**（2026-10-15）：whisper 目录改「仓库根相对解析」
   （`resolveWhisperCppRoot()`，`WHISPER_CPP_PATH` 可覆盖）；`src/` 零盘符路径有单测兜底
 

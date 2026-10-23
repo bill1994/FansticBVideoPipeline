@@ -41,7 +41,8 @@ export const ALIGN_GATE = {
   /**
    * 🔴 PLACEHOLDER —— 新增（M1c，2026-10-13）。
    *
-   * SRT 词成功对上 whisper token 的比例下限。低于此值 → 门控不过 → 退出码 2。
+   * SRT 词成功对上 whisper token 的比例下限。低于此值 → 门控不过 → 退出码 1
+   * （`EXIT.VALIDATION_FAILED`；历史多处文档写的「退出码 2」是笔误，2026-10-23 已一并更正）。
    *
    * ⚠️ **为什么必须与 `meanConfidenceMin` 一并校准、不得分开拍**：
    * 两者度量的是不同维度 —— 前者是「whisper 对自己听到的词有多自信」，

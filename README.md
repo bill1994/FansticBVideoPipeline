@@ -27,7 +27,7 @@
              ↑ 门控                                ↑ 烘焙锚点→帧      ↑ 有 error 停
 ```
 
-每一级都是**不可变快照**：下游不得回写上游。返修改第 3 级，第 4/5 级作废重跑。
+下游不得回写上游（`writeStageJson` 内含 `assertNotWritingUpstream` 守卫）。`align` / `perceive` 产物已存在即跳过；`storyboard` / `validate` / `render` 每次重算。返修改第 3 级，第 4/5 级作废重跑。
 
 | 阶段 | 做什么 | 必须停 |
 |------|--------|--------|
@@ -73,12 +73,12 @@ npm run studio
 ```bash
 npm install
 
-npm run pipeline -- storyboard --job demo --jobs-dir examples --draft examples/demo/03-storyboard/draft.json
+npm run pipeline -- storyboard --job demo --jobs-dir examples
 npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 
-预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 17` + `summary.extra = 2`），
+预期结果：`validate` 报 **0 error / 2 warning**（`summary.checked = 18` + `summary.extra = 2`），
 并写出 `examples/demo/04-validate/validate-report.json`；
 那两条 warning 都是 `W-F6-01`（示例里 s2 镜头与其人脸区被故意标成低置信，用来演示 F6 的人工兜底通道）。
 注意 `checked` 只数清单内的 18 项，不含 `extra` 里那两条 —— 两者相加才是本次执行的全貌。
@@ -87,7 +87,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：43 个测试文件 / 709 项（校验 41 · 模板渲染 32 · 模板画廊 7 · 媒体 QA 11 …）
+npm test            # vitest：43 个测试文件 / 712 项（校验 41 · 模板渲染 32 · 模板画廊 7 · 媒体 QA 11 …）
 npm run templates:gallery  # 生成模板预览画廊 → out/template-gallery/gallery.html
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```

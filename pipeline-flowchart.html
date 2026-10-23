@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Remotion Overlay Pipeline · 全流程架构与流程图</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f7f9fc; --ink:#1f2933; --muted:#5b6b7b; --line:#d7dee8;
+    --in:#2563eb; --inbg:#eaf1ff; --proc:#64748b; --procbg:#eef1f6;
+    --mid:#d97706; --midbg:#fff5e6; --out:#059669; --outbg:#e7f7ee;
+    --gate:#dc2626; --gatebg:#fdeaea; --plan:#7c3aed; --planbg:#f3edff;
+    --card:#ffffff; --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;font-size:14px}
+  header{padding:28px 32px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fbfdff,#fff)}
+  h1{margin:0 0 6px;font-size:22px}
+  h2{margin:34px 0 12px;font-size:18px;border-left:4px solid var(--in);padding-left:10px}
+  h3{margin:18px 0 8px;font-size:15px;color:var(--muted)}
+  p{margin:8px 0}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px 64px}
+  .sub{color:var(--muted);font-size:13px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:16px 0 4px;font-size:12.5px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .chip{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .diagram{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 10px;margin-top:14px;overflow-x:auto}
+  .diagram svg{display:block;margin:0 auto;min-width:640px}
+  .cap{color:var(--muted);font-size:12.5px;margin:10px 2px 0}
+  .flow{display:flex;flex-direction:column;align-items:stretch;gap:0;margin-top:18px}
+  .node{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow);padding:16px 18px;margin:6px 0}
+  .node.planned{border:1.5px dashed var(--plan);background:#fdfbff}
+  .node.aux{border-style:dashed;background:var(--panel)}
+  .node .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+  .node .name{font-weight:700;font-size:15px}
+  .node.planned .name{color:var(--plan)}
+  .node .cmd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;white-space:nowrap}
+  .grid{display:grid;grid-template-columns:128px 1fr;gap:6px 14px}
+  .grid .k{font-weight:600;font-size:12.5px;color:var(--muted);padding-top:2px;white-space:nowrap}
+  .grid .v{font-size:13px}
+  .tag{display:inline-block;border-radius:6px;padding:1px 7px;margin:2px 4px 2px 0;font-size:12px;font-family:ui-monospace,Menlo,monospace}
+  .t-in{background:var(--inbg);color:var(--in);border:1px solid #cfe0ff}
+  .t-proc{background:var(--procbg);color:var(--proc);border:1px solid #d8dee8}
+  .t-mid{background:var(--midbg);color:var(--mid);border:1px solid #f3d9a8}
+  .t-out{background:var(--outbg);color:var(--out);border:1px solid #b9e6cf}
+  .t-gate{background:var(--gatebg);color:var(--gate);border:1px solid #f3bcbc;font-weight:600}
+  .t-plan{background:var(--planbg);color:var(--plan);border:1px solid #d9c7ff}
+  .arrow{display:flex;justify-content:center;color:var(--muted);font-size:12px;margin:2px 0}
+  .arrow b{color:var(--proc)}
+  .note{background:var(--gatebg);border:1px solid #f3bcbc;border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13px}
+  .note.plan{background:var(--planbg);border-color:#d9c7ff}
+  .note b{color:var(--gate)}
+  .note.plan b{color:var(--plan)}
+  .loop{background:#fff;border:1px dashed var(--mid);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:13px}
+  .loop.plan{border-color:var(--plan)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:880px){.cols{grid-template-columns:1fr}}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--panel);color:var(--muted);font-weight:600}
+  .sev{font-weight:700}
+  .sev.h{color:var(--gate)} .sev.m{color:var(--mid)} .sev.l{color:var(--in)}
+  .st{display:inline-block;border-radius:6px;padding:0 7px;font-size:11.5px;font-weight:600;margin-left:6px;white-space:nowrap}
+  .st.acc{background:var(--planbg);color:var(--plan);border:1px solid #d9c7ff}
+  .st.open{background:var(--gatebg);color:var(--gate);border:1px solid #f3bcbc}
+  .st.todo{background:var(--midbg);color:var(--mid);border:1px solid #f3d9a8}
+  .planband{background:var(--planbg);border:1px solid #d9c7ff;border-radius:14px;padding:14px 18px;margin:14px 0}
+  .planband h3{color:var(--plan);margin-top:4px}
+  code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:12px;font-family:ui-monospace,Menlo,monospace}
+  footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:30px;padding-top:14px}
+  ul{margin:6px 0;padding-left:20px}
+  li{margin:3px 0}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Remotion Overlay Pipeline · 全流程架构与流程图</h1>
+  <div class="sub">在已粗剪、无文字无特效的实拍口播视频上叠加 motion-graphic overlay · 五阶段确定性底座 + 可插拔意图层</div>
+  <div class="sub">分析基准：G:/VideoPipeline 代码（src/ 全量：cli / stages / core / validate / remotion / templates）+ SKILL.md / PROGRESS.md / docs/wiki / docs/proposals/2026-10-22 · 2026-10-23 v2 重绘（事实经《docs/reviews/2026-10-23-pipeline-flowchart文档审查报告.md》核对）</div>
+</header>
+
+<div class="wrap">
+
+  <div class="legend">
+    <span><i class="chip" style="background:var(--inbg);border:1px solid #cfe0ff"></i> 输入资料</span>
+    <span><i class="chip" style="background:var(--procbg);border:1px solid #d8dee8"></i> 加工处理</span>
+    <span><i class="chip" style="background:var(--midbg);border:1px solid #f3d9a8"></i> 中间加工件</span>
+    <span><i class="chip" style="background:var(--outbg);border:1px solid #b9e6cf"></i> 产出结果</span>
+    <span><i class="chip" style="background:var(--gatebg);border:1px solid #f3bcbc"></i> 闸 / 决策点</span>
+    <span><i class="chip" style="background:var(--planbg);border:1px solid #d9c7ff"></i> 规划中（计划改动）</span>
+  </div>
+
+  <h2>一、总览流程图</h2>
+  <p class="sub">中间为确定性主管线（00-input → 05-render）；左侧为人类 / 模型侧（素材投放、人工审批、意图层编辑）；右侧为辅助工具与规划中的创作期生成。红色虚线 = 人工闸与返修回路；紫色虚线 = 计划改动（提案 2026-10-22，ACCEPTED，尚未落地）。</p>
+
+  <div class="diagram">
+  <svg viewBox="0 0 680 968" width="100%" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif" role="img" aria-label="Remotion Overlay Pipeline 总览流程图">
+    <defs>
+      <marker id="aG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#64748b"/></marker>
+      <marker id="aR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#dc2626"/></marker>
+      <marker id="aP" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#7c3aed"/></marker>
+      <marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#d97706"/></marker>
+      <marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#2563eb"/></marker>
+      <marker id="aGr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#059669"/></marker>
+    </defs>
+
+    <!-- ================= 主管线节点 ================= -->
+    <rect x="220" y="28" width="250" height="72" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="48" font-size="12.5" font-weight="700" fill="#1f2933">00-input · 素材与清单（init）</text>
+    <text x="232" y="66" font-size="10" fill="#5b6b7b">ffprobe 实测 fps / 时长 / 宽高 → 写 source.json</text>
+    <text x="232" y="86" font-size="10" font-weight="700" fill="#059669">产出：job 骨架 + source.json（时间轴锚）</text>
+    <path d="M340,100 V132" stroke="#64748b" stroke-width="1.4" marker-end="url(#aG)"/>
+    <text x="350" y="122" font-size="10" fill="#5b6b7b">source.json</text>
+
+    <rect x="220" y="138" width="250" height="100" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="158" font-size="12.5" font-weight="700" fill="#1f2933">01-align · 强制对齐 + 置信度门控</text>
+    <text x="232" y="176" font-size="10" fill="#5b6b7b">ffmpeg 抽 16kHz 单声道音轨 → audio.wav</text>
+    <text x="232" y="192" font-size="10" fill="#5b6b7b">whisper.cpp 时间戳 + SRT 文本权威 + DP 对齐</text>
+    <text x="232" y="208" font-size="10" fill="#5b6b7b">M-1f 按 SRT 窗口铺词 · 门控判定 · M-1g 空产物</text>
+    <text x="232" y="226" font-size="10" font-weight="700" fill="#059669">产出：words.json · align-report.json</text>
+    <path d="M340,238 V268" stroke="#64748b" stroke-width="1.4" marker-end="url(#aG)"/>
+    <text x="350" y="258" font-size="10" fill="#5b6b7b">words.json / align-report.json</text>
+
+    <rect x="220" y="274" width="250" height="94" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="294" font-size="12.5" font-weight="700" fill="#1f2933">02-perceive · 镜头切分 + 主体检测</text>
+    <text x="232" y="312" font-size="10" fill="#5b6b7b">ffmpeg scdet 切分 · YuNet 人脸 → 外扩 handheld</text>
+    <text x="232" y="328" font-size="10" fill="#5b6b7b">无脸镜头经典显著性 broll（框不到即退让）</text>
+    <text x="232" y="344" font-size="10" fill="#5b6b7b">safeArea = 主体 bbox 上部并集（按 shot）</text>
+    <text x="232" y="360" font-size="10" font-weight="700" fill="#059669">产出：shots.json · regions.json</text>
+    <path d="M340,368 V398" stroke="#64748b" stroke-width="1.4" marker-end="url(#aG)"/>
+    <text x="350" y="388" font-size="10" fill="#5b6b7b">shots.json / regions.json</text>
+
+    <rect x="220" y="404" width="250" height="112" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="424" font-size="12.5" font-weight="700" fill="#1f2933">03-storyboard · 意图层 + 锚点烘焙</text>
+    <text x="232" y="442" font-size="10" fill="#5b6b7b">pacing：LLM 读文案语义判分布 · 同批落 motionboard</text>
+    <text x="232" y="458" font-size="10" fill="#5b6b7b">绑定器 intent→模板 · 两道闸 + 产路地板</text>
+    <text x="232" y="474" font-size="10" fill="#5b6b7b">bake：锚点 word:/cue:/abs: → 绝对帧</text>
+    <text x="232" y="490" font-size="10" fill="#5b6b7b">安全阀：sim_max 中位数 &lt;0.4 ⇒ 整批 custom + 人审</text>
+    <text x="232" y="506" font-size="10" font-weight="700" fill="#059669">产出：storyboard.json · template-snapshot.json</text>
+    <path d="M340,516 V546" stroke="#64748b" stroke-width="1.4" marker-end="url(#aG)"/>
+    <text x="350" y="536" font-size="10" fill="#5b6b7b">storyboard.json</text>
+
+    <rect x="220" y="552" width="250" height="96" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="572" font-size="12.5" font-weight="700" fill="#1f2933">04-validate · 构建期校验（JSON→JSON）</text>
+    <text x="232" y="590" font-size="10" fill="#5b6b7b">buildContext 唯一读盘 · 18 项 + 2 条 extra</text>
+    <text x="232" y="606" font-size="10" fill="#5b6b7b">遮挡消解 tier1/tier2 仅内存 · must_review 队列</text>
+    <text x="232" y="622" font-size="10" fill="#5b6b7b">结构断言（一致性/时序）不过 ⇒ 退 2</text>
+    <text x="232" y="636" font-size="10" font-weight="700" fill="#059669">产出：validate-report.json</text>
+    <path d="M340,648 V678" stroke="#64748b" stroke-width="1.4" marker-end="url(#aG)"/>
+    <text x="350" y="664" font-size="10" fill="#5b6b7b">validate-report.json</text>
+    <text x="350" y="678" font-size="10" fill="#5b6b7b">ok=true ⇒ 放行</text>
+
+    <rect x="220" y="684" width="250" height="78" rx="10" fill="#f3edff" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4"/>
+    <text x="232" y="704" font-size="12.5" font-weight="700" fill="#7c3aed">06-review · Studio 审核（规划 · P1-a）</text>
+    <text x="232" y="722" font-size="10" fill="#5b6b7b">review 命令挂载真实 storyboard 逐条预览</text>
+    <text x="232" y="738" font-size="10" fill="#5b6b7b">must_review 未确认 ⇒ render 启动闸拒绝</text>
+    <text x="232" y="754" font-size="10" font-weight="700" fill="#7c3aed">产出：confirmed.json（已审核条目清单）</text>
+    <path d="M340,762 V792" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#aP)"/>
+    <text x="350" y="782" font-size="10" fill="#7c3aed">confirmed.json（规划）</text>
+
+    <rect x="220" y="798" width="250" height="126" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="232" y="818" font-size="12.5" font-weight="700" fill="#1f2933">05-render · 双栈映射 + 渲染 + 成片 QA</text>
+    <text x="232" y="836" font-size="10" fill="#5b6b7b">renderGate：ok + fullscreen 确认 · 锁 4.0.534</text>
+    <text x="232" y="852" font-size="10" fill="#5b6b7b">resolveScene 重算消解 + 影子载体轨</text>
+    <text x="232" y="868" font-size="10" fill="#5b6b7b">toCaptionData 字幕唯一文本源 · 媒体 QA 五项</text>
+    <text x="232" y="884" font-size="10" fill="#5b6b7b">QA 不阻断；ffmpeg 缺失记 unavailable</text>
+    <text x="232" y="900" font-size="10" font-weight="700" fill="#059669">产出：out.mp4 · render-report.json</text>
+    <text x="232" y="914" font-size="10" font-weight="700" fill="#059669">contact-sheet.jpg（3×3 联系表）</text>
+    <path d="M340,924 V954" stroke="#059669" stroke-width="1.4" marker-end="url(#aGr)"/>
+    <text x="350" y="944" font-size="10" font-weight="700" fill="#059669">out.mp4（成片 · 可发布）</text>
+
+    <!-- ================= 返修回路（validate error → 03） ================= -->
+    <path d="M220,600 H196 V534 H272 V520" fill="none" stroke="#dc2626" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#aR)"/>
+    <text x="228" y="550" font-size="10" fill="#dc2626">error ⇒ 回 03 返修</text>
+
+    <!-- ================= 左侧：人类 / 模型侧 ================= -->
+    <rect x="26" y="28" width="164" height="56" rx="10" fill="#eaf1ff" stroke="#2563eb" stroke-width="1.3"/>
+    <text x="38" y="48" font-size="12" font-weight="700" fill="#2563eb">用户放入素材</text>
+    <text x="38" y="66" font-size="10" fill="#1f2933">视频 raw.mp4 + SRT raw.srt</text>
+    <path d="M190,64 H214" stroke="#2563eb" stroke-width="1.3" marker-end="url(#aB)"/>
+
+    <rect x="26" y="138" width="164" height="70" rx="10" fill="#fdeaea" stroke="#dc2626" stroke-width="1.3"/>
+    <text x="38" y="158" font-size="12" font-weight="700" fill="#dc2626">人类审批 · 06-review</text>
+    <text x="38" y="176" font-size="10" fill="#1f2933">confirmed.json</text>
+    <text x="38" y="190" font-size="9.5" fill="#5b6b7b">stage:alignment ⇒ 对齐放行</text>
+    <text x="38" y="204" font-size="9.5" fill="#5b6b7b">stage:render ⇒ fullscreen ack</text>
+    <path d="M190,173 H214" stroke="#dc2626" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#aR)"/>
+    <path d="M26,150 H14 V12 H664 V857 H476" fill="none" stroke="#dc2626" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#aR)"/>
+    <text x="500" y="851" font-size="9.5" fill="#dc2626">fullscreen ack（D3 人工闸）</text>
+
+    <rect x="26" y="452" width="164" height="70" rx="10" fill="#fff5e6" stroke="#d97706" stroke-width="1.3"/>
+    <text x="38" y="472" font-size="12" font-weight="700" fill="#d97706">模型 / 人工编辑</text>
+    <text x="38" y="490" font-size="10" fill="#1f2933">motionboard.json</text>
+    <text x="38" y="504" font-size="9.5" fill="#5b6b7b">唯一可编辑意图层</text>
+    <path d="M220,468 H196" stroke="#d97706" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#aA)"/>
+    <path d="M190,506 H216" stroke="#d97706" stroke-width="1.3" marker-end="url(#aA)"/>
+
+    <rect x="26" y="740" width="164" height="96" rx="10" fill="#eef1f6" stroke="#94a3b8" stroke-width="1.3"/>
+    <text x="38" y="760" font-size="11.5" font-weight="700" fill="#475569">阶段目录 = 不可变快照</text>
+    <text x="38" y="778" font-size="9.5" fill="#5b6b7b">align / perceive：存在即跳过</text>
+    <text x="38" y="792" font-size="9.5" fill="#5b6b7b">（改代码须 --force 才重跑）</text>
+    <text x="38" y="806" font-size="9.5" fill="#5b6b7b">03 / 04 / 05：每次重算</text>
+    <text x="38" y="820" font-size="9.5" fill="#5b6b7b">写上游目录即抛错（io.ts）</text>
+
+    <!-- ================= 右侧：辅助 / 规划侧 ================= -->
+    <rect x="500" y="28" width="148" height="122" rx="10" fill="#eef1f6" stroke="#94a3b8" stroke-width="1.3"/>
+    <text x="512" y="48" font-size="11.5" font-weight="700" fill="#475569">辅助工具（不参与主干）</text>
+    <text x="512" y="66" font-size="9.5" fill="#5b6b7b">npm run doctor 环境自检</text>
+    <text x="512" y="80" font-size="9.5" fill="#5b6b7b">setup-whisper 模型下载</text>
+    <text x="512" y="94" font-size="9.5" fill="#5b6b7b">templates:gallery 模板预览</text>
+    <text x="512" y="108" font-size="9.5" fill="#5b6b7b">placeholders 占位值口径</text>
+    <text x="512" y="122" font-size="9.5" fill="#5b6b7b">typecheck · test 工程门</text>
+
+    <rect x="500" y="620" width="148" height="104" rx="10" fill="#f3edff" stroke="#7c3aed" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <text x="512" y="640" font-size="11.5" font-weight="700" fill="#7c3aed">P1-b 创作期生成（规划）</text>
+    <text x="512" y="658" font-size="9.5" fill="#1f2933">prompt → MotionSpec JSON</text>
+    <text x="512" y="672" font-size="9.5" fill="#5b6b7b">零 codegen，复用 spec 链</text>
+    <text x="512" y="686" font-size="9.5" fill="#5b6b7b">六道验收 → 版本化入库</text>
+    <text x="512" y="700" font-size="9.5" fill="#5b6b7b">不在渲染管线内调 LLM</text>
+    <path d="M500,720 H478" stroke="#7c3aed" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#aP)"/>
+  </svg>
+  </div>
+  <p class="cap">读图说明：① 琥珀色双箭头 —— 03 首跑<b>生成</b> <code>motionboard.json</code> 意图底稿（虚线，保底路径）→ 模型 / 人工编辑 → <b>回读</b>烘焙（实线）；管线除首跑外对该文件只读。<b>首选路径是 LLM 语义判定 pacing 后同批落 motionboard</b>（M-3 用户裁决 2026-10-23：语义优先于复现；规则生成器降级为兜底先验，见 03 节点明细）。② 红色长虚线 —— 人类审批 <code>confirmed.json</code> 的两条消费路径：对齐门控放行（进 01 后由 storyboard 查证）与 fullscreen 启动闸（进 05-render）。③ 紫色虚线框 = 计划改动（提案 2026-10-22 ACCEPTED，尚未落地）；当前 <code>cli.ts</code> 无 <code>review</code> 命令，must_review 仅是警告队列（见第五节断点表）。</p>
+
+  <h3>回流回路</h3>
+  <div class="loop">
+    <b>回路 1（返修）：</b> 04-validate 报 error ⇒ 回 03-storyboard 改 <code>motionboard.json</code> ⇒ 重跑 storyboard → validate → render。阶段目录为不可变快照：改上游（01/02）代码须 <code>--force</code> 才重跑；下游（03/04/05）每次重算。
+  </div>
+  <div class="loop">
+    <b>回路 2（降级放行）：</b> 01-align 门控不过 ⇒ 人工写 <code>06-review/confirmed.json</code>（stage:"alignment"）⇒ storyboard 回填 confirmedBy/At 进 meta（降级到 cue 级时 <code>meta.anchorMode</code> 必须标 'cue'）。fullscreen（D3）⇒ 写 stage:"render" + acknowledgedFullscreen。
+  </div>
+  <div class="loop plan">
+    <b>回路 3（规划 · P1-a）：</b> validate ok=true ⇒ <code>review</code> 启动 Studio 预览 ⇒ 不满意可回 03 改 <code>motionboard.json</code>，或走 P1-b 生成新 MotionSpec 定稿入库；确认后写 <code>confirmed.json</code> 已审核条目清单 ⇒ render 启动闸校验 must_review 全覆盖才放行。
+  </div>
+
+  <h2>二、节点明细（输入资料 / 加工处理 / 中间加工件 / 产出结果）</h2>
+  <p class="sub">与总览图一一对应。每个节点标注四类信息：吃什么（输入）、做什么（加工）、过程中产生什么（中间加工件）、交付什么（产出），以及拦不拦（闸 / 决策）。</p>
+
+  <div class="flow">
+
+    <!-- 00-input -->
+    <div class="node">
+      <div class="top"><span class="name">00-input · 素材与清单（init 阶段建立）</span><span class="cmd">npm run pipeline -- init --job &lt;id&gt;</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">视频 raw.mp4</span><span class="tag t-in">SRT raw.srt</span>（均由用户放入；source.json 由 AI 按 ffprobe 四步实测生成，禁凭记忆填写，已存在不改写）</div>
+        <div class="k">加工处理</div><div class="v"><span class="tag t-proc">ffprobe 实测 fps / 时长 / 宽高</span>→ 写 source.json（四必填 + 分辨率）；AI 报告实测值</div>
+        <div class="k">中间加工件</div><div class="v"><span class="tag t-mid">source.json（素材清单 / 时间轴锚）</span>—— 全管线帧语义的唯一来源；width/height 须同时填或同时省略</div>
+        <div class="k">产出结果</div><div class="v"><span class="tag t-out">job 骨架目录 00-input…06-review</span><span class="tag t-out">source.json 模板</span></div>
+        <div class="k">闸 / 决策</div><div class="v"><span class="tag t-gate">纪律：source.json 已存在不改写；改 fps ⇒ 全部已烘焙帧作废</span></div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>沿帧时间轴向下传递 source.fps / durationInFrames</b></div>
+
+    <!-- 01-align -->
+    <div class="node">
+      <div class="top"><span class="name">01-align · 强制对齐 + 置信度门控</span><span class="cmd">pipeline -- align [--no-subtitle]</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">00-input/{video, srt, source.json}</span></div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">ffmpeg 抽音轨 16kHz 单声道 wav</span>
+          <span class="tag t-proc">silencedetect 探测静音区间</span>
+          <span class="tag t-proc">whisper.cpp + SRT 文本权威 + 内置 DP 对齐（builtin-align）</span>
+          <span class="tag t-proc">M-1f 按 SRT 窗口铺词 + SRT↔音频一致性校验</span>
+          <span class="tag t-proc">evaluateGate 门控判定（0.60 / 30% / 0.80 三阈值，均占位待校准）</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v">
+          <span class="tag t-mid">audio.wav（抽好的音轨，落盘 01-align/）</span>
+          <span class="tag t-mid">aligner-raw.json（仅外部 ALIGNER_CMD 路径）</span>
+          <span class="tag t-mid">silences（内存，来自 audio.wav，供铺词与一致性校验）</span>
+        </div>
+        <div class="k">产出结果</div><div class="v">
+          <span class="tag t-out">words.json（词级时间戳 words[] + cues[]，cues 带 srtFromSec/srtToSec）</span>
+          <span class="tag t-out">align-report.json（meanConfidence / lowConfidenceRatio / alignedRatio / silentWordRatio / mode / gatePassed）</span>
+        </div>
+        <div class="k">闸 / 决策</div><div class="v">
+          <span class="tag t-gate">门控不过 ⇒ 退出码 1 阻断（EXIT.VALIDATION_FAILED）</span>
+          <span class="tag t-gate">降级必须人工显式确认：写 06-review/confirmed.json（stage:"alignment"）才放行</span>
+          <span class="tag t-gate">M-1g：--no-subtitle ⇒ 显式标记空产物（mode 标记，不伪造）</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>words.json / align-report.json → 下游时间基准</b></div>
+
+    <!-- 02-perceive -->
+    <div class="node">
+      <div class="top"><span class="name">02-perceive · 镜头切分 + 主体/手持/B-roll 检测 + 安全区</span><span class="cmd">pipeline -- perceive [--interval]</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">00-input/{video, source.json}</span></div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">ffmpeg scdet 镜头切分</span>
+          <span class="tag t-proc">YuNet 人脸（face）→ 外扩 handheld（不做物体检测）</span>
+          <span class="tag t-proc">无脸镜头经典显著性（broll），框不到即退让</span>
+          <span class="tag t-proc">safeArea = bbox 上部并集；按 shot 取</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v"><span class="tag t-mid">frames/（仅外部 PERCEIVER_CMD 抽帧目录）</span><span class="tag t-mid">检测框 / 显著性图（内存，内置后端不落盘）</span></div>
+        <div class="k">产出结果</div><div class="v">
+          <span class="tag t-out">shots.json（Shot[]：id / fromFrame / safeArea / lowConfidence）</span>
+          <span class="tag t-out">regions.json（PerceiveRegion[]：face / handheld / broll 框）</span>
+        </div>
+        <div class="k">闸 / 决策</div><div class="v">
+          <span class="tag t-gate">无硬阻断：低置信 shot ⇒ lowConfidence:true + 下游 W-F6-01 警告，人审兜底</span>
+          <span class="tag t-gate">前置缺失（video 不在）⇒ 阻断</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>shots.json / regions.json → 遮挡预算与可见区基线</b></div>
+
+    <!-- 03-storyboard -->
+    <div class="node">
+      <div class="top"><span class="name">03-storyboard · 意图层起草 + 锚点烘焙（唯一可编辑意图层）</span><span class="cmd">pipeline -- storyboard</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v">
+          <span class="tag t-in">motionboard.json（唯一可编辑意图层；三来源共写：模型精修 / 人工增删改 / 生成器首跑底稿；P1-b 起新增可选 genPrompt，只进创作期生成器）</span>
+          <span class="tag t-in">01-align/{words, align-report}</span>
+          <span class="tag t-in">02-perceive/{shots, regions}</span>
+          <span class="tag t-in">00-input/source.json</span>
+        </div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">① 首选（M-3 用户裁决 2026-10-23）——LLM 读 01-align 文案（cues + words）<b>语义判定 pacing</b>（哪条 cue 配不配 motion、配哪个 intent、语义依据 reason），与 motionboard 同批落盘；② 保底——无模型 / 文件缺失时规则节奏表 buildRhythmTable → generateMotionboard 产基线底稿（定位从真源降为兜底先验）</span>
+          <span class="tag t-proc">bindMotionboard：intent → 模板绑定（钉死条目直通）</span>
+          <span class="tag t-proc">assertMotionboardKeys：意图层顶层键结构校验</span>
+          <span class="tag t-proc">两道闸：闸1 动态阈值 T 路由 + 闸2 审核强度 + 产路地板</span>
+          <span class="tag t-proc">bake：锚点 word:/cue:/abs: → 绝对帧，剥离 _author</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v">
+          <span class="tag t-mid">motionboard.json（意图底稿，首跑生成后归用户/模型，管线只读）</span>
+          <span class="tag t-mid">pacing.json（LLM 语义判断记录：decide / motion / signal 语义判据 / reason；与 motionboard 同批产出，供人审与追溯——<b>不追求逐字节复现</b>（M-3：语义优先）；仅兜底路径仍纯函数可复现）</span>
+          <span class="tag t-mid">bind-report.json（intent→模板→候选序 解析记录）</span>
+          <span class="tag t-mid">bake-report.json（锚点解析记录）</span>
+        </div>
+        <div class="k">产出结果</div><div class="v">
+          <span class="tag t-out">storyboard.json（绝对帧 + tracks；生成器产出 caption+motion 两轨，手写 motionboard 可多轨）</span>
+          <span class="tag t-out">template-snapshot.json（本 job 用到的 motion 声明，供浏览器 hydrate）</span>
+        </div>
+        <div class="k">闸 / 决策</div><div class="v">
+          <span class="tag t-gate">前置：01/02 必须就绪，否则 StageBlockedError</span>
+          <span class="tag t-gate">align 门控未过 ⇒ 查 06-review stage:"alignment" 放行记录</span>
+          <span class="tag t-gate">安全阀：sim_max 中位数 &lt;0.4 ⇒ 整批转 custom + must_review</span>
+          <span class="tag t-gate">M-1g：no-subtitle 下禁用 word:/cue: 锚点与字幕模板</span><span class="tag t-gate">待立：pacing↔motionboard 一致性校验（cue 索引 / motion id / decide 对齐）——建议走结构断言层，不占 18 项</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>storyboard.json + 01/02 产物 → buildContext 统一读盘</b></div>
+
+    <!-- 04-validate -->
+    <div class="node">
+      <div class="top"><span class="name">04-validate · 构建期校验（纯 JSON→JSON）</span><span class="cmd">pipeline -- validate</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">03-storyboard/{storyboard, bake-report}</span><span class="tag t-in">01-align / 02-perceive / 00-input（经 buildContext）</span></div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">buildContext 唯一读盘入口（含 alignmentConfidence 一致性断言 + assertStageOrderIsSane mTime 时序守卫）</span>
+          <span class="tag t-proc">runValidation：18 项 + 2 条起草原生约束（W-D3-01 / W-F6-01）</span>
+          <span class="tag t-proc">遮挡消解 tier1 平移 + tier2 载体档（内存改写，不落盘）</span>
+          <span class="tag t-proc">人工审核队列：decision.review==='must_review' ⇒ 生成警告队列</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v"><span class="tag t-mid">（消解结果仅存内存，不写新阶段产物；render 侧重算）</span></div>
+        <div class="k">产出结果</div><div class="v"><span class="tag t-out">validate-report.json（ok / summary.checked=18 / summary.extra=2 / 人工审核队列）</span></div>
+        <div class="k">闸 / 决策</div><div class="v"><span class="tag t-gate">有 error ⇒ 退出码 1 阻断，不进 render，必须回 03 改 motionboard 重跑</span><span class="tag t-gate">warning 不拦</span><span class="tag t-gate">buildContext 结构断言不过（alignmentConfidence 一致性 / 产物时序 mTime 守卫）⇒ 退出码 2</span></div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>validate-report.json.ok === true ⇒ 启动渲染闸</b></div>
+
+    <!-- 06-review（规划） -->
+    <div class="node planned">
+      <div class="top"><span class="name">06-review · Studio 人工审核<span class="st acc">规划中 · P1-a · ACCEPTED 未落地</span></span><span class="cmd">pipeline -- review（尚不存在）</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">04-validate/validate-report.json（ok=true）</span><span class="tag t-in">03-storyboard/storyboard.json</span><span class="tag t-in">render-props 映射（拟从 render 前移，review/render 共用）</span></div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">启动 Remotion Studio，--props 挂载真实 storyboard（时间轴可拖、逐帧可查）</span>
+          <span class="tag t-proc">用户逐条过 must_review 队列 + 全片抽查</span>
+          <span class="tag t-proc">无合适模板 ⇒ 按 motionboard.genPrompt 生成新 MotionSpec（P1-b）→ 预览 → 定稿版本化入库</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v">
+          <span class="tag t-mid">MotionSpec 草稿（会话/工具内，零 codegen，复用 spec-loader / SpecRenderer 链）</span>
+          <span class="tag t-mid">review 会话记录（预览 / 重掷 / 定稿）</span>
+        </div>
+        <div class="k">产出结果</div><div class="v"><span class="tag t-out">06-review/confirmed.json（已审核条目清单，规划字段）</span></div>
+        <div class="k">闸 / 决策</div><div class="v"><span class="tag t-gate">规划验收：must_review 条目未全覆盖 ⇒ render 退出码 1（与 fullscreen 同一条闸，不另立机制）</span><span class="tag t-gate">当前现实：cli.ts 无 review 命令，must_review 仅警告队列，人工只能自开 Studio + 手改 confirmed.json</span></div>
+      </div>
+    </div>
+
+    <div class="arrow">▼ <b>confirmed.json（fullscreen ack 现役；已审核清单为规划）</b></div>
+
+    <!-- 05-render -->
+    <div class="node">
+      <div class="top"><span class="name">05-render · C6 双栈映射 + 本地渲染 + 成片 QA</span><span class="cmd">pipeline -- render [--dry-run]</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v">
+          <span class="tag t-in">04-validate/validate-report.json（启停闸）</span>
+          <span class="tag t-in">03-storyboard/{storyboard, template-snapshot}</span>
+          <span class="tag t-in">01-align/words.json（字幕唯一文本源）</span>
+          <span class="tag t-in">00-input/{video, source.json}</span>
+          <span class="tag t-in">06-review/confirmed.json（fullscreen ack；must_review 清单为 P1-a 规划，未落地）</span>
+        </div>
+        <div class="k">加工处理</div><div class="v">
+          <span class="tag t-proc">renderGate：validate.ok + fullscreen(D3) 确认</span>
+          <span class="tag t-proc">assertVersionPinned：Remotion 锁 4.0.534</span>
+          <span class="tag t-proc">resolveScene：重算遮挡消解（通道 A，内存改写，不落盘）</span>
+          <span class="tag t-proc">splitStacks：C6 双栈（背景链串联 / 叠加栈并列）</span>
+          <span class="tag t-proc">synthesizeCarrierTracks：影子载体轨（tier2 window，内存，不落盘）</span>
+          <span class="tag t-proc">toCaptionData：words.json → 字幕 props</span>
+          <span class="tag t-proc">resolveRenderSize：manifest → ffprobe → default</span>
+        </div>
+        <div class="k">中间加工件</div><div class="v">
+          <span class="tag t-mid">render-props.json（传给 Remotion 的完整 props，含已消解几何）</span>
+          <span class="tag t-mid">resolved storyboard（内存，含 tier1/tier2 改写）</span>
+        </div>
+        <div class="k">产出结果</div><div class="v">
+          <span class="tag t-out">out.mp4（成片）</span>
+          <span class="tag t-out">render-report.json（F4 基准：bytes / wallMs / 尺寸 / 命令 / qa 内嵌 / manualOverrides）</span>
+          <span class="tag t-out">contact-sheet.jpg（3×3 联系表）</span>
+        </div>
+        <div class="k">闸 / 决策</div><div class="v">
+          <span class="tag t-gate">ok≠true ⇒ 拒绝启动</span>
+          <span class="tag t-gate">fullscreen 未经 acknowledgedFullscreen ⇒ 拒绝启动</span>
+          <span class="tag t-gate">媒体 QA 不阻断（事后报告；ffmpeg 缺失进 unavailable，不伪装通过）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 辅助工具 -->
+    <div class="node aux">
+      <div class="top"><span class="name">辅助工具链（不参与主干，随时可跑）</span><span class="cmd">npm run …</span></div>
+      <div class="grid">
+        <div class="k">输入资料</div><div class="v"><span class="tag t-in">仓库 / 模板注册表 / 已出成片</span></div>
+        <div class="k">加工处理</div><div class="v"><span class="tag t-proc">doctor 七项环境自检</span><span class="tag t-proc">setup-whisper 模型下载</span><span class="tag t-proc">templates:gallery 17 模板 × 3 帧预览</span><span class="tag t-proc">placeholders 占位值唯一口径</span><span class="tag t-proc">typecheck / test 工程门</span></div>
+        <div class="k">中间加工件</div><div class="v"><span class="tag t-mid">out/template-gallery/（gallery.html + images + catalog.json）</span><span class="tag t-mid">docs/decisions/PARAM-DECISIONS.md（由代码生成）</span></div>
+        <div class="k">产出结果</div><div class="v"><span class="tag t-out">环境体检结论 / 模板预览图 / 占位值明细 / 712 项单测结论</span></div>
+        <div class="k">闸 / 决策</div><div class="v"><span class="tag t-gate">placeholders --check 漂移即失败（防手抄本失真）</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>三、文件级数据流（谁生产 / 谁消费 / 什么角色）</h2>
+  <p class="sub">按 job 目录顺序串起所有落盘文件。「角色」列回答每个文件是<b>输入资料</b>、<b>中间加工件</b>还是<b>产出结果</b>——同一文件对下游而言即输入，故以「生产 → 消费」定位。不可变约束：每阶段只能写自己目录（<code>io.ts#assertNotWritingUpstream</code>），<code>--force</code> 是唯一显式重跑通道。</p>
+  <table>
+    <tr><th style="width:190px">文件</th><th style="width:150px">生产方</th><th style="width:250px">消费方</th><th>角色</th></tr>
+    <tr><td class="mono">00-input/raw.mp4 · raw.srt</td><td>用户放入</td><td>align（音轨 / 文本权威）、perceive（抽帧）、render（视频底）</td><td><span class="tag t-in">输入资料</span></td></tr>
+    <tr><td class="mono">00-input/source.json</td><td>00-input（AI 按 ffprobe 四步实测）</td><td>align / perceive / storyboard / render</td><td><span class="tag t-in">输入 · 时间轴锚</span></td></tr>
+    <tr><td class="mono">01-align/audio.wav</td><td>01-align（ffmpeg 抽取）</td><td>whisper.cpp / silencedetect（阶段内消费）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">01-align/aligner-raw.json</td><td>外部 ALIGNER_CMD（可选路径）</td><td>01-align（阶段内消费）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">01-align/words.json</td><td>01-align</td><td>storyboard（锚点 / 字幕）、render（toCaptionData 字幕唯一文本源）</td><td><span class="tag t-out">产出</span>→ 下游输入</td></tr>
+    <tr><td class="mono">01-align/align-report.json</td><td>01-align</td><td>storyboard（门控 / confirmed 判定）、validate（经 buildContext）</td><td><span class="tag t-out">产出</span>→ 下游输入</td></tr>
+    <tr><td class="mono">02-perceive/shots.json · regions.json</td><td>02-perceive</td><td>storyboard / validate / render（遮挡预算与可见区）</td><td><span class="tag t-out">产出</span>→ 下游输入</td></tr>
+    <tr><td class="mono">02-perceive/frames/</td><td>外部 PERCEIVER_CMD（可选）</td><td>PERCEIVER_CMD（阶段内）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">03-storyboard/motionboard.json</td><td>首跑由 03 生成器产出；此后归模型 / 人工</td><td>03-storyboard（唯一读者；管线除首跑外只读）</td><td><span class="tag t-mid">中间加工件 · 意图层</span></td></tr>
+    <tr><td class="mono">03-storyboard/pacing.json</td><td>LLM 创作期语义判定（M-3，2026-10-23 起）；无模型时规则生成器兜底</td><td>motionboard 起草（分布依据）/ 人审 / 追溯</td><td><span class="tag t-mid">中间加工件 · 判断留痕</span></td></tr>
+    <tr><td class="mono">03-storyboard/bind-report.json</td><td>03（绑定器）</td><td>人审 / 追溯（intent→模板→候选序）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">03-storyboard/bake-report.json</td><td>03（烘焙器）</td><td>validate（校验 #1 帧↔词映射）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">03-storyboard/storyboard.json</td><td>03（烘焙产物）</td><td>validate / render（机器契约）</td><td><span class="tag t-out">核心产出</span></td></tr>
+    <tr><td class="mono">03-storyboard/template-snapshot.json</td><td>03</td><td>render（浏览器 hydrate 模板声明）</td><td><span class="tag t-out">产出</span></td></tr>
+    <tr><td class="mono">04-validate/validate-report.json</td><td>04</td><td>render（启动闸）；review（规划，P1-a）</td><td><span class="tag t-out">产出</span></td></tr>
+    <tr><td class="mono">05-render/render-props.json</td><td>05（映射 + 消解后）</td><td>Remotion 渲染（阶段内）；Studio 预览（规划，P1-a 拟前移共用）</td><td><span class="tag t-mid">中间加工件</span></td></tr>
+    <tr><td class="mono">05-render/out.mp4</td><td>05</td><td>交付物（可发布成片）</td><td><span class="tag t-out">最终产出</span></td></tr>
+    <tr><td class="mono">05-render/render-report.json</td><td>05（含 qa 内嵌，无独立 .qa 文件）</td><td>F4 渲染基准 / 人</td><td><span class="tag t-out">产出</span></td></tr>
+    <tr><td class="mono">05-render/contact-sheet.jpg</td><td>05（9 等距帧拼 3×3）</td><td>人 / 多模态快速看全片</td><td><span class="tag t-out">产出</span></td></tr>
+    <tr><td class="mono">06-review/confirmed.json</td><td>人类（写盘）</td><td>align 放行（经 storyboard 查证）/ render 启动闸（fullscreen）；规划新增 must_review 清单</td><td><span class="tag t-gate">人工闸工件</span></td></tr>
+  </table>
+
+  <h2>四、计划中的改动（已纳入流程考量）</h2>
+  <div class="planband">
+    <h3>规划区 —— 紫色虚线框 / 标签对应「规划中」条目；带「已裁决」状态者为用户已拍板、待设计落地（如 M-3）</h3>
+    <ul>
+      <li><b>06-review / <code>review</code> 命令（P1-a）</b><span class="st acc">ACCEPTED · 未落地</span><br>在 validate→render 间插 Studio 审核 + must_review 硬闸；render-props 映射前移为 review/render 共用。验收：未确认 must_review ⇒ render 退出码 1 并列缺失条目 ref。</li>
+      <li><b>创作期动效生成（P1-b）</b><span class="st acc">ACCEPTED · 未落地</span><br>prompt 取自 <code>motionboard.genPrompt</code>（board 产出，提案 §4.5 2026-10-23 增补）→ MotionSpec JSON（零 codegen，复用 spec-loader/SpecRenderer），六道验收（注册 / paramsSchema / 画廊三帧 / 动效断言 / 确定性 lint / 版本化）后定稿入库；<b>不在渲染管线内调 LLM</b>，渲染期确定性红线不改。</li>
+      <li><b>M-1d 静音-词门控判据</b><span class="st open">OPEN · 待裁决</span><br>silentWordRatio 目前只报告不阻断（阈值未校准），「词落在静音里」仍是无闸缺陷；正解方向：ffmpeg silencedetect 约束 DP，禁把词放进静音段。</li>
+      <li><b>占位值校准（11 项 / 18 数值）</b><span class="st todo">待做 · 第一优先</span><br>尤其 <code>REWEIGH_COVERAGE_MIN=0.8</code>（来源不明却已生效并写进产物）与 <code>DENSITY.maxItemsPerCue</code>（占位值却直接产 error，项目无 storyboard 编辑 UI，误伤成本高）。</li>
+      <li><b>剩余 2 模板</b><span class="st todo">待做 · 无外部阻塞</span><br><code>annotation/pointer-callout</code>（主体框已由 perceive 就绪）、<code>transition/whip-pan</code>（fullscreen 人工确认闸已实装）⇒ 11/11。</li>
+      <li><b>pacing 语义化（M-3，用户已裁决 2026-10-23）</b><span class="st acc">已裁决 · 待设计落地</span><br>LLM 读文案语义判分布，与 motionboard 同批产出；规则节奏表降级为无模型兜底先验；渲染期确定性红线不变（创作期自由、定稿冻结，同 2026-10-22 提案原则）。落地待办见断点表第 6 条。</li>
+      <li><b>hash 版阶段时序守卫</b><span class="st todo">待做</span><br>当前 mTime 版（<code>assertStageOrderIsSane</code>）可被 cp / git checkout 改写绕过；计划烘焙时把上游 hash 写进 <code>storyboard.meta</code> 再比对。</li>
+      <li><b>渲染基准量化取中位数（F4）</b><span class="st todo">待做</span><br>已有 3 条成片样本（kukini 218MB / fast-0322 259MB / fast-0528 256MB），样本已够取中位数。</li>
+      <li><b>探索项</b><span class="st open">待评估</span><br>shot 级 VLM 兜底（替代 F6 人审）；Qwen3-ForcedAligner 专用对齐（单次 ≤5min，长视频需切片，与可复现性立法意图有张力）。</li>
+    </ul>
+  </div>
+
+  <h2>五、关键断点与已知问题（影响流程理解的浓缩版）</h2>
+  <p class="sub">完整 20 条评估见 <code>docs/reviews/2026-10-23-pipeline-flowchart文档审查报告.md</code>（A/B/C/D 四区，本次全部复核为真）。以下只列与「流程是否闭环」直接相关的条目。严重度：<span class="sev h">高</span> / <span class="sev m">中</span> / <span class="sev l">低</span>。</p>
+  <table>
+    <tr><th style="width:34px">#</th><th style="width:64px">严重度</th><th>断点（为什么计划改动非做不可）</th></tr>
+    <tr><td>1</td><td class="sev h">高</td><td><b>must_review 计算但不硬闸</b>：闸2 / 产路地产出 <code>decision.review='must_review'</code>，validate 仅生成警告队列，render 启动闸只强制 fullscreen —— 第二道闸的产物是「建议」而非「阻断」（定义了≠生效第六例）。P1-a 的硬闸即补此断点。</td></tr>
+    <tr><td>2</td><td class="sev h">高</td><td><b>06-review 缺 <code>review</code> 命令</b>：cli.ts 只有 init/align/perceive/storyboard/validate/render，审核无工具化入口，与断点 1 同源。</td></tr>
+    <tr><td>3</td><td class="sev h">高</td><td><b>占位值 11 项未校准</b>：DENSITY 偏严会误伤真素材、REWEIGH_COVERAGE_MIN 来源不明却生效 —— 距「可直接发布」最近的拦路石。</td></tr>
+    <tr><td>4</td><td class="sev m">中</td><td><b>M-1d 静音-词门控未立</b>：词落静音段（实测最大偏差 7.06s）目前只报告不阻断；字幕已不受影响（C2-6 以 SRT 为准），但产物层词时仍错。</td></tr>
+    <tr><td>5</td><td class="sev m">中</td><td><b>遮挡消解只内存不落盘</b>：validate 与 render 各自重算，<code>storyboard.json</code> 磁盘永远是消解前几何 —— 直接读它拿不到实际成片位置（方案 A 有意为之，留可追溯性缺口）。</td></tr>
+    <tr><td>6</td><td class="sev m">中</td><td><b>pacing 生产范式切换中（M-3，用户 2026-10-23 裁决：语义优先于复现）</b>：LLM 语义判定取代规则纯函数成为首选路径；待办——① pacing↔motionboard 一致性校验（防 LLM 幻觉 cue 索引 / motion id）；② 规则表降级兜底后，rhythm-rules 34 项 + rhythm-table 31 项单测与《2026-10-21 节奏表基线报告》定位改为「兜底路径基线」；③ 文档「同一 SRT 逐字节可复现」表述废止（CONTEXT.md 已改，wiki/03 待改）；④ 安全阀（sim_max 中位数 &lt;0.4）与占位值 rhythm-min-cue-frames 的适用范围重划。</td></tr>
+    <tr><td>7</td><td class="sev m">中</td><td><b>alignedRatio 契约未强制</b>：外部对齐器路径下该字段可选、不回传时记 0 且 <code>alignPassed</code> 对 undefined 放行 ⇒ 外部路径的 M-1c 门控形同虚设（内置后端已补真实值）。</td></tr>
+    <tr><td>8</td><td class="sev m">中</td><td><b>overrides 只告警不回放</b>：confirmed.json 里人工签字声称的改动（如 fromFrame 120→135）不校验是否真落到产物，信任链有缺口。</td></tr>
+    <tr><td>9</td><td class="sev m">中</td><td><b>hash 版时序守卫未做</b>：mTime 版可被 cp / git checkout 绕过，「上游改了下游没重跑」可能不被发现。</td></tr>
+    <tr><td>10</td><td class="sev l">低</td><td><b>长文本溢出校验看不见</b>：nowrap + 18 项全是结构判定，13–14 个中文字以上的长文本会跑出画面而全链无感；当前靠 SKILL.md 字数纪律（纪律非强制），D-B2 逐模板实测度量表待补。</td></tr>
+    <tr><td>11</td><td class="sev l">低</td><td><b>13 个零消费者导出</b>：须逐一审「是没人需要的导出，还是该接线的守卫」（同款病已犯五次）。</td></tr>
+    <tr><td>12</td><td class="sev l">低</td><td><b>no-subtitle 与常规 align 同形不同义</b>：两者都产空 words/cues + mode 标记，下游靠多处隐式特判区分，语义分裂脆弱。</td></tr>
+    <tr><td>13</td><td class="sev l">低</td><td><b>文档说 <code>render-report.json.qa</code>、代码内嵌</b>：qa 实际嵌在 <code>render-report.json</code> 内，无独立 .qa 文件 —— 读文档者会找一个不存在的文件。</td></tr>
+  </table>
+
+  <h3>总体判断</h3>
+  <p>
+    <b>确定性底座架构健康自洽</b>：五阶段不可变快照、帧是真相、校验与渲染分离、C6 双栈与载体轨拍平、SRT 权威（C2-6）—— 均经 3 条真素材端到端验证。
+    薄弱点集中在三处：<b>① 第二道闸（must_review）未闭环</b>（断点 1/2，P1-a 正补）；<b>②「定义≠生效 / 定义≠落盘」系统性复发</b>（断点 5–8，建议把「每个新字段/决策问谁读它、落哪」固化为 checklist）；<b>③ 占位值已参与阻断却未校准</b>（断点 3，与「无编辑 UI、用户只能手改 JSON」叠加，校准收益最高）。
+  </p>
+
+  <footer>
+    生成：WorkBuddy · skill 分析 · 2026-10-23 · 事实源 = 仓库代码（src/）+ SKILL.md / PROGRESS.md / docs/wiki / docs/proposals/2026-10-22<br>
+    v2（2026-10-23 重绘）：新增 SVG 总览图（含人工闸 / 返修回路 / 规划节点）、文件级数据流表、计划改动状态标注；P1–P9 修订（退出码 1、去 --draft、bake-report 输入、结构断言闸等）已并入；历史评估结论浓缩见第五节，全文见审查报告。<br>
+    v2.1（2026-10-23）：并入 M-3 用户裁决——pacing 改由 LLM 语义判定（语义优先于复现），规则节奏表降级为兜底先验；同批登记 OPEN-DECISIONS.md 与 CONTEXT.md。
+  </footer>
+</div>
+</body>
+</html>

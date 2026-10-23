@@ -84,7 +84,7 @@ agent_created: true
 阶段目录是不可变快照，是否该重跑由你判断：
 
 ```bash
-npm run pipeline -- storyboard --job <id> --draft <draft.json>
+npm run pipeline -- storyboard --job <id>
 npm run pipeline -- validate   --job <id>
 ```
 
