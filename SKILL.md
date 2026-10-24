@@ -95,6 +95,37 @@ description: >-
 禁 `Date.now()` / `Math.random()` / CSS animation。全树只有 `MotionItem` 读时钟。
 你要"随机"效果时用固定的种子值。
 
+## 创作期动效生成（无合适模板时）
+
+库内模板绑不上时可以**生成新动效**。随机性关在创作期：生成与重掷自由（每次结果可以不同），
+定稿入库后渲染期确定性红线一字不改。生成物是 **MotionSpec JSON**（声明式：图元 `elements`
++ 关键帧轨道 `tracks`），零 codegen、零渲染层改动。提案 §2/§4/§4.5：
+`docs/proposals/2026-10-22-创作期动效生成与Studio审核闸.md`。
+
+**三种触发**（给 motionboard 条目写 `genPrompt`，写作纪律见 storyboard skill）：
+
+1. intent 绑不定 —— `bind-report.json` 的 `noFits` 记到的条目
+2. 安全阀整批转 custom 的条目
+3. 人工指定想要新动效
+
+**流程（顺序固定，跳步不许入库）**：
+
+| 步 | 动作 |
+|---|---|
+| 1 | 读该条目的 `genPrompt`。无 `genPrompt` 的 no-fit 条目**不生成**——维持 custom 人工逃生口（生成是增强，不是替换） |
+| 2 | 按 spec 契约产 MotionSpec JSON：**语法内编排**——5 图元（≤4 elements）× 8 可动属性 × 5 缓动 × 令牌色，≤16KB；「每次不一样」来自编排差异。语法外需求（3D / 粒子 / 自定义路径）→ **诚实报告**并转 Tier 2（扩图元改 SpecRenderer，或写组件模板），🔴 禁硬编、禁伪装成 spec 能表达的形态 |
+| 3 | 生成物**必须有贯穿 item 的动效**——三帧两两不等是验收门，只入场就定住的静态摆设过不了 |
+| 4 | `npm run motion:accept -- <file>` 过六道验收：结构 / 注册（id/scope/layer/footprint 齐备）/ 画廊三帧非空白 / **动效真在动（三帧 markup 两两不等）** / 确定性 lint（零 `Date.now` / `Math.random` / `useFrame` / `animation:`）/ 签章。任一门失败 → 报因打回重掷，不入库、不可被引用 |
+| 5 | 全过则工具自动把**带签章**的 spec 写入 `templates/specs/custom-<语义名>.json`。🔴 入库文件**不要手改**——spec-loader 对 `custom-*` 文件验签，缺签章或内容与 hash 不符直接 ConfigError 拒装载 |
+| 6 | motionboard 该条目改 `motion` 钉死新模板（或 intent 指向它），重跑 `storyboard` → `validate` |
+
+**id 与版本**：`custom/<语义名>@0.1` 起步，定稿升 `1.0`。**重掷 = 新版本文件**——旧版本 spec
+连同签章留在 `templates/specs/`（新版本另立文件，不覆盖旧文件），已出片 job 引用的旧版本
+照常装载、永不失效。
+
+**为什么不在渲染时生成**：真素材渲染墙钟 20 分钟，反馈环不可接受；18 项校验全是结构判定，
+对未知结构的生成物失明。生成物必须先过验收、成为库内可指认的模板，才允许被 motionboard 引用。
+
 ## 常见失败与处置
 
 | 现象 | 多半是 | 做法 |

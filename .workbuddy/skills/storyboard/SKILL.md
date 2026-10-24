@@ -63,6 +63,26 @@ motionboard 分布的判据。因此你（模型）应当**按语义判读每条
 禁写坐标/帧数/颜色/CSS。绑定失败（候选全不满足时长门控）会在 `bind-report.json`
 记 no-fits 并告警 —— 看到后换 intent 或删条目，不要硬塞。
 
+**genPrompt：创作期生成的 prompt 契约（P1-b，提案 §4.5）**
+
+三种情况给条目补写可选字段 `genPrompt`（自然语言）：① intent 绑不定（`bind-report.json`
+的 `noFits`）；② 安全阀整批转 custom；③ 人工指定想生成新动效。写作纪律与 `params` 同源——
+**写形态 / 质感 / 节奏，禁坐标 / 帧 / 颜色 / CSS**：
+
+```jsonc
+✅ "genPrompt": "玻璃质感的数字翻牌，入场快速弹出，句尾利落收掉"
+❌ "genPrompt": "scale 从 1.2 到 1.0，60 帧处淡出，颜色 #FF0000，加 CSS blur"
+   // ← 坐标/帧号/色值/CSS 全是禁写项：几何归 footprint 与关键帧，颜色只认令牌
+```
+
+- `intent` **仍是绑定键**：两者并存时绑定照走 intent，`genPrompt` 只被创作期生成器与人审读取；
+  binder / validate / render 零消费（自由文本不进判定链，P0）。
+- 无 `genPrompt` 的 no-fit 条目维持既有 custom 人工逃生口（换 intent / 删条目 / 人工钉死）——
+  **生成是增强，不是替换**。
+- 生成流程与验收见根 SKILL.md「创作期动效生成」节：产物入库前**必须**过
+  `npm run motion:accept` —— spec-loader 对 `custom-*` 入库文件验签，
+  无签章或手改过的文件直接拒装载。
+
 ## 铁律 1：模型只填表，不写代码
 
 只做两件事：**挑模板 + 填文字**。
