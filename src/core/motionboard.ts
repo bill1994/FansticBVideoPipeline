@@ -45,6 +45,8 @@ const ALLOWED_MOTIONBOARD_ITEM_KEYS = new Set([
   'motion',
   'featuredText',
   'note',
+  // 创作期生成 prompt（提案 §4.5）：仅创作期生成器与人审读，判定链零消费（守 P0）
+  'genPrompt',
   'confidence',
   'params',
   'footprint',

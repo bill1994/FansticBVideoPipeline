@@ -409,3 +409,50 @@ describe('generateMotionboard —— 规则底稿（intent 形态）', () => {
     }
   });
 });
+
+// ── genPrompt 契约（提案 §4.5）────────────────────────────────
+
+describe('genPrompt 契约（提案 §4.5）', () => {
+  const GEN = '玻璃质感的数字翻牌，翻开后微微回弹';
+
+  it('白名单放行 genPrompt：assertMotionboardKeys 不抛', () => {
+    const board = mb(
+      [
+        {
+          _author: { anchor: 'cue:0' },
+          intent: 'closing-verdict',
+          confidence: 0.8,
+          genPrompt: GEN,
+        },
+      ],
+      [],
+    );
+    expect(() => assertMotionboardKeys(board, FPS)).not.toThrow();
+  });
+
+  it('零机器消费：带/不带 genPrompt 的同一 board 绑定输出逐字节一致', () => {
+    const cues = [cue(0, 0, 90, '总之这双联名鞋值回票价')];
+    const item = intentItem({ anchor: 'cue:0', featuredText: '值回票价' });
+    const boardA = mb([item], cues);
+    const boardB = mb([{ ...item, genPrompt: GEN }], cues);
+    const a = bindMotionboard(boardA, bindCtx(cues));
+    const b = bindMotionboard(boardB, bindCtx(cues));
+    // draft 与 report 都比
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    expect(JSON.stringify(a.draft)).toBe(JSON.stringify(b.draft));
+    expect(JSON.stringify(a.report)).toBe(JSON.stringify(b.report));
+  });
+
+  it('零泄漏：绑定产物条目不含 genPrompt 键', () => {
+    const cues = [cue(0, 0, 90, '总之这双联名鞋值回票价')];
+    const { draft } = bindMotionboard(
+      mb([intentItem({ anchor: 'cue:0', genPrompt: GEN })], cues),
+      bindCtx(cues),
+    );
+    for (const track of draft.tracks) {
+      for (const item of track.items) {
+        expect('genPrompt' in item, `轨「${track.id}」条目泄漏 genPrompt`).toBe(false);
+      }
+    }
+  });
+});

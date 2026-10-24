@@ -491,6 +491,11 @@ export interface MotionBoardItem {
   featuredText?: string;
   /** 人读备注（为什么这么配）；绑定器零消费，不进任何判定。 */
   note?: string;
+  /**
+   * 创作期生成 prompt（P1-b，提案 §4.5）——Task 4 skill 契约引用此字段名。
+   * 仅创作期生成器与人审读；binder/validate/render 零消费（守 P0）；禁坐标/帧/颜色/CSS。
+   */
+  genPrompt?: string;
   /** 模型自评置信度（闸2 输入）。必填。 */
   confidence: number;
   /** 钉死条目的模板参数（直通，#16 兜底）；intent 条目一般不写（绑定器填）。 */
