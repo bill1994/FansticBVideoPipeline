@@ -120,7 +120,7 @@ npm run pipeline -- validate   --job <id>
 | # | 校验项 | 判定 | 来源 | error | warning |
 |---|--------|------|------|-------|---------|
 | 1 | 时序校验：`fromFrame` 须落在 `[锚定词所在 cue 起点, 该词 endFrame]` 内 | 否则 error | C2-5 / **C2-5a** | `E-C2-5-01` | — |
-| 2 | 密度校验：每 cue 的 item 数超阈值 | error | C2-5 | `E-C2-5-02` | — |
+| 2 | 密度校验：每 cue 的 item 数超阈值 | warning | C2-5 / **C2-5b** | `W-C2-5-02` | 占位阈值未校准，不阻断 |
 | 3 | footprint 相交 · 同 `exclusive` 组 | error | C4 | `E-C4-01` | — |
 | 4 | footprint 相交 · 异组 | warning | C4 | — | `W-C4-01` |
 | 5 | 主从冲突（跨 scope 类） | **自动放行，不校验** | C4 | — | — |

@@ -118,7 +118,7 @@ describe('#1 时序校验 E-C2-5-01（区间下界 = 锚定词所在 cue 的起�
   });
 });
 
-describe('#2 密度校验 E-C2-5-02', () => {
+describe('#2 密度校验 W-C2-5-02（C2-5b：占位阈值降级为 warning，不阻断）', () => {
   const fourItems = () =>
     [110, 150, 190, 230].map((f, i) =>
       makeItem({
@@ -128,12 +128,27 @@ describe('#2 密度校验 E-C2-5-02', () => {
       }),
     );
 
-  it('每 cue item 超阈值（占位阈值 3）→ error', () => {
-    const codes = codesOf({
-      tracks: [makeTrack('a', 60, fourItems())],
-      cues: [{ index: 0, fromFrame: 100, toFrame: 300, text: '一句话塞满动效' }],
-    });
-    expect(codes).toContain('E-C2-5-02');
+  it('每 cue item 超阈值（占位阈值 3）→ warning', () => {
+    const r = runValidation(
+      makeCtx({
+        tracks: [makeTrack('a', 60, fourItems())],
+        cues: [{ index: 0, fromFrame: 100, toFrame: 300, text: '一句话塞满动效' }],
+      }),
+    );
+    const item = r.items.find((i) => i.code === 'W-C2-5-02');
+    expect(item).toBeDefined();
+    expect(item?.level).toBe('warning');
+  });
+
+  it('只有密度告警时不阻断（ok 仍为 true）', () => {
+    const r = runValidation(
+      makeCtx({
+        tracks: [makeTrack('a', 60, fourItems())],
+        cues: [{ index: 0, fromFrame: 100, toFrame: 300, text: '一句话塞满动效' }],
+      }),
+    );
+    expect(r.items.filter((i) => i.level === 'error')).toEqual([]);
+    expect(r.ok).toBe(true);
   });
 
   it('未超阈值 → 不报', () => {
@@ -141,7 +156,7 @@ describe('#2 密度校验 E-C2-5-02', () => {
       tracks: [makeTrack('a', 60, fourItems().slice(0, 3))],
       cues: [{ index: 0, fromFrame: 100, toFrame: 300, text: 'ok' }],
     });
-    expect(codes).not.toContain('E-C2-5-02');
+    expect(codes).not.toContain('W-C2-5-02');
   });
 });
 

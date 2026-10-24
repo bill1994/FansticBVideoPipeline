@@ -161,9 +161,9 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
       '统计真实 storyboard 的「每 cue 实际 item 数」分布，取 P90 作为阈值；' +
       '至少 2 条素材、覆盖口播/特写两类镜头。',
     impact:
-      '🔴 **这是唯一一个「占位值却直接产 error」**：偏严会**阻断真实素材**，' +
-      '而项目没有 storyboard 编辑 UI，用户只能手改 JSON。' +
-      '这是「过度严格」最现实的伤害点。',
+      '曾是唯一「占位值却直接产 error」的项（C2-5b，2026-10-24 已降级为 warning 不阻断）：' +
+      '偏严原本会阻断真实素材，而项目没有 storyboard 编辑 UI，用户只能手改 JSON。' +
+      '校准后是否升回 error 另立裁决。',
   },
   {
     id: 'rhythm-min-cue-frames',

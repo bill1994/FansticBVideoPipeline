@@ -57,10 +57,10 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**756 项全过**（45 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步）。按文件：
+- **单测**：**757 项全过**（45 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步，C2-5b +1）。按文件：
   fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
   template-render 36 / carrier-window 30 / caption 28 / text-overflow 28 / text-align 26 / srt 22 / bake 22 /
-  zh-normalize 21 / validate 41 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
+  zh-normalize 21 / validate 42 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
   carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
   whisper-path 3 / spec-contract 43 / spec-render 24 / motionboard 19 / rhythm-rules 34 / rhythm-table 31 /
@@ -347,7 +347,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 
 | 项 id | 为什么优先 |
 |---|---|
-| `density` | 🔴 **唯一「占位值却直接产 error」**：偏严会阻断真实素材，而项目没有 storyboard 编辑 UI，用户只能手改 JSON |
+| `density` | ~~🔴 唯一「占位值却直接产 error」~~ → **2026-10-24（C2-5b）已降级为 warning 不阻断**（`W-C2-5-02`）；数值校准仍待真实素材，升回 error 另立裁决 |
 | `min-visible` | 卡着 `W-D2-02` 从 warning 升 error |
 | `align-gate` + `confidence-bands` | 必须**同批**校准，分开调会留下一道看着齐全、实则测不到的门 |
 
@@ -461,7 +461,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 | # | 事项 | 说明 | 状态 |
 |---|------|------|------|
 | 9 | **对齐产物层修漂移** | M-1f 已落地（按 SRT 窗口铺词 + 产物层回写），kukini 静义词 9→0；`M-1d` 告警档已落地（2% 告警线，不阻断），余阻断线待校准 | 🔶 产物层已解，告警档已落地，阻断线待校准 |
-| 10 | **占位值校准（11 项 / 19 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）与 `DENSITY.maxItemsPerCue`（占位值却产 error）；`SILENCE.wordRatioWarnMax=0.02` 为单样本告警线，随 `M-1d` 阻断线一并复核 | ❌ 待做（完整对齐样本仅 1 条；另两条走 M-1g 无字幕，不给覆盖率/占比分布） |
+| 10 | **占位值校准（11 项 / 19 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）；`DENSITY.maxItemsPerCue` 占位阈值已随 C2-5b 降级为 warning 不阻断（2026-10-24）；`SILENCE.wordRatioWarnMax=0.02` 为单样本告警线，随 `M-1d` 阻断线一并复核 | ❌ 待做（完整对齐样本仅 1 条；另两条走 M-1g 无字幕，不给覆盖率/占比分布） |
 | 11 | ~~剩余 2 个模板~~ | `pointer-callout` / `whip-pan` 已实现，真渲抽帧确认；模板 **11/11** | ✅ 2026-10-24 |
 | 12 | **渲染基准量化（F4）** | 已有 3 条成片墙钟（6667 帧 1080p60 → 20–22 分钟 / 218MB；另两条 259MB / 256MB）⇒ 样本已够取中位数 | 🔶 3 条成片已就绪，待取中位数 |
 | 13 | **组合场景验证模板** | 今天 3 个 bug 全是「单链正常、双链同时存在才暴露」⇒ 每个新机制都要问「和已有机制**同时**启用时还成立吗」 | 🔶 已成纪律 |
@@ -501,8 +501,8 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
 错误码      27 条（E-*/W-*，+W-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        756 项全过（45 个测试文件）  ← 449 → … → 731（10-24 模板 +4 / target +1 / D-B2 +8） → 756（P1-a：review.test +14，confirmed/stage-order/align-gate 等契约断言同步）
-测试文件    44 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
+单测        757 项全过（45 个测试文件）  ← 449 → … → 731 → 756（P1-a：review.test +14，confirmed/stage-order/align-gate 等契约断言同步） → 757（C2-5b +1）
+测试文件    45 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
 登记册      53 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-24）
@@ -528,7 +528,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 756 项全过（45 文件）· placeholders --check OK
+工程健康    typecheck exit 0 · 757 项全过（45 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

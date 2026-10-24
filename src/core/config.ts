@@ -60,6 +60,7 @@ export const ALIGN_GATE = {
  * 🔴 PLACEHOLDER —— 真源全文只写「每 cue 的 item 数超阈值 error」，
  *    **未给数值**。此处是为让校验器可运行的占位值，**不是文档结论**，
  *    须与 C2-2 一并在实拍素材上校准。
+ *    ⚠️ 2026-10-24（C2-5b）：未校准期间判定降级为 warning 不阻断（`W-C2-5-02`）。
  */
 export const DENSITY = {
   maxItemsPerCue: 3,

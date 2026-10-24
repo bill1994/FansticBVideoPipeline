@@ -64,10 +64,11 @@ export function checkTiming(ctx: ValidateContext): ReportItem[] {
 }
 
 /**
- * #2 密度校验：每 cue 的 item 数超阈值 → error。
+ * #2 密度校验：每 cue 的 item 数超阈值 → warning（C2-5b，2026-10-24 降级）。
  *
  * ⚠️ 阈值数值真源未给（见 config.ts 的 DENSITY.placeholder）。判定本身可跑，
- *    但数字是占位值，须与 C2-2 一并实测校准。
+ *    但数字是占位值；未校准的判定不阻断（曾为 error，误伤真实素材），
+ *    须与 C2-2 一并实测校准，升档另立裁决。
  */
 export function checkDensity(ctx: ValidateContext): ReportItem[] {
   const out: ReportItem[] = [];

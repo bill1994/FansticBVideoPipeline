@@ -32,7 +32,17 @@ const W = (code: string, check: string, source: string, item: number | null, tit
 export const CODES = {
   // ── 时间轴类（9 项，其中第 5 项主从冲突无码）────────────────
   TIMING: E('E-C2-5-01', 'timing-in-word-range', 'C2-5', 1, '帧未落在目标词区间'),
-  DENSITY: E('E-C2-5-02', 'density-per-cue', 'C2-5', 2, '每 cue 的 item 数超阈值'),
+  /**
+   * `W-C2-5-02` —— 密度校验，**warning 不阻断**（C2-5b，2026-10-24）。
+   *
+   * 🔴 **历史**：本码原为 error `E-C2-5-02`。`DENSITY.maxItemsPerCue=3` 是占位值
+   *   （真源未给数值），却是 11 项占位值里唯一「未校准却直接产 error 阻断」的——
+   *   偏严会误伤真实素材，而项目没有 storyboard 编辑 UI，用户只能手改 JSON。
+   *   用户裁决降级为 warning（同 `wordRatioWarnMax` 的 M-1d 告警档处理），
+   *   实测校准后是否升回 error 另立裁决。
+   *   码字符串随级别改为 `W-C2-5-02`，C2-5 决策回溯链不变。
+   */
+  DENSITY: W('W-C2-5-02', 'density-per-cue', 'C2-5', 2, '每 cue 的 item 数超阈值'),
   OVERLAP_SAME_GROUP: E('E-C4-01', 'footprint-overlap-same-group', 'C4', 3, '同 exclusive 组 footprint 相交'),
   OVERLAP_CROSS_GROUP: W('W-C4-01', 'footprint-overlap-cross-group', 'C4', 4, '异组 footprint 相交'),
   MIN_VISIBLE: E('E-C3-01', 'min-visible-frames', 'C3', 6, '最小可见时长不足'),
