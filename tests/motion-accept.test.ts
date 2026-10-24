@@ -262,4 +262,22 @@ describe('motion:accept · 入库覆写护栏（修复轮 1）', () => {
       action: 'write',
     });
   });
+
+  it('⑫ 门 1 量签名后体积（终审加固）：裸输入达标但带签章序列化超限 → structure 拒', () => {
+    // 窗口：loader 验签量的是**签名后整文件**（acceptance 块约 +220B）；
+    // 只量裸输入会让 (16384-220, 16384] 的 spec「验收过、装载拒」。
+    // 骨架法把裸输入顶到 16350B（≤16384 裸门达标），签名后即超限。
+    const skeleton = Buffer.byteLength(rawOf({ _note: '' }), 'utf8');
+    const notePrefix = '终审体积窗口夹具（x 填充至裸输入 16350B）';
+    const raw = rawOf({
+      _note: notePrefix + 'x'.repeat(16350 - skeleton - Buffer.byteLength(notePrefix, 'utf8')),
+    });
+    expect(Buffer.byteLength(raw, 'utf8')).toBeLessThanOrEqual(16384);
+    const r = acceptMotionSpec(raw, FILE);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.failures.some((s) => s.includes('structure'))).toBe(true);
+      expect(r.failures.some((s) => s.includes('structure') && s.includes('16384'))).toBe(true);
+    }
+  });
 });

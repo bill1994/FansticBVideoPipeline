@@ -328,8 +328,8 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
     const decl = deriveDeclaration(validateMotionSpec(spec));
     expect(decl.id).toBe('custom/fade-up@1.0');
     // 签章块原样随 spec 挂上声明（不参与派生，只随文件走）。
-    // ⚠️ MotionSpec 接口未声明该字段（本次裁决只扩运行时白名单），读取走收窄。
-    expect(decl.spec as unknown as Record<string, unknown>).toMatchObject({ acceptance });
+    // MotionSpec 接口已声明 acceptance?: MotionSpecAcceptance（3b25ff6），正常类型访问。
+    expect(decl.spec?.acceptance).toEqual(acceptance);
   });
 
   it('16. acceptance 形状不符 → 拒绝（对象/三键类型/未知键逐项）', () => {

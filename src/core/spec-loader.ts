@@ -24,7 +24,8 @@ import { registerTemplate } from '../templates/registry.ts';
 
 /**
  * 验收入库文件的命名约定（AC-7 验签判据）：motion:accept 全过后写出的文件
- * 恒为 `custom-<语义名>.json`（tools/accept-motion-spec.mts）。
+ * 恒为 `custom-<语义名>@<版本>.json`（文件名由 `specLibraryFileName` 按 id 派生，
+ * tools/accept-motion-spec.mts；`custom-` 前缀不随版本变化，判据只看前缀）。
  *
  * 🔴 为什么判**文件名**而不是 id 前缀：`validateMotionSpec` 的 ID_RE 强制
  *    **所有** spec 的 id 以 `custom/` 开头 —— 现有 8 份基线 spec（fade-up.json

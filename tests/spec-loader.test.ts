@@ -8,7 +8,8 @@
  *    开头 —— 现有 8 份基线 spec（fade-up.json 等）的 id 同样是
  *    `custom/fade-up@1.0`。按 id 前缀判会把基线全部拒掉，「基线无签章正常
  *    装载」（用例④，向后兼容保障）就无法成立。而 motion:accept 的入库命名
- *    恰是 `custom-<语义名>.json`（tools/accept-motion-spec.mts）——
+ *    恒以 `custom-` 开头（`custom-<语义名>@<版本>.json`，文件名由
+ *    `specLibraryFileName` 按 id 派生）——
  *    文件名前缀是「验收入库产物」与「基线手写 spec」的唯一可靠区分。
  *
  * 签章对拍用**同一 canonical 公式**就地复算（sha256(JSON.stringify(spec 去

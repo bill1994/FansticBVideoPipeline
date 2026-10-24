@@ -36,6 +36,7 @@
 import { createHash } from 'node:crypto';
 import { ConfigError } from './exit-code.ts';
 import {
+  MAX_SPEC_BYTES,
   deriveDeclaration,
   validateMotionSpec,
   type MotionSpec,
@@ -194,6 +195,36 @@ export function acceptMotionSpec(raw: string, fileName: string): MotionAcceptRes
       );
     }
     return { ok: false, failures };
+  }
+
+  // ── 门 1 加固（终审扫尾）：预量「带签章序列化后」的体积 ────────────
+  // 上面的 byteSize 量的是**裸输入**，而 loader 验签量的是**签名后整文件**
+  // （acceptance 块约 +220B）——裸 spec 落在 (MAX_SPEC_BYTES-签章开销, MAX_SPEC_BYTES]
+  // 窗口时会「验收过、装载拒」。这里用与命令壳落盘**同构**的序列化预量一次：
+  // {...spec, acceptance}（旧 acceptance 同名覆盖，与重签语义一致），specHash 取
+  // canonical hash——门 6 真签章与它逐字节一致，预量体积即最终落盘体积
+  // （命令壳另有 1B 尾随换行，与 220B 量级的窗口相比可忽略）。
+  const simulatedSigned = JSON.stringify(
+    {
+      ...spec,
+      acceptance: {
+        toolVersion: 1,
+        specHash: canonicalSpecHash(spec),
+        gates: ACCEPT_GATES,
+      } satisfies MotionSpecAcceptance,
+    },
+    null,
+    2,
+  );
+  const signedBytes = Buffer.byteLength(simulatedSigned, 'utf8');
+  if (signedBytes > MAX_SPEC_BYTES) {
+    return {
+      ok: false,
+      failures: [
+        `structure: 带签章序列化后 ${signedBytes}B > 上限 ${MAX_SPEC_BYTES}B（16KB）—— ` +
+          'loader 验签量的是签名后整文件，裸输入达标不代表落盘达标；请精简 spec 内容',
+      ],
+    };
   }
 
   // ── 门 2 registration：派生声明齐备（id/scope/layer/footprint）────
