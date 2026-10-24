@@ -7,20 +7,25 @@
  * 读 argv 路径 → `acceptMotionSpec` 六道验收门：
  * · 任一门失败：逐条 console.error 报因 + 退出码 1；
  * · 全部通过：把**带签章的全文**（spec + acceptance 块）写到
- *   `templates/specs/custom-<语义名>.json`（名取自 spec id 的 <语义名> 段）
- *   并打印入库路径。
+ *   `templates/specs/custom-<语义名>@<版本>.json`（文件名由完整 id 派生，
+ *   `specLibraryFileName`：'/' 换 '-'，@ 与 . 保留）并打印入库路径。
  *
- * 入库覆写护栏（修复轮 1，AC-9）：目标文件已存在且 canonical hash 与本次产物
- * 不同（同语义名、异内容）→ 拒绝写入并提示另立版本文件；不存在或 hash 相同
- * （重跑同一产物）→ 正常写入。`--force` 显式越过护栏（越权是人下的决定）。
- * 判定实现在 `src/core/motion-accept.ts#decideSpecOverwrite`（纯函数，可测）；
+ * 入库覆写护栏（修复轮 1）：目标文件已存在且 canonical hash 与本次产物
+ * 不同（同语义名**同版本**、异内容）→ 拒绝写入并提示升 @版本另立文件；
+ * 不存在或 hash 相同（重跑同一产物）→ 正常写入。`--force` 显式越过护栏
+ * （越权是人下的决定）。修复轮 2 起文件名按完整 id 派生——升 @版本自动落
+ * 新文件（custom/x@0.1 与 @0.2 并存），「重掷 = 新版本文件」字面成立。
+ * 判定与文件名派生实现在 `src/core/motion-accept.ts`（纯函数，可测）；
  * 本文件只做 I/O 壳。
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { acceptMotionSpec, decideSpecOverwrite } from '../src/core/motion-accept.ts';
-import { parseMotionId } from '../src/templates/types.ts';
+import {
+  acceptMotionSpec,
+  decideSpecOverwrite,
+  specLibraryFileName,
+} from '../src/core/motion-accept.ts';
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -50,11 +55,14 @@ function main(): void {
     return;
   }
 
-  const { subtype } = parseMotionId(result.spec.id);
-  const outPath = path.resolve(import.meta.dirname, '../templates/specs', `custom-${subtype}.json`);
+  const outPath = path.resolve(
+    import.meta.dirname,
+    '../templates/specs',
+    specLibraryFileName(result.spec.id),
+  );
   const signed = `${JSON.stringify({ ...result.spec, acceptance: result.acceptance }, null, 2)}\n`;
 
-  // 覆写护栏（--force 显式越过）：同语义名异内容不入库，旧版本留给已出片 job
+  // 覆写护栏（--force 显式越过）：同语义名同版本异内容不入库，旧版本留给已出片 job
   if (!force) {
     const existing = fs.existsSync(outPath)
       ? (fs.readFileSync(outPath, 'utf8') as string)

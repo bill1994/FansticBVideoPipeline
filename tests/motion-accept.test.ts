@@ -18,7 +18,11 @@
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { acceptMotionSpec, decideSpecOverwrite } from '../src/core/motion-accept.ts';
+import {
+  acceptMotionSpec,
+  decideSpecOverwrite,
+  specLibraryFileName,
+} from '../src/core/motion-accept.ts';
 import { getTemplateComponent } from '../src/remotion/templates/index.tsx';
 import { EMPTY_CAPTION } from '../src/remotion/caption.ts';
 import { __resetRegistryForTests } from '../src/templates/registry.ts';
@@ -26,6 +30,7 @@ import type { StoryboardItem } from '../src/core/types.ts';
 
 const FILE = 'accept-fixture.json';
 const ID = 'custom/accept-fixture@0.1';
+const ID_BASE = 'custom/accept-fixture';
 
 /** 合法夹具（fade-up.json 复制改 id + 补 rotate 比例轨，理由见文件头）。 */
 const FIXTURE = {
@@ -209,18 +214,20 @@ describe('motion:accept · 入库覆写护栏（修复轮 1）', () => {
     return JSON.stringify({ ...JSON.parse(raw), acceptance: r.acceptance }, null, 2);
   }
 
-  it('⑧ 目标已存在且 hash 不同（同语义名异内容）→ reject，提示含 --force 与「另立版本」', () => {
-    const oldRun = signedOf(rawOf());
-    const rerun = acceptMotionSpec(rawOf({ id: 'custom/accept-fixture@0.2' }), FILE);
+  it('⑧ 目标已存在且 hash 不同（同语义名同版本异内容）→ reject，提示含 --force /「另立版本」/ 实际文件名', () => {
+    // 修复轮 2 起文件名含版本：护栏只在该版本自己的文件上触发（升版本落新文件，不撞护栏）
+    const oldRun = signedOf(rawOf({ id: `${ID_BASE}@0.2`, _note: '旧内容（异内容夹具）' }));
+    const rerun = acceptMotionSpec(rawOf({ id: `${ID_BASE}@0.2` }), FILE);
     expect(rerun.ok).toBe(true);
     if (!rerun.ok) return;
-    const d = decideSpecOverwrite(oldRun, rerun.acceptance.specHash, 'custom/accept-fixture@0.2');
+    const d = decideSpecOverwrite(oldRun, rerun.acceptance.specHash, `${ID_BASE}@0.2`);
     expect(d.action).toBe('reject');
     if (d.action === 'reject') {
       expect(d.reason).toContain('--force');
       expect(d.reason).toContain('另立版本');
-      expect(d.reason).toContain('accept-fixture');
       expect(d.reason).toContain('旧版本');
+      // 新文案报实际入库文件名（含版本），不是裸语义名
+      expect(d.reason).toContain(`${specLibraryFileName(`${ID_BASE}@0.2`)}`);
     }
   });
 
@@ -237,6 +244,21 @@ describe('motion:accept · 入库覆写护栏（修复轮 1）', () => {
     if (!r.ok) return;
     // 已入库文件带 acceptance 块；canonical hash 剥离后必须与本次产物一致（⑤b 幂等性）
     expect(decideSpecOverwrite(signedOf(rawOf()), r.acceptance.specHash, ID)).toEqual({
+      action: 'write',
+    });
+  });
+
+  it('⑪ 入库文件名按完整 id 派生（修复轮 2）：升 @版本 → 新文件，custom/x@0.1 与 @0.2 并存', () => {
+    // 派生规则：'/' 换 '-'，@ 与 . 保留，其余非法文件名字符消毒
+    expect(specLibraryFileName('custom/x@0.1')).toBe('custom-x@0.1.json');
+    expect(specLibraryFileName('custom/smoke-guard@0.2')).toBe('custom-smoke-guard@0.2.json');
+    expect(specLibraryFileName('custom/a\\b:c*d?e"f<g>h|i@1.0')).toBe('custom-a-b-c-d-e-f-g-h-i@1.0.json');
+    // 升版本 = 另一个文件 ⇒ 目标不存在 ⇒ 护栏放行（「重掷 = 新版本文件」字面成立）
+    const v2 = acceptMotionSpec(rawOf({ id: `${ID_BASE}@0.2` }), FILE);
+    expect(v2.ok).toBe(true);
+    if (!v2.ok) return;
+    expect(specLibraryFileName(`${ID_BASE}@0.1`)).not.toBe(specLibraryFileName(`${ID_BASE}@0.2`));
+    expect(decideSpecOverwrite(undefined, v2.acceptance.specHash, `${ID_BASE}@0.2`)).toEqual({
       action: 'write',
     });
   });

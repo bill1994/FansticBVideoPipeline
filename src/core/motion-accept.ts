@@ -43,7 +43,6 @@ import {
 } from './spec.ts';
 import type { StoryboardItem } from './types.ts';
 import { hasTemplate, registerTemplate } from '../templates/registry.ts';
-import { parseMotionId } from '../templates/types.ts';
 import { EMPTY_CAPTION } from '../remotion/caption.ts';
 import { getTemplateComponent } from '../remotion/templates/index.tsx';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -99,12 +98,30 @@ export function canonicalSpecHash(spec: MotionSpec): string {
 }
 
 /**
+ * 入库文件名（修复轮 2，方案 b）——按**完整 id** 派生：
+ * `custom/<语义名>@<版本>` → `custom-<语义名>@<版本>.json`。
+ *
+ * 为什么含版本：`custom/x@0.1` 与 `custom/x@0.2` 因此是**两个文件**——
+ * 「重掷 = 新版本文件」由命名规则字面成立，旧 job 引用的旧版本永不失效
+ * （loader 验签按 `custom-` 前缀判据，不受文件名细节影响，`custom-*` 判据不变）。
+ *
+ * 消毒：合法 id（ID_RE：`custom/[a-z0-9-]+@x.y`）本就文件名安全；本函数是
+ * 导出 API，对任意输入防御——'/' 与其余文件名非法字符（\\ : * ? " < > | 与
+ * 控制字符）统一换 '-'，@ 与 . 保留（版本号语义）。
+ */
+export function specLibraryFileName(specId: string): string {
+  const sanitized = specId.replace(/[/\\:*?"<>|\u0000-\u001f]/g, '-');
+  return `${sanitized}.json`;
+}
+
+/**
  * 入库覆写护栏（P1-b 修复轮 1，AC-9）——「决定写入与否」的纯判定，I/O 在命令壳
  * （tools/accept-motion-spec.mts 读目标文件、按决定落盘）。
  *
  * 裁决（2026-10-24）：目标文件不存在，或 canonical hash 与本次产物相同
- * （重跑同一产物，幂等）→ 写入；已存在但 hash 不同（同语义名、异内容）→ 拒绝——
- * 重掷必须**另立版本文件**，已出片 job 引用的旧版本不得被静默覆盖（AC-9）。
+ * （重跑同一产物，幂等）→ 写入；已存在但 hash 不同（同语义名**同版本**、异内容）→
+ * 拒绝——升 @版本会落新文件、根本不撞护栏，撞护栏的只能是「同一版本被改了内容」，
+ * 此时重掷必须另立版本号，已出片 job 引用的旧版本不得被静默覆盖（AC-9）。
  * `--force` 是命令壳的显式越权旗标，不进本判定——判定层只回答
  * 「内容层面该不该覆写」，越权是人下的决定。
  *
@@ -126,12 +143,11 @@ export function decideSpecOverwrite(
     existingHash = null;
   }
   if (existingHash === incomingHash) return { action: 'write' };
-  const { subtype } = parseMotionId(specId);
   return {
     action: 'reject',
     reason:
-      `同语义名不同内容：templates/specs/custom-${subtype}.json 已存在且 canonical hash ` +
-      `与本次产物不同——请另立版本文件名（custom/${subtype}@<新版本>，文件名相应改）` +
+      `同语义名同版本不同内容：templates/specs/${specLibraryFileName(specId)} 已存在且 ` +
+      `canonical hash 与本次产物不同——请另立版本（升 @版本号，新版本自动落新文件）` +
       `以保留旧版本供已出片 job 引用；确要覆盖用 --force`,
   };
 }

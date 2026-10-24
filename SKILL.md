@@ -116,13 +116,14 @@ description: >-
 | 2 | 按 spec 契约产 MotionSpec JSON：**语法内编排**——5 图元（≤4 elements）× 8 可动属性 × 5 缓动 × 令牌色，≤16KB；「每次不一样」来自编排差异。语法外需求（3D / 粒子 / 自定义路径）→ **诚实报告**并转 Tier 2（扩图元改 SpecRenderer，或写组件模板），🔴 禁硬编、禁伪装成 spec 能表达的形态 |
 | 3 | 生成物**必须有贯穿 item 的动效**——三帧两两不等是验收门，只入场就定住的静态摆设过不了 |
 | 4 | `npm run motion:accept -- <file>` 过六道验收：结构 / 注册（id/scope/layer/footprint 齐备）/ 画廊三帧非空白 / **动效真在动（三帧 markup 两两不等）** / 确定性 lint（零 `Date.now` / `Math.random` / `useFrame` / `animation:`）/ 签章。任一门失败 → 报因打回重掷，不入库、不可被引用 |
-| 5 | 全过则工具自动把**带签章**的 spec 写入 `templates/specs/custom-<语义名>.json`。🔴 入库文件**不要手改**——spec-loader 对 `custom-*` 文件验签，缺签章或内容与 hash 不符直接 ConfigError 拒装载 |
+| 5 | 全过则工具自动把**带签章**的 spec 写入 `templates/specs/custom-<语义名>@<版本>.json`（文件名由完整 id 派生，升 @版本自动落新文件）。🔴 入库文件**不要手改**——spec-loader 对 `custom-*` 文件验签，缺签章或内容与 hash 不符直接 ConfigError 拒装载 |
 | 6 | motionboard 该条目改 `motion` 钉死新模板（或 intent 指向它），重跑 `storyboard` → `validate` |
 
-**id 与版本**：`custom/<语义名>@0.1` 起步，定稿升 `1.0`。**重掷 = 新版本文件**——旧版本 spec
-连同签章留在 `templates/specs/`（新版本另立文件，不覆盖旧文件），已出片 job 引用的旧版本
-照常装载、永不失效。这条由工具强制，不是纪律：accept 对同语义名、内容不同（canonical
-hash 不符）的入库目标**默认拒绝覆写**并提示另立版本文件，`--force` 可显式越过。
+**id 与版本**：`custom/<语义名>@0.1` 起步，定稿升 `1.0`。**重掷 = 新版本文件**——入库文件名
+由完整 id 派生（`custom-<语义名>@<版本>.json`），**升 @版本号即落新文件**：`@0.1` 与 `@0.2`
+并存于 `templates/specs/`，已出片 job 引用的旧版本照常装载、永不失效。护栏由工具强制，
+不是纪律：accept 对**同语义名同版本**、内容不同（canonical hash 不符）的入库目标**默认拒绝
+覆写**并提示升版本，`--force` 可显式越过。
 
 **为什么不在渲染时生成**：真素材渲染墙钟 20 分钟，反馈环不可接受；18 项校验全是结构判定，
 对未知结构的生成物失明。生成物必须先过验收、成为库内可指认的模板，才允许被 motionboard 引用。
