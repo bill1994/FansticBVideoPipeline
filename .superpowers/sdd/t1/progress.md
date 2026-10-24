@@ -10,3 +10,4 @@ Final review: self-review (no subagent tool — Agent dispatch blocked twice by 
 Task 4: BLOCKED (external) — real30 素材（视频+SRT）不在本机（jobs/* gitignore，全仓仅 examples/demo 占位输入）。环境侧已备齐：winget ffmpeg 0字节 shim 修复（Links 覆盖真实 exe 9.0.2）、doctor fail 0、whisper small 模型后台下载中。素材到位后：jobs/real30/00-input 放 raw.mp4+SRT -> npm run pipeline -- align --job real30（如 EBUSY 则手工抽 wav）。Task 5: BLOCKED by Task 4。
 Task 4 appendix: whisper ggml-small.bin 下载完成（465MB，kukini 同款模型），doctor 7 项全绿 fail 0 / warn 0。素材到位即可直接跑 align。
 P1-a merge: rebase 零冲突 -> 756/45 全绿 -> ff 合并 main -> review --dry-run 烟测通过 -> demo 06-review 夹具补齐。
+M-3 contract layer: complete (c33064f..45ebee5, tests: npm test -> 769/769 pass, typecheck 0, placeholders --check OK)
