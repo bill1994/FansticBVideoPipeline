@@ -60,7 +60,7 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 - **单测**：**792 项全过**（48 个测试文件，2026-10-25 复核；P1-a review +14 与契约同步，C2-5b +1，D-B3 +5，M-3 +7，P1-b +23：motion-accept 13 / spec-loader 5 / motionboard +3 / spec-contract +2 / 覆写护栏与终审 +5）。按文件：
   fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
   template-render 36 / carrier-window 30 / caption 28 / text-overflow 33 / text-align 26 / srt 22 / bake 22 /
-  zh-normalize 21 / validate 42 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
+  zh-normalize 21 / validate 42 / pacing-contract 7 / motion-accept 13 / spec-loader 5 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
   carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
   whisper-path 3 / spec-contract 45 / spec-render 24 / motionboard 22 / motion-accept 13 / spec-loader 5 /
