@@ -35,7 +35,12 @@
 
 import { createHash } from 'node:crypto';
 import { ConfigError } from './exit-code.ts';
-import { deriveDeclaration, validateMotionSpec, type MotionSpec } from './spec.ts';
+import {
+  deriveDeclaration,
+  validateMotionSpec,
+  type MotionSpec,
+  type MotionSpecAcceptance,
+} from './spec.ts';
 import type { StoryboardItem } from './types.ts';
 import { hasTemplate, registerTemplate } from '../templates/registry.ts';
 import { EMPTY_CAPTION } from '../remotion/caption.ts';
@@ -53,10 +58,15 @@ export const ACCEPT_GATES = ['structure', 'registration', 'frames', 'animates', 
 
 export type AcceptGateName = (typeof ACCEPT_GATES)[number];
 
-/** 验收签章。🔴 无时间戳：同输入重跑必须逐字节一致（E2）。 */
-export interface MotionAcceptance {
+/**
+ * 验收签章。🔴 无时间戳：同输入重跑必须逐字节一致（E2）。
+ *
+ * 形状契约在 `spec.ts`（MotionSpecAcceptance）—— 本类型是它的窄化扩展
+ * （toolVersion 钉死 1、gates 钉死五道门名），漂移会在编译期报错。
+ */
+export interface MotionAcceptance extends MotionSpecAcceptance {
   toolVersion: 1;
-  /** spec 原始字节（UTF-8）的 sha256 十六进制 —— 签章算法在此定（Task 3 只读不写）。 */
+  /** canonical spec hash（算法见 canonicalSpecHash）—— 签发与验签两侧共用。 */
   specHash: string;
   gates: readonly AcceptGateName[];
 }
@@ -68,9 +78,23 @@ export type MotionAcceptResult =
 /** 门 5 的禁用子串：确定性红线在 spec 原文上的机械化投影。 */
 const LINT_BANNED: readonly string[] = ['Date.now', 'Math.random', 'useFrame', 'animation:'];
 
-/** sha256(raw bytes) 十六进制 —— 签章 hash 的唯一实现点。 */
-export function specHashOf(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex');
+/**
+ * canonical spec hash —— 签章 hash 的唯一实现点（P1-b Task 3 裁决）。
+ *
+ * 公式：`sha256(JSON.stringify(spec 去除 acceptance 键, null, 2))`，UTF-8。
+ *
+ * 🔴 为什么不是 raw 字节 hash：命令落盘时会重序列化
+ *    （`JSON.stringify({ ...spec, acceptance })`，accept-motion-spec.mts），
+ *    raw 字节 hash 与落盘后的文件内容天然脱钩 —— loader 拿文件复算不出
+ *    签发时的 hash。canonical 形态从**解析出的 spec 对象**计算，签发侧
+ *    （本文件门 6）与验签侧（spec-loader）都能复算同一结果；已带签章的
+ *    spec 重跑验收也因剥离 acceptance 而幂等（tests/motion-accept.test.ts ⑤b）。
+ *
+ * 供 spec-loader 验签复用（AC-7）：`acceptance.specHash === canonicalSpecHash(spec)`。
+ */
+export function canonicalSpecHash(spec: MotionSpec): string {
+  const { acceptance: _stripped, ...canonical } = spec as unknown as Record<string, unknown>;
+  return createHash('sha256').update(JSON.stringify(canonical, null, 2), 'utf8').digest('hex');
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -197,10 +221,10 @@ export function acceptMotionSpec(raw: string, fileName: string): MotionAcceptRes
     };
   }
 
-  // ── 门 6 签章：全过才产出，无时间戳 ──────────────────────────────
+  // ── 门 6 签章：全过才产出，无时间戳；hash 用 canonical 形态 ────────
   return {
     ok: true,
     spec,
-    acceptance: { toolVersion: 1, specHash: specHashOf(raw), gates: ACCEPT_GATES },
+    acceptance: { toolVersion: 1, specHash: canonicalSpecHash(spec), gates: ACCEPT_GATES },
   };
 }

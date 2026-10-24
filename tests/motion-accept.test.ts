@@ -123,15 +123,18 @@ describe('motion:accept · 六道门槛', () => {
     if (!r.ok) expect(r.failures.some((s) => s.includes('lint'))).toBe(true);
   });
 
-  it('⑤ 验收签章：specHash === sha256(原始字节)；重跑同输入逐字节一致', () => {
+  it('⑤ 验收签章：specHash = canonical 公式对拍（去 acceptance 后 sha256）；重跑逐字节一致', () => {
     const raw = rawOf();
     const r1 = acceptMotionSpec(raw, FILE);
     const r2 = acceptMotionSpec(raw, FILE);
     expect(r1.ok).toBe(true);
     expect(r2.ok).toBe(true);
     if (r1.ok && r2.ok) {
+      // 与签发侧同一 canonical 公式对拍：sha256(JSON.stringify(spec 去 acceptance 键, null, 2))
+      const { acceptance: _omit, ...canonicalSpec } = JSON.parse(raw) as Record<string, unknown>;
+      const canonical = JSON.stringify(canonicalSpec, null, 2);
       expect(r1.acceptance.specHash).toBe(
-        createHash('sha256').update(raw, 'utf8').digest('hex'),
+        createHash('sha256').update(canonical, 'utf8').digest('hex'),
       );
       expect(r1.acceptance.specHash).toMatch(/^[0-9a-f]{64}$/);
       expect(r1.acceptance.gates).toEqual([
@@ -144,6 +147,23 @@ describe('motion:accept · 六道门槛', () => {
       // 同输入重跑（第二次走 hasTemplate 跳过重复注册）：结果逐字节一致
       expect(JSON.stringify(r1.acceptance)).toBe(JSON.stringify(r2.acceptance));
       expect(JSON.stringify(r1)).toBe(JSON.stringify(r2));
+    }
+  });
+
+  it('⑤b 重签幂等：已带签章的 spec 重跑验收 → specHash 按去 acceptance 的 canonical 复算，与首签一致', () => {
+    // 签发与验签（spec-loader）两侧都要能复算同一个 hash —— canonical 形态
+    // 必须把文件里的 acceptance 块剔除，否则「验收 → 落盘 → 重跑/装载」
+    // 走一圈 hash 就变了（P1-b Task 3 裁决：不用 raw 字节 hash 的原因）。
+    const bare = rawOf();
+    const first = acceptMotionSpec(bare, FILE);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const signed = JSON.stringify({ ...JSON.parse(bare), acceptance: first.acceptance }, null, 2);
+    const again = acceptMotionSpec(signed, FILE);
+    expect(again.ok).toBe(true);
+    if (again.ok) {
+      expect(again.acceptance.specHash).toBe(first.acceptance.specHash);
+      expect(JSON.stringify(again.acceptance)).toBe(JSON.stringify(first.acceptance));
     }
   });
 

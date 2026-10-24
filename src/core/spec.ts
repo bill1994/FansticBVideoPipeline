@@ -159,6 +159,21 @@ export interface SpecTrack {
   keys: SpecKey[];
 }
 
+/**
+ * motion:accept 验收签章块（P1-b）—— spec 文件顶层 `acceptance` 键的形状契约。
+ *
+ * 形状归本文件（顶层白名单收录 + 校验，见 validateMotionSpec 规则）；签发与
+ * 验签语义归 `motion-accept.ts`（其 `MotionAcceptance` 以更窄的类型 extends
+ * 本形状：toolVersion 字面量 1、gates 为门名元组）。刻意不让 spec.ts 反向
+ * import motion-accept —— 后者引了 react-dom/server，只许在 Node 侧活，
+ * 契约文件与它必须保持单向依赖。
+ */
+export interface MotionSpecAcceptance {
+  toolVersion: number;
+  specHash: string;
+  gates: readonly string[];
+}
+
 export interface MotionSpec {
   specVersion: 1;
   /** 必须 `custom/<subtype>@<x.y>`。 */
@@ -183,6 +198,11 @@ export interface MotionSpec {
   stagger?: { perElement: string; order: 'index' | 'reverse' };
   /** 仅文档用途的说明（写作用例、单位约定）。不参与派生，禁止塞实现细节。 */
   _note?: string;
+  /**
+   * motion:accept 六道验收全过后盖上的签章块（P1-b）。可选：现有 8 份基线
+   * spec 没有它照常装载；`custom-*` 入库文件由 spec-loader 强制验签（AC-7）。
+   */
+  acceptance?: MotionSpecAcceptance;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -263,8 +283,8 @@ const TOP_LEVEL_KEYS = new Set([
   // `acceptance` 是 motion:accept 六道验收全过后盖在文件顶层的**签章块**
   // （P1-b，2026-10-24 裁决收录）。不收录它，带签章的 spec 会在装载期被
   // 规则 11 拒掉 —— 验收产物落回 templates/specs/ 的全链路就断了。
-  // 装载期只验**形状**（见下方校验），不重算 hash：签章与原文的一致性由
-  // 签发方（motion:accept）保证，这里防的是「手编文件把签章写坏」。
+  // 这里只验**形状**（见下方校验）；hash 是否与文件内容吻合由 spec-loader
+  // 对 `custom-*` 入库文件强制对拍（AC-7，P1-b Task 3），基线 spec 不要求。
   'acceptance',
 ]);
 
