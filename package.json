@@ -29,6 +29,7 @@
     "render:video": "remotion render src/remotion/index.ts Overlay out/video.mp4 --gl=angle",
     "placeholders": "tsx tools/list-placeholders.mts",
     "templates:gallery": "tsx tools/build-template-gallery.mts",
+    "motion:accept": "tsx tools/accept-motion-spec.mts",
     "doctor": "tsx tools/doctor.mts"
   },
   "dependencies": {
