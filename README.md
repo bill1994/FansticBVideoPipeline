@@ -87,7 +87,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：43 个测试文件 / 712 项（校验 41 · 模板渲染 32 · 模板画廊 7 · 媒体 QA 11 …）
+npm test            # vitest：44 个测试文件 / 731 项（校验 41 · 模板渲染 36 · 模板画廊 7 · 媒体 QA 11 …）
 npm run templates:gallery  # 生成模板预览画廊 → out/template-gallery/gallery.html
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```

@@ -81,11 +81,16 @@ const EM = {
  *    —— 且失配表现为「漏判」，不报错。故直接比码点。
  */
 export function estimateTextWidthPx(text: string, metrics: TextMetrics): number {
-  const em = metrics.charWidthEm ?? EM.cjk;
+  // D-B2：CJK 与拉丁/数字是**两把尺子** —— 粗体数字 0.667em 与 CJK 1.0em
+  // 不能共用一个系数（见 TextMetrics.latinWidthEm 的说明）。
+  // ⚠️ 两者都是**绝对 em 值**，不是「再乘一次基准」：
+  //    写成 `latinEm * EM.latin` 会把默认 0.5 再打五折（2026-10-24 踩过）。
+  const cjkEm = metrics.charWidthEm ?? EM.cjk;
+  const latinEm = metrics.latinWidthEm ?? EM.latin;
   let w = 0;
   for (const ch of text) {
     const code = ch.codePointAt(0) ?? 0;
-    if (code === 32 || code === 9) w += em * EM.space;
+    if (code === 32 || code === 9) w += EM.space;
     // CJK 文字与标点 —— 三个区段，**缺一即系统性低估溢出**：
     //   U+3000–303F CJK 符号与标点（、。「」）
     //   U+4E00–9FFF 统一表意文字（一二三四…）
@@ -96,11 +101,21 @@ export function estimateTextWidthPx(text: string, metrics: TextMetrics): number 
       (code >= 0x4e00 && code <= 0x9fff) ||
       (code >= 0xff00 && code <= 0xffef)
     ) {
-      w += em * EM.cjk;
-    } else w += em * EM.latin;
+      w += cjkEm;
+    } else w += latinEm;
   }
   return w * metrics.fontSizePx;
 }
+
+/**
+ * 参与宽度判定的参数键（按主次顺序）。
+ *
+ * 🔴 **单一真源**：校验器与 D-B2 实测工具共用这张表 ——
+ *    若工具测了 `target` 而校验器不判它，实测表就成了摆设。
+ * `target` 是 `annotation/pointer-callout` 的标注文字（2026-10-24 起有 textMetrics），
+ * 到此为止四个键覆盖全部「会画文字」的内置模板。
+ */
+export const TEXT_WIDTH_KEYS = ['title', 'value', 'text', 'target'] as const;
 
 /** 脚本文本 → 用于宽度的键（按主次顺序）。 */
 function widthKeysOf(s: SceneItem): string[] {
@@ -108,7 +123,7 @@ function widthKeysOf(s: SceneItem): string[] {
   const out: string[] = [];
   // 顺序 = 判定优先级。**只取模板已声明的键**，
   // 杜绝「校验器认出一个 paramsSchema 里没有的键」这类自造契约。
-  for (const k of ['title', 'value', 'text']) {
+  for (const k of TEXT_WIDTH_KEYS) {
     if (k in schema) out.push(k);
   }
   return out;

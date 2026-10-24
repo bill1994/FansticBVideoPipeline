@@ -124,17 +124,17 @@ const META: Record<string, GalleryMeta> = {
     tags: ['氛围', '颗粒', '全屏'],
     params: { opacity: 0.08 },
   },
-
-  // ── 内置：声明了但未实现 ───────────────────────────────────
   'annotation/pointer-callout@1.0': {
     name: '指向标注',
-    description: '指向主体 / 物体的标注；组件尚未实现。',
-    tags: ['标注', '指向', '未实现'],
+    description: '四角括线 + 中心锚点 + 左上标签，标注画面中的目标区域。',
+    tags: ['标注', '指向', '区域'],
+    params: { target: '鞋底纹路' },
   },
   'transition/whip-pan@1.0': {
     name: '甩镜头转场',
-    description: '全屏甩镜头转场；组件尚未实现。',
-    tags: ['转场', '全屏', '未实现'],
+    description: '方向性速度线全屏扫过；`direction` 取 left / right / up / down。',
+    tags: ['转场', '甩镜头', '全屏'],
+    params: { direction: 'left' },
   },
 
   // ── MotionSpec：custom/* ───────────────────────────────────

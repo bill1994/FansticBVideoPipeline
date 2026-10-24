@@ -66,7 +66,12 @@ describe('产物时序自检 —— 下游早于上游即报错', () => {
         lowConfidenceWords: [],
         textSource: 'srt',
         alignedRatio: 1,
-        thresholds: { alignedRatioMin: 0.8, lowConfidenceRatioMax: 0.3, meanConfidenceMin: 0.6 },
+        thresholds: {
+          alignedRatioMin: 0.8,
+          lowConfidenceRatioMax: 0.3,
+          meanConfidenceMin: 0.6,
+          silentWordRatioWarnMax: 0.02,
+        },
       }),
     );
     fs.writeFileSync(path.join(base, STAGES.perceive, 'shots.json'), JSON.stringify([]));

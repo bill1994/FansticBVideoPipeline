@@ -56,15 +56,22 @@ describe('fitScale —— 放不下就缩，下限 0.7', () => {
   });
 
   it('padding 会吃掉可用宽（少算 padding = 系统性低估溢出）', () => {
-    const noPad = fitScale('一二三四五六七八九十', 54, 600);
-    const withPad = fitScale('一二三四五六七八九十', 54, 600, 60);
+    // 12 字 ×54=648 > 600 ⇒ 两者都会缩，padding 让可用宽更小、缩得更狠
+    const noPad = fitScale('一二三四五六七八九十十一', 54, 600);
+    const withPad = fitScale('一二三四五六七八九十十一', 54, 600, 60);
     expect(withPad).toBeLessThan(noPad);
   });
 
-  it('框越窄缩得越狠', () => {
+  it('可用宽变窄时缩放更狠', () => {
     const wide = fitScale('一二三四五六七八九十', 54, 800);
     const narrow = fitScale('一二三四五六七八九十', 54, 400);
     expect(narrow).toBeLessThanOrEqual(wide);
+  });
+
+  it('🔴 D-B2：fitScale 认 latinWidthEm（数字不再按半角估）', () => {
+    // 4 位数字 × 44px × 0.667 = 117.4 > 100 ⇒ 缩；按旧 0.5 只有 88 ⇒ 不缩
+    expect(fitScale('1111', 44, 100, 0, 0.7, { latinWidthEm: 0.667 })).toBeLessThan(1);
+    expect(fitScale('1111', 44, 100, 0, 0.7, { latinWidthEm: 0.5 })).toBe(1);
   });
 });
 
@@ -94,6 +101,8 @@ describe('fitScale 的字号与内边距只从契约取', () => {
       'typography/tag-float@1.0',
       'typography/center-emphasis@1.0',
       'data/stat-card@1.0',
+      // 2026-10-24：pointer-callout 的 target 标签也接 fitScale
+      'annotation/pointer-callout@1.0',
     ];
     expect(WITH_TEXT.map((t) => t.id).sort()).toEqual(covered.sort());
   });
@@ -121,7 +130,10 @@ describe('fitScale 的字号与内边距只从契约取', () => {
       const fw = t.footprint![2]!;
       const item = mkItem(t.id, fw);
       const long = '字'.repeat(40);
-      const expected = fitScale(long, m!.fontSizePx, fw * 1920, m!.paddingPx);
+      const expected = fitScale(long, m!.fontSizePx, fw * 1920, m!.paddingPx, 0.7, {
+        charWidthEm: m!.charWidthEm,
+        latinWidthEm: m!.latinWidthEm,
+      });
       expect(fitScaleFor(long, t.id, item, 1920)).toBeCloseTo(expected, 10);
     }
   });
@@ -149,7 +161,7 @@ describe('fitScale 的字号与内边距只从契约取', () => {
       const pad = m.paddingPx ?? 0;
       const fwPx = t.footprint![2]! * 1920;
       const validateAvail = fwPx - pad;      // 校验器口径（text-metrics.ts: 减一次）
-      const renderAvail = fwPx - pad * 2;    // fitScale：available = 宽 − padding×2
+      const renderAvail = fwPx - pad;        // fitScale：同样减一次（D-B2 统一口径）
       expect(
         renderAvail,
         `${t.id}: 渲染期可用宽 ${renderAvail} 竟大于校验期 ${validateAvail} ⇒ 会「校验没超但渲染缩了」`,

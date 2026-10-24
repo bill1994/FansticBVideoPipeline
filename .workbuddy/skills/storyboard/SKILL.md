@@ -43,7 +43,7 @@ agent_created: true
 含每条 cue 的 signal 与 reason —— 在它的基础上增删改，别从零重写）。
 
 **看模板长什么样**：`npm run templates:gallery` → `out/template-gallery/gallery.html`
-（17 个已实现模板各 3 帧 + scope / footprint / 参数 / 标签）。选 intent 或钉死模板前
+（19 个已实现模板各 3 帧 + scope / footprint / 参数 / 标签）。选 intent 或钉死模板前
 先看画廊，不要凭 id 猜形态；未实现的模板在画廊里明确标注，不要选。
 
 **纪律**：intent 与 motion 二选一；featuredText 必须是提炼短语；`note` 不进任何判定；

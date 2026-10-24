@@ -19,13 +19,9 @@ describe('模板预览画廊', () => {
       .map((t) => t.id)
       .sort();
     expect(catalog.map((e) => e.id).sort()).toEqual(declared);
-    expect(catalog.filter((e) => e.implemented)).toHaveLength(17);
-    expect(
-      catalog
-        .filter((e) => !e.implemented)
-        .map((e) => e.id)
-        .sort(),
-    ).toEqual(['annotation/pointer-callout@1.0', 'transition/whip-pan@1.0']);
+    // 19 = 11 个内置实现（2026-10-24 补齐 pointer-callout / whip-pan）+ 8 个 MotionSpec
+    expect(catalog.filter((e) => e.implemented)).toHaveLength(19);
+    expect(catalog.filter((e) => !e.implemented)).toEqual([]);
   });
 
   test('每个已实现模板都有三帧预览，且必填参数齐全', () => {
@@ -62,12 +58,12 @@ describe('模板预览画廊', () => {
     expect(entry?.preview?.caption?.words.length).toBeGreaterThan(0);
   });
 
-  test('gallery.html 离线、确定、17 张卡有图、2 张未实现', () => {
+  test('gallery.html 离线、确定、19 张卡全部有图、无未实现', () => {
     const catalog = buildTemplateCatalog();
     const html = renderGalleryHtml(catalog);
-    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(17);
-    expect((html.match(/data-gallery-card="0"/g) ?? [])).toHaveLength(2);
-    expect((html.match(/<img /g) ?? [])).toHaveLength(51);
+    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(19);
+    expect((html.match(/data-gallery-card="0"/g) ?? [])).toHaveLength(0);
+    expect((html.match(/<img /g) ?? [])).toHaveLength(57);
     expect(html).not.toMatch(/https?:\/\//);
     expect(html).toBe(renderGalleryHtml(catalog));
   });

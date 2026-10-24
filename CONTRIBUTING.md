@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 712 项全过（43 文件）
+npm test               # 应 731 项全过（44 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples
@@ -51,8 +51,8 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ### 坑1 · 契约层与实现层是两套东西，别混
 
 `src/templates/builtin.ts` 里 11 个模板的**声明**全在位，
-但 `src/remotion/templates/` 里**目前 9 个有真实实现**（其余 2 个：`annotation/pointer-callout` / `transition/whip-pan`，均无外部阻塞）。
-未实现的会落占位块（黄色斜纹 + `data-template-missing="1"`）。
+`src/remotion/templates/` 里**11 个全部有真实实现**（2026-10-24 补齐 `annotation/pointer-callout` / `transition/whip-pan`）。
+未实现的仍会落占位块（黄色斜纹 + `data-template-missing="1"`），这条降级路径由单测守护。
 
 ⚠️ **别把「声明齐全」误读为「实现齐全」** —— 这正是 2026-10-15
 之前「渲染结果全是灰框」长达数日的根因。
@@ -114,7 +114,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | 编号 | 议题 | 裁决 | 实施 |
 |---|---|---|---|
 | **D-A** | 新增「会遮挡主体的叠加模板」 | A1（居中大字） | ✅ 已实现：`typography/center-emphasis@1.0`（首批唯一遮挡型） |
-| **D-B2** | 逐模板文本度量表 | C（批量真渲实测） | ⏳ 待跑（真渲环境就绪后） |
+| **D-B2** | 逐模板文本度量表 | C（批量真渲实测） | ✅ 已实现（2026-10-24）：`tools/measure-text-metrics.mts` + 实测表 + 契约回填 |
 | **M-2** | perceive 运行时 | (b) 全 Node | ✅ 已实现（2026-10-17 内置 YuNet 后端；`PERCEIVER_CMD` 仍可外部覆盖） |
 | **M-4** | VLM 替代检测 | 不接受（保留测量） | — |
 
@@ -122,8 +122,10 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 `center-emphasis` 落地后该依赖解除（测试夹具保留用于无关链路）。完整材料见
 `docs/proposals/2026-10-15-DA与DB裁决材料.md`。
 
-⚠️ **D-B2 的背景**：#17 用通用系数估算，对 `stat-card`（粗体数字）
-与 `tag-float`（圆角容器）**严重低估**。详见登记册「实施记录 + D-B2」。
+⚠️ **D-B2 的实测更正（2026-10-24）**：CJK 1.0em 是对的；数字系数被旧默认 0.5em
+**低估约 33%**（6 个模板实测 0.615–0.667，已回填 `latinWidthEm`）。
+旧「`tag-float` 16 字撑破 / `stat-card` 9 位溢出画面」在**声明 footprint** 下不可复现。
+证据：`docs/templates/2026-10-24-文本度量实测表.md`。
 
 ### ⬜ 其他待办
 - ~~批次 2 模板~~：✅ **已实现**（2026-10-15）：`cinematic/punch-in`（首个背景链实现，

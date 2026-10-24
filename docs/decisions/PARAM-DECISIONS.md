@@ -9,7 +9,7 @@
 | 口径 | 数量 | 说明 |
 |---|---|---|
 | 占位值**项数** | **11** | 一个"需要独立做出的校准决定"算一项 |
-| 占位值**数值个数** | **18** | 一项可含多个数（如对齐门控 3 个） |
+| 占位值**数值个数** | **19** | 一项可含多个数（如对齐门控 3 个） |
 | 明确排除的拟定值 | 5 | 见 §五，写清为什么不收 |
 
 🔴 **引用数量时必须注明口径**：说「8 个占位值」指的是**项数**；说「12 个数值」指的是**数值个数**。此前 `MEMORY.md` / `PROGRESS.md` / 代码标记三方各数一套，就是因为没定粒度。
@@ -27,8 +27,8 @@
 | `saliency-target` | 显著性目标框面积 | 实现期拟定 | `targetAreaRatio` = **0.35** | `core/config.ts` · `SALIENCY_TARGET_AREA_RATIO` | — |
 | `carrier-ratio` | 载体缺省占比 | 实现期拟定 | `CARRIER_RATIO_DEFAULT` = **0.5** | `core/carrier-window.ts` · `CARRIER_RATIO_DEFAULT` | — |
 | `min-visible` | 主体最低可见比 | 文档初值 | `MIN_VISIBLE_RATIO` = **0.5** | `core/carrier-window.ts` · `MIN_VISIBLE_RATIO` | `W-D2-02` 从 warning 升 error |
-| `silence-thresholds` | 静音检测与 SRT 一致性校验阈值 | 实现期拟定 | `noiseDb` = **-40**<br>`minDurationSec` = **0.5**<br>`longSilenceSec` = **1**<br>`overlapToleranceSec` = **0.5** | `core/config.ts` · `SILENCE` | `M-1d` 判据升 error；`M-1f` Q2 的告警可用性 |
-| `reweigh-coverage-min` | 词时重铺的覆盖率阈值 | 实现期拟定 | `REWEIGH_COVERAGE_MIN` = **0.8** | `core/word-timeline.ts` · `REWEIGH_COVERAGE_MIN` | `M-1f` 的「好数据不被修坏」保证 |
+| `silence-thresholds` | 静音检测、SRT 一致性与静音词占比阈值 | 实现期拟定 | `noiseDb` = **-40**<br>`minDurationSec` = **0.5**<br>`longSilenceSec` = **1**<br>`overlapToleranceSec` = **0.5**<br>`wordRatioWarnMax` = **0.02** | `core/config.ts` · `SILENCE` | `M-1d` 阻断线校准（需 2–3 条完整对齐素材）；`M-1f` Q2 一致性告警的阈值校准 |
+| `reweigh-coverage-min` | 词时重铺的覆盖率阈值 | 实现期拟定 | `REWEIGH_COVERAGE_MIN` = **0.8** | `core/word-timeline.ts` · `REWEIGH_COVERAGE_MIN` | `REWEIGH_COVERAGE_MIN` 的校准（`M-1f` 已落地，阈值未验证） |
 
 ## 三、逐项详情
 
@@ -118,15 +118,15 @@
 - **当前卡着**：`W-D2-02` 从 warning 升 error
 - **必须一起校准**：`carrier-ratio`（分开调会留下一道看着齐全、实则测不到的门）
 
-### `silence-thresholds` · 静音检测与 SRT 一致性校验阈值
+### `silence-thresholds` · 静音检测、SRT 一致性与静音词占比阈值
 
 - **类别**：实现期拟定
 - **真源**：`src/core/config.ts#SILENCE`
-- **当前值**：`noiseDb` = **-40**；`minDurationSec` = **0.5**；`longSilenceSec` = **1**；`overlapToleranceSec` = **0.5**
-- **当前值从哪来**：文档与裁决册均未给数值（`M-1d` / `M-1f` 为 OPEN）。kukini 单条素材实测：`noise=-40dB / d=0.5` 下全片仅 3 段静音（6.736s 大空洞 + 0.53s / 0.57s 句中换气）；SRT 留白 7.083s vs 实测 6.736s，差 0.35s ⇒「长静音」取 1.0s 以排除换气。
-- **怎么校准**：补齐 3月22日 / 5月28日 的 SRT 后，三条素材各跑一次 align，对比 `silentWordRatio` 与「SRT↔静音不吻合」的告警条数：① 不吻合告警应**只在真错位时**出现（句中换气绝不能被当错位）；② `longSilenceSec` 需保证各素材的正常换气都不超过它；③ `noiseDb` 若素材底噪偏高需上调。
-- **越界后果**：`noiseDb` 偏大（阈值过高）→ 正常语音尾音被判静音 → 词时误重铺、误告警；偏小 → 真静音漏检 → `M-1d` 失守。`longSilenceSec` 偏小 → 句中换气被当错位 → 满屏警告（用户会学会忽略警告）；偏大 → 大错位漏检。`overlapToleranceSec` 偏小 → 边界轻微不齐就报警；偏大 → 真错位放过。
-- **当前卡着**：`M-1d` 判据升 error；`M-1f` Q2 的告警可用性
+- **当前值**：`noiseDb` = **-40**；`minDurationSec` = **0.5**；`longSilenceSec` = **1**；`overlapToleranceSec` = **0.5**；`wordRatioWarnMax` = **0.02**
+- **当前值从哪来**：前四个探测参数：文档与裁决册均未给数值（`M-1f` 已落地，阈值仍待校准）；kukini 单条素材实测：`noise=-40dB / d=0.5` 下全片仅 3 段静音（6.736s 大空洞 + 0.53s / 0.57s 句中换气）；SRT 留白 7.083s vs 实测 6.736s，差 0.35s ⇒「长静音」取 1.0s 以排除换气。`wordRatioWarnMax=0.02`（`M-1d` 告警档，2026-10-24）：健康值 0.879% 与病理值 5.9% 的对数中点 ≈2.28% ⇒ 向下取 2%（单样本，只告警不阻断）。
+- **怎么校准**：补齐 3月22日 / 5月28日 的 SRT 后，三条素材各跑一次 align，对比 `silentWordRatio` 与「SRT↔静音不吻合」的告警条数：① 不吻合告警应**只在真错位时**出现（句中换气绝不能被当错位）；② `longSilenceSec` 需保证各素材的正常换气都不超过它；③ `noiseDb` 若素材底噪偏高需上调；④ `wordRatioWarnMax` **必须与上述探测参数同批重算**（实测 d=0.5→0.3 会让健康素材占比升到 2.97%），攒够 2–3 条后再据此设阻断线。
+- **越界后果**：`noiseDb` 偏大（阈值过高）→ 正常语音尾音被判静音 → 词时误重铺、误告警；偏小 → 真静音漏检 → `M-1d` 失守。`longSilenceSec` 偏小 → 句中换气被当错位 → 满屏警告（用户会学会忽略警告）；偏大 → 大错位漏检。`overlapToleranceSec` 偏小 → 边界轻微不齐就报警；偏大 → 真错位放过。`wordRatioWarnMax` 偏小 → 静音探测参数稍变就误告警（告警疲劳）；偏大 → 真实的词时漂移漏报（`M-1f` 回归失去哨兵）。
+- **当前卡着**：`M-1d` 阻断线校准（需 2–3 条完整对齐素材）；`M-1f` Q2 一致性告警的阈值校准
 - **必须一起校准**：`align-gate`（分开调会留下一道看着齐全、实则测不到的门）
 
 ### `reweigh-coverage-min` · 词时重铺的覆盖率阈值
@@ -137,7 +137,7 @@
 - **当前值从哪来**：**继承自 `highlightWords` 的原值 0.8，不是本项目验证过的结论** —— 它随显示层实现被搬进产物层，来源已不可考。kukini 修复后实测分布：最小 0.714 / 25%位 0.857 / 中位 0.900 / 最大 1.000。阈值 0.8 恰好把 7 条「首词比 SRT 窗口早约 10 帧」的边缘 cue 判为需重铺，而它们的词时**本是对的**（人说话起止略宽于字幕标注，非错位）。
 - **怎么校准**：🔴 **原写的校准路径走不通（2026-10-20 复核推翻）**：原文要求「补齐 3月22日 / 5月28日后三条素材各跑一次取覆盖率分布」，但这两条走的是 **M-1g 无字幕模式**（`mode:no-subtitle`，`cues` 与 `words` 均为空数组，`silentWordRatio: null`）⇒ **它们永远不会有覆盖率分布**。换言之，本项目当前**只有 1 条样本**（`e2e-perceive` / kukini，48 cue），不足以定线。正确路径：① 补一条**走完整对齐**（非 M-1g）的素材，取其分布；② 阈值应落在「真漂移」与「边缘抖动」之间的**空隙**（kukini 上看是 0.714 之下）；③ 交叉验证：低于阈值的 cue 是否真落进了静音（用 `silentWordRatio` 佐证），只有「既低覆盖、又落静音」才是真漂移。⚠️ **实测敏感性（2026-10-20）**：kukini 的分布在 0.70–0.95 区间**连续无断层**（29 条 cue 密集落在此区间），阈值每动 0.05 就会改变 3–12 条的重铺判定⇒ 0.8 附近**没有天然安全区**，单样本下改值即改行为，不可凭手感调。
 - **越界后果**：偏高 → 真漂移漏修（本次已修的那条 cov=0.182 会漏掉）；偏低 → **把对的词时改坏**（本次 0.8 会误伤 7 条本正确的 cue）。⚠️ 第二个方向更隐蔽：重铺后画面看不出异常，只是高亮时机被人为改过。
-- **当前卡着**：`M-1f` 的「好数据不被修坏」保证
+- **当前卡着**：`REWEIGH_COVERAGE_MIN` 的校准（`M-1f` 已落地，阈值未验证）
 - **必须一起校准**：`align-gate`（分开调会留下一道看着齐全、实则测不到的门）
 
 ## 四、已校准的样板：`MATCH_MIN_SIMILARITY = 0.35`

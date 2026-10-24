@@ -432,9 +432,9 @@
       <div class="top"><span class="name">辅助工具链（不参与主干，随时可跑）</span><span class="cmd">npm run …</span></div>
       <div class="grid">
         <div class="k">输入资料</div><div class="v"><span class="tag t-in">仓库 / 模板注册表 / 已出成片</span></div>
-        <div class="k">加工处理</div><div class="v"><span class="tag t-proc">doctor 七项环境自检</span><span class="tag t-proc">setup-whisper 模型下载</span><span class="tag t-proc">templates:gallery 17 模板 × 3 帧预览</span><span class="tag t-proc">placeholders 占位值唯一口径</span><span class="tag t-proc">typecheck / test 工程门</span></div>
+        <div class="k">加工处理</div><div class="v"><span class="tag t-proc">doctor 七项环境自检</span><span class="tag t-proc">setup-whisper 模型下载</span><span class="tag t-proc">templates:gallery 19 模板 × 3 帧预览</span><span class="tag t-proc">placeholders 占位值唯一口径</span><span class="tag t-proc">typecheck / test 工程门</span></div>
         <div class="k">中间加工件</div><div class="v"><span class="tag t-mid">out/template-gallery/（gallery.html + images + catalog.json）</span><span class="tag t-mid">docs/decisions/PARAM-DECISIONS.md（由代码生成）</span></div>
-        <div class="k">产出结果</div><div class="v"><span class="tag t-out">环境体检结论 / 模板预览图 / 占位值明细 / 712 项单测结论</span></div>
+        <div class="k">产出结果</div><div class="v"><span class="tag t-out">环境体检结论 / 模板预览图 / 占位值明细 / 731 项单测结论</span></div>
         <div class="k">闸 / 决策</div><div class="v"><span class="tag t-gate">placeholders --check 漂移即失败（防手抄本失真）</span></div>
       </div>
     </div>
@@ -473,9 +473,9 @@
     <ul>
       <li><b>06-review / <code>review</code> 命令（P1-a）</b><span class="st acc">ACCEPTED · 未落地</span><br>在 validate→render 间插 Studio 审核 + must_review 硬闸；render-props 映射前移为 review/render 共用。验收：未确认 must_review ⇒ render 退出码 1 并列缺失条目 ref。</li>
       <li><b>创作期动效生成（P1-b）</b><span class="st acc">ACCEPTED · 未落地</span><br>prompt 取自 <code>motionboard.genPrompt</code>（board 产出，提案 §4.5 2026-10-23 增补）→ MotionSpec JSON（零 codegen，复用 spec-loader/SpecRenderer），六道验收（注册 / paramsSchema / 画廊三帧 / 动效断言 / 确定性 lint / 版本化）后定稿入库；<b>不在渲染管线内调 LLM</b>，渲染期确定性红线不改。</li>
-      <li><b>M-1d 静音-词门控判据</b><span class="st open">OPEN · 待裁决</span><br>silentWordRatio 目前只报告不阻断（阈值未校准），「词落在静音里」仍是无闸缺陷；正解方向：ffmpeg silencedetect 约束 DP，禁把词放进静音段。</li>
-      <li><b>占位值校准（11 项 / 18 数值）</b><span class="st todo">待做 · 第一优先</span><br>尤其 <code>REWEIGH_COVERAGE_MIN=0.8</code>（来源不明却已生效并写进产物）与 <code>DENSITY.maxItemsPerCue</code>（占位值却直接产 error，项目无 storyboard 编辑 UI，误伤成本高）。</li>
-      <li><b>剩余 2 模板</b><span class="st todo">待做 · 无外部阻塞</span><br><code>annotation/pointer-callout</code>（主体框已由 perceive 就绪）、<code>transition/whip-pan</code>（fullscreen 人工确认闸已实装）⇒ 11/11。</li>
+      <li><b>M-1d 静音-词门控判据</b><span class="st open">OPEN · 阻断线待校准</span><br><b>告警档已落地（2026-10-24）</b>：silentWordRatio 超过 <code>SILENCE.wordRatioWarnMax=0.02</code> 即告警、不阻断；告警线与静音探测参数绑定（单样本定线）。词时本身已由 <b>M-1f</b> 修复（按 SRT 窗口重铺并回写产物，kukini 静义词 9→0）；余阻断线需 2–3 条完整对齐素材。</li>
+      <li><b>占位值校准（11 项 / 19 数值）</b><span class="st todo">待做 · 第一优先</span><br>尤其 <code>REWEIGH_COVERAGE_MIN=0.8</code>（来源不明却已生效并写进产物）与 <code>DENSITY.maxItemsPerCue</code>（占位值却直接产 error，项目无 storyboard 编辑 UI，误伤成本高）。</li>
+      <li><b>模板 11/11</b><span class="st">✅ 2026-10-24</span><br><code>annotation/pointer-callout</code>（四角括线 + 锚点 + target 标签）、<code>transition/whip-pan</code>（方向性速度线，触发 D3-a 确认闸）已实现并真渲抽帧确认。</li>
       <li><b>pacing 语义化（M-3，用户已裁决 2026-10-23）</b><span class="st acc">已裁决 · 待设计落地</span><br>LLM 读文案语义判分布，与 motionboard 同批产出；规则节奏表降级为无模型兜底先验；渲染期确定性红线不变（创作期自由、定稿冻结，同 2026-10-22 提案原则）。落地待办见断点表第 6 条。</li>
       <li><b>hash 版阶段时序守卫</b><span class="st todo">待做</span><br>当前 mTime 版（<code>assertStageOrderIsSane</code>）可被 cp / git checkout 改写绕过；计划烘焙时把上游 hash 写进 <code>storyboard.meta</code> 再比对。</li>
       <li><b>渲染基准量化取中位数（F4）</b><span class="st todo">待做</span><br>已有 3 条成片样本（kukini 218MB / fast-0322 259MB / fast-0528 256MB），样本已够取中位数。</li>
@@ -490,13 +490,13 @@
     <tr><td>1</td><td class="sev h">高</td><td><b>must_review 计算但不硬闸</b>：闸2 / 产路地产出 <code>decision.review='must_review'</code>，validate 仅生成警告队列，render 启动闸只强制 fullscreen —— 第二道闸的产物是「建议」而非「阻断」（定义了≠生效第六例）。P1-a 的硬闸即补此断点。</td></tr>
     <tr><td>2</td><td class="sev h">高</td><td><b>06-review 缺 <code>review</code> 命令</b>：cli.ts 只有 init/align/perceive/storyboard/validate/render，审核无工具化入口，与断点 1 同源。</td></tr>
     <tr><td>3</td><td class="sev h">高</td><td><b>占位值 11 项未校准</b>：DENSITY 偏严会误伤真素材、REWEIGH_COVERAGE_MIN 来源不明却生效 —— 距「可直接发布」最近的拦路石。</td></tr>
-    <tr><td>4</td><td class="sev m">中</td><td><b>M-1d 静音-词门控未立</b>：词落静音段（实测最大偏差 7.06s）目前只报告不阻断；字幕已不受影响（C2-6 以 SRT 为准），但产物层词时仍错。</td></tr>
+    <tr><td>4</td><td class="sev m">中</td><td><b>M-1d 静音-词门控仅告警档</b>：silentWordRatio 超过 2% 告警但不阻断（阻断线需 2–3 条素材）。词时漂移已由 <b>M-1f</b> 修复（SRT 窗口重铺 + 产物回写，实测 9→0），本项余下的是防回归闸。</td></tr>
     <tr><td>5</td><td class="sev m">中</td><td><b>遮挡消解只内存不落盘</b>：validate 与 render 各自重算，<code>storyboard.json</code> 磁盘永远是消解前几何 —— 直接读它拿不到实际成片位置（方案 A 有意为之，留可追溯性缺口）。</td></tr>
     <tr><td>6</td><td class="sev m">中</td><td><b>pacing 生产范式切换中（M-3，用户 2026-10-23 裁决：语义优先于复现）</b>：LLM 语义判定取代规则纯函数成为首选路径；待办——① pacing↔motionboard 一致性校验（防 LLM 幻觉 cue 索引 / motion id）；② 规则表降级兜底后，rhythm-rules 34 项 + rhythm-table 31 项单测与《2026-10-21 节奏表基线报告》定位改为「兜底路径基线」；③ 文档「同一 SRT 逐字节可复现」表述废止（CONTEXT.md 已改，wiki/03 待改）；④ 安全阀（sim_max 中位数 &lt;0.4）与占位值 rhythm-min-cue-frames 的适用范围重划。</td></tr>
     <tr><td>7</td><td class="sev m">中</td><td><b>alignedRatio 契约未强制</b>：外部对齐器路径下该字段可选、不回传时记 0 且 <code>alignPassed</code> 对 undefined 放行 ⇒ 外部路径的 M-1c 门控形同虚设（内置后端已补真实值）。</td></tr>
     <tr><td>8</td><td class="sev m">中</td><td><b>overrides 只告警不回放</b>：confirmed.json 里人工签字声称的改动（如 fromFrame 120→135）不校验是否真落到产物，信任链有缺口。</td></tr>
     <tr><td>9</td><td class="sev m">中</td><td><b>hash 版时序守卫未做</b>：mTime 版可被 cp / git checkout 绕过，「上游改了下游没重跑」可能不被发现。</td></tr>
-    <tr><td>10</td><td class="sev l">低</td><td><b>长文本溢出校验看不见</b>：nowrap + 18 项全是结构判定，13–14 个中文字以上的长文本会跑出画面而全链无感；当前靠 SKILL.md 字数纪律（纪律非强制），D-B2 逐模板实测度量表待补。</td></tr>
+    <tr><td>10</td><td class="sev l">低</td><td><b>长文本溢出仍是 warning 档</b>：D-B2 已于 2026-10-24 实测（CJK 1.0em / 数字 0.615–0.667，已回填 <code>latinWidthEm</code>）；旧「16 字撑破 / 9 位溢出画面」在声明 footprint 下不复现。余下的是「warning 升 error」需另立裁决。</td></tr>
     <tr><td>11</td><td class="sev l">低</td><td><b>13 个零消费者导出</b>：须逐一审「是没人需要的导出，还是该接线的守卫」（同款病已犯五次）。</td></tr>
     <tr><td>12</td><td class="sev l">低</td><td><b>no-subtitle 与常规 align 同形不同义</b>：两者都产空 words/cues + mode 标记，下游靠多处隐式特判区分，语义分裂脆弱。</td></tr>
     <tr><td>13</td><td class="sev l">低</td><td><b>文档说 <code>render-report.json.qa</code>、代码内嵌</b>：qa 实际嵌在 <code>render-report.json</code> 内，无独立 .qa 文件 —— 读文档者会找一个不存在的文件。</td></tr>

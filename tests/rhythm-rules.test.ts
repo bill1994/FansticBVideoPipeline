@@ -251,7 +251,12 @@ describe('storyboard 接线：motionboard 生成 / 钉死直通 / 无字幕拦�
       lowConfidenceWords: [],
       textSource: 'srt',
       alignedRatio: 1,
-      thresholds: { meanConfidenceMin: 0.6, lowConfidenceRatioMax: 0.3, alignedRatioMin: 0.8 },
+      thresholds: {
+        meanConfidenceMin: 0.6,
+        lowConfidenceRatioMax: 0.3,
+        alignedRatioMin: 0.8,
+        silentWordRatioWarnMax: 0.02,
+      },
     });
     writeJson(path.join(base, '01-align', 'words.json'), {
       fps: 30,

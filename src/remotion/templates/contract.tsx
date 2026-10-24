@@ -20,6 +20,7 @@ import type { StoryboardItem } from '../../core/types.ts';
 import { getTemplate } from '../../templates/registry.ts';
 import type { CaptionData } from '../caption.ts';
 import { estimateTextWidthPx } from '../../validate/text-metrics.ts';
+import type { TextMetrics } from '../../templates/types.ts';
 
 /**
  * 所有模板组件的统一 props。
@@ -130,12 +131,18 @@ export function fitScale(
   text: string,
   fontSizePx: number,
   footprintWidthPx: number,
+  /** 容器**水平内边距合计**（不是单边）—— 与校验项 #17 同口径，见 D-B2。 */
   paddingPx = 0,
   minScale = 0.7,
+  /** D-B2：逐模板实测的字符系数；缺省走 CJK 1.0 / 数字 0.5。 */
+  widthEm: Pick<TextMetrics, 'charWidthEm' | 'latinWidthEm'> = {},
 ): number {
   if (!text) return 1;
-  const needed = estimateTextWidthPx(text, { fontSizePx });
-  const available = Math.max(1, footprintWidthPx - paddingPx * 2);
+  const needed = estimateTextWidthPx(text, { fontSizePx, ...widthEm });
+  // 🔴 减**一次**：`paddingPx` 是左右合计，不是单边。
+  //    2026-10-24 前这里写成 `padding×2`，与校验器（减一次）分叉 ——
+  //    D-B2 统一口径，渲染期只保留 15% 余量的保守差（校验期 limit 含 slack）。
+  const available = Math.max(1, footprintWidthPx - paddingPx);
   if (needed <= available) return 1;
   return Math.max(minScale, available / needed);
 }
@@ -176,10 +183,20 @@ export function fillParent(children: ReactNode, extra?: CSSProperties): CSSPrope
  * @returns 契约声明的 `{ fontSizePx, paddingPx }`；
  *          模板未声明 `textMetrics` 时返回 `null`（该模板无可测文本，不应调`fitScale`）。
  */
-export function templateTextMetrics(motion: string): { fontSizePx: number; paddingPx: number } | null {
+export function templateTextMetrics(motion: string): {
+  fontSizePx: number;
+  paddingPx: number;
+  charWidthEm?: number;
+  latinWidthEm?: number;
+} | null {
   const m = getTemplate(motion).textMetrics;
   if (!m) return null;
-  return { fontSizePx: m.fontSizePx, paddingPx: m.paddingPx ?? 0 };
+  return {
+    fontSizePx: m.fontSizePx,
+    paddingPx: m.paddingPx ?? 0,
+    ...(m.charWidthEm === undefined ? {} : { charWidthEm: m.charWidthEm }),
+    ...(m.latinWidthEm === undefined ? {} : { latinWidthEm: m.latinWidthEm }),
+  };
 }
 
 /**
@@ -199,5 +216,14 @@ export function fitScaleFor(
 ): number {
   const m = templateTextMetrics(motion);
   if (!m) return 1;
-  return fitScale(text, m.fontSizePx, item.footprint[2] * (canvasWidth ?? 1920), m.paddingPx);
+  return fitScale(
+    text,
+    m.fontSizePx,
+    item.footprint[2] * (canvasWidth ?? 1920),
+    m.paddingPx,
+    0.7,
+    // D-B2：把逐模板实测系数一起传下去 —— 否则校验期用 0.667 判、渲染期用 0.5 缩，
+    // 又是「同一概念两个真源」。
+    { charWidthEm: m.charWidthEm, latinWidthEm: m.latinWidthEm },
+  );
 }

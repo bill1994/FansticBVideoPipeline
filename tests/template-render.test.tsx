@@ -37,6 +37,8 @@ import {
 } from '../src/remotion/templates/index.tsx';
 import { enterExitProgress } from '../src/remotion/tokens.ts';
 import { punchInScale } from '../src/remotion/templates/punch-in.tsx';
+import { Placeholder } from '../src/remotion/templates/placeholder.tsx';
+import { whipPanIntensity } from '../src/remotion/templates/whip-pan.tsx';
 
 /** 一段最小字幕数据：3 个词，各占 20 帧。 */
 const SAMPLE_WORDS: WordTimestamp[] = [
@@ -60,6 +62,9 @@ const ALL: Array<{ id: string; params: Record<string, unknown> }> = [
   { id: 'typography/center-emphasis@1.0', params: { text: '核心竞争力' } },
   // D4-t2 P2（2026-10-17）：首个裁切型背景链
   { id: 'carrier/split-frame@1.0', params: { side: 'left', ratio: 0.5 } },
+  // 2026-10-24：补齐 11/11
+  { id: 'annotation/pointer-callout@1.0', params: { target: '鞋底纹路' } },
+  { id: 'transition/whip-pan@1.0', params: { direction: 'left' } },
 ];
 
 function makeItem(id: string, params: Record<string, unknown>, fromFrame = 100): StoryboardItem {
@@ -97,31 +102,41 @@ describe('D1 · 渲染映射表自洽', () => {
     expect(() => assertRenderMapValid()).not.toThrow();
   });
 
-  it('9 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个 + D4-t2 P2 一个）', () => {
+  it('11 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个 + D4-t2 P2 一个 + 2026-10-24 两个）', () => {
     for (const { id } of ALL) {
       expect(isImplemented(id), `${id} 应有真实实现`).toBe(true);
     }
-    expect(listImplemented()).toHaveLength(9);
+    expect(listImplemented()).toHaveLength(11);
   });
 
-  it('覆盖率：已实现 9 / 声明 11', () => {
-    expect(renderCoverage()).toEqual({ implemented: 9, declared: 11 });
+  it('覆盖率：已实现 11 / 声明 11（外层实现 100%）', () => {
+    expect(renderCoverage()).toEqual({ implemented: 11, declared: 11 });
+    expect(listUnimplemented()).toEqual([]);
   });
 
-  it('未实现的 2 个落占位块，且带缺失标记（不许伪装成已实现）', () => {
-    const missing = listUnimplemented();
-    expect(missing).toHaveLength(2);
-    for (const id of missing) {
-      const html = renderAt(id, {}, 10);
-      expect(html, `${id} 未实现，应打 data-template-missing`).toContain('data-template-missing="1"');
-      //占位块必须显式写出是哪个模板，便于审片时定位
-      expect(html).toContain(id);
-    }
+  it('占位块仍带缺失标记（将来新增声明未实现时，不许伪装成已实现）', () => {
+    // 11/11 已无缺口；直接渲染 Placeholder 守护这条降级路径本身。
+    const html = renderToStaticMarkup(
+      <Placeholder
+        frame={10}
+        durationInFrames={60}
+        item={{
+          fromFrame: 100,
+          durationInFrames: 60,
+          motion: 'x/not-implemented@1.0',
+          footprint: [0, 0, 1, 1],
+          params: {},
+        }}
+        caption={CAPTION}
+      />,
+    );
+    expect(html).toContain('data-template-missing="1"');
+    expect(html).toContain('x/not-implemented@1.0');
   });
 });
 
 describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）', () => {
-  it('9 个模板在同一帧的输出两两不同', () => {
+  it('11 个模板在同一帧的输出两两不同', () => {
     const htmls = new Map<string, string>();
     for (const { id, params } of ALL) {
       htmls.set(id, renderAt(id, params, 30));
@@ -136,8 +151,8 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
         ).not.toBe(htmls.get(ids[j]));
       }
     }
-    // 九份输出互不相同（去重后应为 9）
-    expect(new Set(htmls.values()).size).toBe(9);
+    // 十一份输出互不相同（去重后应为 11）
+    expect(new Set(htmls.values()).size).toBe(11);
   });
 
   it('每个模板都输出自己的 data-template 标识', () => {
@@ -151,6 +166,8 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
       'ambience/noise-grain@1.0': 'noise-grain',
       'typography/center-emphasis@1.0': 'center-emphasis',
       'carrier/split-frame@1.0': 'split-frame',
+      'annotation/pointer-callout@1.0': 'pointer-callout',
+      'transition/whip-pan@1.0': 'whip-pan',
     };
     for (const { id, params } of ALL) {
       expect(renderAt(id, params, 30)).toContain(`data-template="${expected[id]}"`);
@@ -272,9 +289,22 @@ describe('D1 · 动效真的在动（不同帧输出不同）', () => {
       expect(exiting, `${id} 的出场帧与中段静止帧相同 —— 出场可能没实现`).not.toBe(holding);
     }
     // 占位块也必须动（它代表「还没做」而不是「坏了」）
-    expect(renderAt('transition/whip-pan@1.0', {}, 10)).not.toBe(
-      renderAt('transition/whip-pan@1.0', {}, 30),
-    );
+    const ph = (frame: number) =>
+      renderToStaticMarkup(
+        <Placeholder
+          frame={frame}
+          durationInFrames={60}
+          item={{
+            fromFrame: 100,
+            durationInFrames: 60,
+            motion: 'x/not-implemented@1.0',
+            footprint: [0, 0, 1, 1],
+            params: {},
+          }}
+          caption={CAPTION}
+        />,
+      );
+    expect(ph(10)).not.toBe(ph(30));
   });
 
   it('karaoke-word：高亮词随帧推进（读到哪个字哪个字亮）', () => {
@@ -501,5 +531,46 @@ describe('D-A · center-emphasis（首个遮挡型叠加模板）', () => {
     expect(tpl.footprint[1]).toBeGreaterThan(0.3);
     expect(tpl.footprint[1]).toBeLessThan(0.5);
     expect(tpl.footprint[2]).toBeGreaterThanOrEqual(0.5);
+  });
+});
+
+/**
+ * ── 2026-10-24：补齐最后两个声明（11/11）────────────────────────
+ * pointer-callout：唯一 anchored 实现，footprint 即目标区域；
+ * whip-pan：唯一 fullscreen 转场，方向可切换、首尾强度归零。
+ */
+describe('2026-10-24 · pointer-callout / whip-pan', () => {
+  it('pointer-callout：渲染 target，且入场帧与保持帧不同', () => {
+    const entering = renderAt('annotation/pointer-callout@1.0', { target: '鞋底纹路' }, 0, 60);
+    const holding = renderAt('annotation/pointer-callout@1.0', { target: '鞋底纹路' }, 30, 60);
+    expect(entering).toContain('鞋底纹路');
+    expect(entering).not.toBe(holding);
+    // 入场帧整体透明（enter=0），保持帧不透明
+    expect(entering).toContain('opacity:0');
+  });
+
+  it('pointer-callout：target 不同则输出不同，长文本被压回框内', () => {
+    const a = renderAt('annotation/pointer-callout@1.0', { target: '鞋底' }, 30);
+    const b = renderAt('annotation/pointer-callout@1.0', { target: '鞋面' }, 30);
+    expect(a).not.toBe(b);
+    // 30 字在 20px 字号下必然超出 0.2×1920 的 footprint ⇒ fitScale 落到 0.7 下限
+    const long = renderAt('annotation/pointer-callout@1.0', { target: '测'.repeat(30) }, 30);
+    expect(long).toMatch(/scale\(0\.7\)/);
+  });
+
+  it('whip-pan：方向不同输出不同，未知方向静默回退 left', () => {
+    const left = renderAt('transition/whip-pan@1.0', { direction: 'left' }, 15, 60);
+    const right = renderAt('transition/whip-pan@1.0', { direction: 'right' }, 15, 60);
+    expect(left).toContain('data-direction="left"');
+    expect(right).toContain('data-direction="right"');
+    expect(left).not.toBe(right);
+    const unknown = renderAt('transition/whip-pan@1.0', { direction: '斜着' }, 15, 60);
+    expect(unknown).toContain('data-direction="left"');
+  });
+
+  it('whip-pan：强度两端归零、中段为 1（转场不会突然出现 / 突然消失）', () => {
+    expect(whipPanIntensity(0, 31)).toBeCloseTo(0, 9);
+    expect(whipPanIntensity(15, 31)).toBeCloseTo(1, 9);
+    expect(whipPanIntensity(30, 31)).toBeCloseTo(0, 9);
   });
 });

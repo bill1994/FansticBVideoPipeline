@@ -2,11 +2,17 @@
  * 文本溢出校验（#17 · D-B）—— 判定口径与误报边界。
  *
  * 🔴 **本文件的核心价值是「与真渲实测对齐」**：
- *   2026-10-15 真渲（1920×1080）实测得出一组事实，本文件的用例按那组事实定标：
- *   · `kinetic-line` 16 中文字 → **溢出**（806px 框）
- *   · `tag-float` 16 中文字 → **撑破胶囊框**
- *   · `stat-card` `123456789` → **溢出画面边界**
- *   · 同一批模板的正常文案（2–6 字）→ **不报**
+ *   · `kinetic-line` 16 中文字在 806px 框内**刚好放下**、17 字才报；
+ *   · `tag-float` 16 字 = 384px 文本 + 40 padding + 3 边框 = 427px < 576px 框 ⇒ **不越框**；
+ *   · `stat-card` 9 位数字 = 264px + 48 padding + 3 边框 = 315px < 614px 框 ⇒ **不越框**；
+ *   · 同一批模板的正常文案（2–6 字）→ **不报**。
+ *
+ * ⚠️ **2026-10-24 D-B2 复核更正**：2026-10-15 记录的「tag-float 16 字撑破 /
+ *   stat-card 9 位溢出画面」在**声明 footprint** 下无法复现（算术见上）。
+ *   那两条旧观测应来自被覆盖过的 footprint；现以
+ *   `docs/templates/2026-10-24-文本度量实测表.json` 为准 ——
+ *   实测显示 CJK 系数 1.0 是对的，数字系数被旧默认 0.5 低估约 33%
+ *   （各模板 0.615–0.667，已回填 `latinWidthEm`）。
  *
  * 若哪天改估算系数，本文件会立刻反映「估得准不准」——
  * 这比对着系数自说自话可靠。
@@ -72,41 +78,36 @@ describe('#17 · 宽度估算口径', () => {
   it('charWidthEm 可覆盖默认', () => {
     expect(estimateTextWidthPx('一二', { fontSizePx: 10, charWidthEm: 2 })).toBe(40);
   });
+
+  it('🔴 D-B2：latinWidthEm 与 charWidthEm 是两把尺子', () => {
+    expect(estimateTextWidthPx('12', { fontSizePx: 10, latinWidthEm: 0.667 })).toBeCloseTo(13.34, 5);
+    // 拉丁系数不影响 CJK
+    expect(estimateTextWidthPx('一二', { fontSizePx: 10, charWidthEm: 1, latinWidthEm: 0.667 })).toBe(20);
+  });
 });
 
 /**
- * 🔴 **这一段记录的是「估算的能力边界」，不是「估算有多准」。**
+ * 🔴 **D-B2 实测后的边界（2026-10-24），不是「估算有多准」的猜测。**
  *
- * 2026-10-15 真渲实测 16 中文字 / `123456789` 时 4 个模板全部溢出。
- * 但本项校验用**一套通用系数**（CJK 1.0 /拉丁数字 0.5em），
- * 逐模板实测后发现的真相是：
+ * 实测表（`docs/templates/2026-10-24-文本度量实测表.json`）给出：
+ * · 6 个文字模板的 CJK 系数全部 = 1.000em；
+ * · 数字系数 0.615–0.667em，旧默认 0.5em **系统性低估约 33%**；
+ * · `stat-card` 的 `FONT.numeric` 800 粗体最宽（0.667em）。
  *
- * | 模板 | 真渲 16 字/9 位 | 估算宽 vs 阈值 | 估算能否捕获 |
- * |---|---|---|---|
- * | kinetic-line | 16 字溢出 | 864 vs 904 | ❌ 差40px（余量刚好吃掉） |
- * | tag-float | 16 字撑破胶囊 | 384 vs 616 | ❌ 差232px，**远低估** |
- * | stat-card | 9 位溢出画面 | 198 vs 651 | ❌ 差453px，**严重低估** |
- * | lower-third | 16 字超背景条 | 416 vs 1047 | ❌ 未越框，本不该报 |
+ * 这解释了旧记录的两个「溢出」为何复现不了：
+ * · tag-float 16 字 → 文本 384px + padding 40 + 边框 3 = 427px < footprint 576px；
+ * · stat-card 9 位 → 文本约 264px + padding 48 + 边框 3 = 315px < footprint 614px。
+ * ⇒ 在**声明 footprint** 下它们本就放得下，不报是正确行为，不是盲区。
+ *   （旧观测很可能用了被覆盖过的 footprint；D-B2 以声明值为准。）
  *
- * ⇒ **结论（必须如实说）：当前估算对 CJK 大字（kinetic-line）接近可信，
- *   但对「圆角容器 / 粗体数字」严重低估。**
- *
- * 🔴 为什么不调系数让它"看起来对"：`stat-card` 用 `font-weight: 800` 的
- *   数字字体（`FONT.numeric`），真实字宽接近 0.6em 而非 0.5em；
- *   `tag-float` 是 `border-radius:20px` 胶囊 + 额外 padding，
- *   真实内宽比「footprint − padding」更窄。把系数调到能覆盖它们，
- *   等于**对不同字重/容器用同一把尺子**，那会让 CJK 正文误报。
- *
- * ⇒ 真正的解法是 D-B 之外的**逐模板度量**（D-B2，见登记册待补），
- *   本项先守住「明显超长」这个最容易出事的量级（见下）。
+ * 当前仍要守的是「明显超长」：40+ 字 CJK / 30 位数字（见下）。
  */
-describe('#17 · 已知盲区：估算对粗体数字/圆角容器的低估（真渲 vs 估算）', () => {
-  it('⚠️ tag-float 16 中文字：真渲撑破胶囊，但当前估算**不报**（已知盲区）', () => {
-    // 如实断言当前行为 —— 这是「把盲区写进测试」而不是藏着。
+describe('#17 · D-B2 实测后的边界（旧「16字/9位溢出」结论已复核）', () => {
+  it('tag-float 16 中文字：声明 footprint 下放得下 ⇒ 不报（不是盲区）', () => {
     expect(C('typography/tag-float@1.0', { text: LONG_CN })).not.toContain('W-DB-01');
   });
 
-  it('⚠️ stat-card 9 位数字：真渲溢出画面，当前估算**不报**（粗体数字低估）', () => {
+  it('stat-card 9 位数字：声明 footprint 下放得下 ⇒ 不报（不是盲区）', () => {
     expect(C('data/stat-card@1.0', { value: '123456789' })).not.toContain('W-DB-01');
   });
 
@@ -117,7 +118,9 @@ describe('#17 · 已知盲区：估算对粗体数字/圆角容器的低估（�
   it('真正「明显超长」仍能捕获（这是本项当前的实际价值）', () => {
     // 各模板塞 40+ 字 CJK，估算下必超阈值 ⇒ 本项能守住量级更大的事故
     expect(C('typography/tag-float@1.0', { text: '甲'.repeat(40) })).toContain('W-DB-01');
-    expect(C('data/stat-card@1.0', { value: '甲'.repeat(20) })).toContain('W-DB-01');
+    // stat-card 的系数按**数字**实测（0.667em，D-B2）；用数字做超长用例，
+    // 因为该模板语义上就是数字卡，CJK 不是合法用法（#16 只验类型、不判语义）。
+    expect(C('data/stat-card@1.0', { value: '1'.repeat(30) })).toContain('W-DB-01');
     // lower-third 阈值 1047px ÷ 26px = 40.2 ⇒ 需 41 字才超（40 字=1040 恰在余量内）
     expect(C('typography/lower-third@1.0', { title: '甲'.repeat(41) })).toContain('W-DB-01');
   });
@@ -177,6 +180,13 @@ describe('#17 · 不误报的场景', () => {
 
   it('非字符串值不报（那是 #16 的职责，不越界）', () => {
     expect(C('data/stat-card@1.0', { value: 42 })).not.toContain('W-DB-01');
+  });
+
+  it('pointer-callout 的 target 参与判定（不是零覆盖字段）', () => {
+    // footprint 0.2×1920=384，padding 26 ⇒ 可用 358×1.15≈412；30 字×20px=600 必超
+    expect(C('annotation/pointer-callout@1.0', { target: '甲'.repeat(30) })).toContain('W-DB-01');
+    // 正常长度（≤20 字 = 400px）不报
+    expect(C('annotation/pointer-callout@1.0', { target: '鞋底纹路' })).not.toContain('W-DB-01');
   });
 });
 

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { evaluateGate } from '../src/stages/align.ts';
-import { ALIGN_GATE } from '../src/core/config.ts';
+import { ALIGN_GATE, SILENCE } from '../src/core/config.ts';
 import type { WordTimestamp } from '../src/core/types.ts';
 
 function words(n: number, confidence = 0.9): WordTimestamp[] {
@@ -71,5 +71,45 @@ describe('M-1c alignedRatio —— 与置信度互不覆盖的第二个维度', 
 
   it('🔴 边界：恰好等于阈值 → 通过（与 > 的约定一致）', () => {
     expect(evaluateGate(words(20, 0.95), ALIGN_GATE.alignedRatioMin).gatePassed).toBe(true);
+  });
+});
+
+describe('M-1d 静音词占比 —— 告警档（不阻断）', () => {
+  it('未测（undefined / null）→ 不告警，门控照常', () => {
+    const g1 = evaluateGate(words(20, 0.95), 1);
+    expect(g1.silentWordRatio).toBeNull();
+    expect(g1.silentWordWarn).toBe(false);
+    expect(g1.gatePassed).toBe(true);
+
+    const g2 = evaluateGate(words(20, 0.95), 1, null);
+    expect(g2.silentWordRatio).toBeNull();
+    expect(g2.silentWordWarn).toBe(false);
+  });
+
+  it('健康值（kukini 实测 0.879%）→ 不告警', () => {
+    const g = evaluateGate(words(20, 0.95), 1, 0.00879);
+    expect(g.silentWordWarn).toBe(false);
+  });
+
+  it('恰好等于告警线 → 不告警（严格大于）', () => {
+    const g = evaluateGate(words(20, 0.95), 1, SILENCE.wordRatioWarnMax);
+    expect(g.silentWordWarn).toBe(false);
+  });
+
+  it('🔴 超过告警线 → 告警为 true，但 gatePassed 不变（不阻断）', () => {
+    const g = evaluateGate(words(20, 0.95), 1, SILENCE.wordRatioWarnMax + 1e-6);
+    expect(g.silentWordWarn).toBe(true);
+    expect(g.gatePassed).toBe(true);
+  });
+
+  it('置信度已失败时，告警不改变阻断结论', () => {
+    const g = evaluateGate(words(20, 0.4), 1, 0.5);
+    expect(g.silentWordWarn).toBe(true);
+    expect(g.gatePassed).toBe(false);
+  });
+
+  it('告警线被记录进结果，便于事后追溯', () => {
+    const g = evaluateGate(words(20, 0.95), 1, 0.01);
+    expect(g.thresholds.silentWordRatioWarnMax).toBe(SILENCE.wordRatioWarnMax);
   });
 });

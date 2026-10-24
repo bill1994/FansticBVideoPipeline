@@ -18,7 +18,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
-import { ALIGN_GATE, STAGES } from '../core/config.ts';
+import { ALIGN_GATE, SILENCE, STAGES } from '../core/config.ts';
 import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log, printBlock } from '../core/log.ts';
@@ -114,6 +114,10 @@ export interface GateEvaluation {
   lowConfidenceRatio: number;
   /** SRT 词成功对上 token 的比例（M-1c）。无可用输入时为 null。 */
   alignedRatio: number | null;
+  /** 词落在静音段内的时长占比（M-1d）。无可用输入时为 null。 */
+  silentWordRatio: number | null;
+  /** M-1d 告警档：超过 `SILENCE.wordRatioWarnMax`。**不参与 gatePassed**。 */
+  silentWordWarn: boolean;
   lowConfidenceWords: number[];
   gatePassed: boolean;
   thresholds: AlignReport['thresholds'];
@@ -134,6 +138,7 @@ export interface GateEvaluation {
 export function evaluateGate(
   words: WordTimestamp[],
   alignedRatio?: number,
+  silentWordRatio?: number | null,
 ): GateEvaluation {
   if (words.length === 0) {
     throw new ConfigError('对齐结果为空 —— 没有词级时间戳，pipeline 无法启动');
@@ -148,13 +153,28 @@ export function evaluateGate(
   const alignPassed = alignedRatio === undefined || alignedRatio >= ALIGN_GATE.alignedRatioMin;
   const gatePassed = confPassed && alignPassed;
 
+  /**
+   * 🔴 `M-1d`（2026-10-24）：告警档 —— 门控要能看见**时间空洞**。
+   *
+   * `alignedRatio` 只衡量文本匹配（词全对上就报 1.0），结构上看不见
+   * 「词被塞进真静音」这件事；`silentWordRatio` 才是那个维度。
+   *
+   * ⚠️ **只告警、不并入 `gatePassed`**：阻断线需 2–3 条完整对齐素材才校准，
+   *    当前只有 1 条（kukini）。把单样本阈值当 error 用会伤害真实用户
+   *    （同 `DENSITY` 的教训），故本档先落在 warning。
+   */
+  const silent = silentWordRatio ?? null;
+  const silentWordWarn = silent !== null && silent > SILENCE.wordRatioWarnMax;
+
   return {
     meanConfidence: mean,
     lowConfidenceRatio: ratio,
     alignedRatio: alignedRatio ?? null,
+    silentWordRatio: silent,
+    silentWordWarn,
     lowConfidenceWords: low.map((w) => w.index),
     gatePassed,
-    thresholds: { ...ALIGN_GATE },
+    thresholds: { ...ALIGN_GATE, silentWordRatioWarnMax: SILENCE.wordRatioWarnMax },
   };
 }
 
@@ -197,7 +217,7 @@ export function createNoSubtitleAlignReport(fps: number): AlignReport {
     // 🔴 显式标记「这条job 没做对齐」—— 否则一份空产物在下游
     //与「对齐结果异常」无法区分。
     mode: 'no-subtitle',
-    thresholds: { ...ALIGN_GATE },
+    thresholds: { ...ALIGN_GATE, silentWordRatioWarnMax: SILENCE.wordRatioWarnMax },
   };
 }
 
@@ -305,27 +325,34 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
       );
     }
 
-    /**
-     * 🔴 `M-1d` 判据落报告：词落在静音里的时长占比。
-     * ⚠️ 阈值尚未校准（OPEN）⇒ **只报告不阻断**。
-     */
-    if (builtinResult.silentWordRatio !== null) {
-      log.info(
-        `silentWordRatio = ${(builtinResult.silentWordRatio * 100).toFixed(2)}%` +
-          `（M-1d 判据；正常素材应 ≈0）。重铺 ${builtinResult.reweighedCues} 条 cue 的词时。`,
-      );
-      if (builtinResult.silentWordRatio > 0.02) {
-        log.warn(
-          `仍有 ${(builtinResult.silentWordRatio * 100).toFixed(2)}% 的词时落在静音里` +
-            `（超过 2% 观察线）。可能原因：whisper 分段错误、或 SRT 与音频整体错位。`,
-        );
-      }
-    }
   } else {
     aligned = runExternalAligner(wavPath, srtPath, path.join(alignDir, 'aligner-raw.json'), source.fps);
   }
 
-  const g = evaluateGate(aligned.words, aligned.alignedRatio);
+  const g = evaluateGate(aligned.words, aligned.alignedRatio, builtin?.silentWordRatio ?? null);
+
+  /**
+   * 🔴 `M-1d`（2026-10-24）：判据落报告 + 告警档。
+   *
+   * 告警线来自 `SILENCE.wordRatioWarnMax`（单样本定线，见 config.ts）。
+   * ⚠️ **只告警、不阻断**：阻断线需 2–3 条完整对齐素材后再校准。
+   */
+  if (builtin && builtin.silentWordRatio !== null) {
+    const ratio = builtin.silentWordRatio;
+    log.info(
+      `silentWordRatio = ${(ratio * 100).toFixed(2)}%` +
+        `（M-1d 判据；正常素材应 ≈0；告警线 ${(SILENCE.wordRatioWarnMax * 100).toFixed(1)}%，不阻断）。` +
+        `重铺 ${builtin.reweighedCues} 条 cue 的词时。`,
+    );
+    if (g.silentWordWarn) {
+      log.warn(
+        `仍有 ${(ratio * 100).toFixed(2)}% 的词时落在静音里（超过告警线 ` +
+          `${(SILENCE.wordRatioWarnMax * 100).toFixed(1)}%）。可能原因：whisper 分段错误、` +
+          `SRT 与音频整体错位、或静音探测参数变化（告警线与之绑定）。本档不阻断。`,
+      );
+    }
+  }
+
   const report: AlignReport = {
     fps: source.fps,
     meanConfidence: g.meanConfidence,
@@ -343,7 +370,7 @@ export function runAlign(opts: AlignOptions): AlignOutcome {
     // 🔴 `M-1d` / `M-1f`：落盘才不是零消费者字段（项目已栽过
     // `occludesSubject` / `handoffIn` / `DUR.exit` 三次「定义了没人读」）。
     // 外部后端（ALIGNER_CMD）不产出这两个字段 ⇒ 如实记 null / 0，不伪造。
-    silentWordRatio: builtin?.silentWordRatio ?? null,
+    silentWordRatio: g.silentWordRatio,
     reweighedCues: builtin?.reweighedCues ?? 0,
     thresholds: g.thresholds,
   };

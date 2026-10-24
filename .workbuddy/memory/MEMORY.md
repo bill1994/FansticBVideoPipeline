@@ -36,7 +36,7 @@
 ## 真源层级（冲突时以此裁决）
 
 `docs/decisions/OPEN-DECISIONS.md`（裁决真源）> `docs/spec/SPEC-*.md` > `docs/changelog/` > `docs/proposals/`（未裁决前不含结论）。
-OPEN 清单：`C2-2` / `C2-3` / `M-1d` / `M-1e` / `M-1f`（`M-4` 已 RESOLVED）。
+OPEN 清单：`C2-2` / `C2-3` / `M-1d`（`M-1f` 已落地、`M-1e` 由其收敛关闭，`M-4` 已 RESOLVED）。
 ⚠️ **裁决总数别引用**（历史 44/48 两口径矛盾，机械计数 38–45）。`PROGRESS.md` = 真实数字；`CONTRIBUTING.md` = 接手 3 分钟。
 
 ## 最贵的教训（不读会踩坑）
@@ -51,10 +51,10 @@ OPEN 清单：`C2-2` / `C2-3` / `M-1d` / `M-1e` / `M-1f`（`M-4` 已 RESOLVED）
 - 🔴 **三个渲染 bug 全是「两条链同时存在」才暴露**：video 须写 `public/<name>` + `--public-dir=<00-input>`；载体窗外补无变换透传；
   `<Sequence from>` 相对父级 ⇒ 载体时间轴**拍平**成原子窗口（`composeCarrierTimeline`）。验证要问「组合下还成立吗」。
 - 🔴 **对齐结构盲区**：`alignedRatio` 只衡量文本匹配、不衡量时间（门控全过但某 cue 词早 7.06s 落进 6.74s 真静音）。
-  `M-1f` 按 SRT 窗口铺词 + `checkSrtAudioAgreement`；`silentWordRatio` 只报告不阻断（`M-1d` OPEN）。
+  `M-1f` 按 SRT 窗口铺词 + `checkSrtAudioAgreement`；`silentWordRatio` 超过 `SILENCE.wordRatioWarnMax`（2%）只告警不阻断（`M-1d` 阻断线待校准；该线与静音探测参数绑定）。
   **SRT 时间戳可直接当权威**（B2-fix 原文：「Whisper 只需出时间戳，可强制对齐到 SRT 文本」；「不信任 SRT 时间戳」是我转写时加的过度推断，已撤回）。
 - 🔴 **字幕 C2-6**：时间/文字/高亮都以 SRT 为准（`cue.text` + `highlightSpan`）。cue 时长半开区间 `[from,toFrame)`；`wordsInWindow` 严格大于。
-- 🔴 **占位值：11 项 / 18 数值**（2026-10-23 核实；本文件旧记 8/12 已过期）。唯一口径 `src/core/placeholders.ts` + `npm run placeholders`；
+- 🔴 **占位值：11 项 / 19 数值**（2026-10-24 核实；本文件旧记 8/12、10-23 记 11/18 已过期）。唯一口径 `src/core/placeholders.ts` + `npm run placeholders`；
   `density` 是唯一「占位却直接产 error」；`reweigh-coverage-min=0.8` 来源不明却已生效（第一优先补依据）。
 - 🔴 **「定义了 ≠ 生效」第五次**：`occludesSubject`（补实现）/ `handoffIn`（删）/ `DUR.exit`（补）/ 字号真源（上提）/ 快照守卫（接线）。
   判据：注释/文档里声称承重的机制，必须真的接线。
@@ -63,7 +63,9 @@ OPEN 清单：`C2-2` / `C2-3` / `M-1d` / `M-1e` / `M-1f`（`M-4` 已 RESOLVED）
   split-frame 刻意无进出场（渲染测试用具名豁免 + 反向断言）。
 - **约定/雷区**：帧是真相（锚点 `word:N`/`cue:N`/`abs:<帧|秒s>`，负 offset 抢拍合法）；新增字段先问「谁读它」；
   改文档计数区分**活计数与条目身份**；确定性红线（禁 `Date.now()`/`Math.random()`/CSS animation/`<Series>`/显式 z-index，随机用 `mulberry32`）；
-  demo 夹具别手改下游快照；长文本 `nowrap` 溢出校验看不见（真实阈值约 13–14 中文字，靠 SKILL.md 字数纪律）。
+  demo 夹具别手改下游快照；长文本溢出 #17 仍 warning：D-B2 实测 CJK 1.0em / 数字 0.615–0.667（`latinWidthEm`），
+  旧「16 字撑破 / 9 位溢出画面」在声明 footprint 下不复现 —— 证据见 `docs/templates/2026-10-24-文本度量实测表.md`。
+- 🔴 **模板 11/11（2026-10-24）**：`pointer-callout`（anchored，footprint 即目标区域，仍 experimental）/ `whip-pan`（fullscreen，触发 D3-a 确认闸）；画廊 19 实现 ×3=57 张。
 - **git**：代理端口以实测为准（历史 13145，2026-10-21 实测 11933；环境变量 `HTTP_PROXY` 会带偏，`git ls-remote` 慢先查代理）；
   Windows `fetch` 偶发 `unpack-objects failed` ⇒ `-c fetch.unpackLimit=1`；双工作区先建 backup 再 `reset --hard`；
   🔴 **改完记忆立刻提交**；`.workbuddy/memory/` 项目知识跨机共享、`LOCAL.md` 本机独立，两边写同日日志须标机器路径。

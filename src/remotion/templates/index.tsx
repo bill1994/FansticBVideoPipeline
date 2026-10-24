@@ -35,6 +35,8 @@ import { PunchIn } from './punch-in.tsx';
 import { NoiseGrain } from './noise-grain.tsx';
 import { CenterEmphasis } from './center-emphasis.tsx';
 import { SplitFrame } from './split-frame.tsx';
+import { PointerCallout } from './pointer-callout.tsx';
+import { WhipPan } from './whip-pan.tsx';
 
 /** 已实现模板的映射。键为 `family/subtype@version`，**必须与 builtin.ts 的 id 逐字相同**。 */
 const IMPLEMENTED: Record<string, TemplateComponent> = {
@@ -55,6 +57,11 @@ const IMPLEMENTED: Record<string, TemplateComponent> = {
   // split-frame 改的是「**画面被劈开、视频挪到一侧**」——
   // 正因如此，它的可见区域不在 footprint 上而在 params.window 上（见 core/carrier-window.ts）。
   'carrier/split-frame@1.0': SplitFrame,
+  // ── 2026-10-24：补齐最后两个声明（11/11）─────────────────────
+  // pointer-callout 是唯一 `anchored` 实现：footprint 即目标区域；
+  // whip-pan 是唯一 fullscreen 转场，触发 D3-a 人工确认闸。
+  'annotation/pointer-callout@1.0': PointerCallout,
+  'transition/whip-pan@1.0': WhipPan,
 };
 
 /**

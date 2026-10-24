@@ -19,11 +19,12 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 ⇒ **真素材成片累计 3 条**。同日完成全量审计，**整体完成度约 88%**
 （功能层 100% / 质量层约 60%）。
 
-**2026-10-22 补充**：P0-1 模板预览画廊（`npm run templates:gallery`，17 个已实现模板 × 3 帧）
+**2026-10-22 补充**：P0-1 模板预览画廊（`npm run templates:gallery`，19 个已实现模板 × 3 帧）
 与 P0-2 成片媒体 QA（`render-report.json.qa` + `contact-sheet.jpg`：解码/时长/黑场/静帧/音频）落地。
 
-**模板真实实现 9/11**（余 `pointer-callout` / `whip-pan`）。
-距「可直接发布」还差：占位值校准（**11 项**）、剩余 2 个模板、长文本溢出强制兜底。
+**2026-10-24 补充**：模板补齐 **11/11**（`pointer-callout` / `whip-pan` 落地，真渲抽帧确认），
+D-B2 文本度量实测表落地（见 §3.1.5）。
+距「可直接发布」还差：占位值校准（**11 项**）、长文本溢出从 warning 升 error（D-B2 已补证据）。
 
 ---
 
@@ -34,7 +35,7 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 | 闸 | 状态 | 说明 |
 |----|------|------|
 | `00-input` 放素材 | ✅ | — |
-| `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。kukini 实测 `alignedRatio=1.0`、均值置信度 0.9113、低置信 3.19%。⚠️ **已知缺陷**：whisper 会把跨静音的文本压进一个长分段（实测 8.39–15.13s 是 6.74 秒真静音，却被放进 9 个词），词时整体偏移最多 **7.06 秒**；字幕已不受影响（时间取 SRT），但**词级高亮**靠显示层重铺兜底（`M-1d` / `M-1e` 待决） |
+| `01-align` 强制对齐 | ✅ | **两步全通**：whisper.cpp（时间）+ SRT（文字）+ 文本对齐 DP（`text-align.ts`）。kukini 实测 `alignedRatio=1.0`、均值置信度 0.9113、低置信 3.19%。⚠️ **已知缺陷**：whisper 会把跨静音的文本压进一个长分段（实测 8.39–15.13s 是 6.74 秒真静音，却被放进 9 个词），词时整体偏移最多 **7.06 秒**；字幕已不受影响（时间取 SRT）；`M-1f` 已在产物层按 SRT 窗口铺词（kukini 静义词 9→0），余 `M-1d` 门控阈值待校准 |
 | `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**合计 77 shot（kukini 15 / 3月22日 29 / 5月28日 33），**0 低置信**（`real30` 尚未跑 perceive，不计入） |
 | `03-storyboard` 起草 | ✅ | 管线通；模型只写 `motion` / `footprint` / `params`（禁写帧与坐标）。锚点支持 `word:N` / **`cue:N`（C2-6，字幕专用）** / `abs:`。kukini 实测：7 轨 / 55 条锚点 / 闸1 阈值 T=0.800 |
 | `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比）+ **2 条起草原生约束**；kukini 实测 **0 error / 11 warning**（demo 0 error / 2 warning）。tier1 平移消解、tier2 载体档均已真实施加 |
@@ -56,14 +57,14 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**712 项全过**（43 个测试文件，2026-10-23 复核）。按文件：
-  fit-text 12 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
-  template-render 32 / carrier-window 30 / caption 28 / text-overflow 26 / text-align 26 / srt 22 / bake 22 /
+- **单测**：**731 项全过**（44 个测试文件，2026-10-24 复核）。按文件：
+  fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
+  template-render 36 / carrier-window 30 / caption 28 / text-overflow 28 / text-align 26 / srt 22 / bake 22 /
   zh-normalize 21 / validate 41 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
-  carrier-contract 10 / align-gate 9 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
+  carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
   whisper-path 3 / spec-contract 43 / spec-render 24 / motionboard 19 / rhythm-rules 34 / rhythm-table 31 /
-  registry 6 / stage-order 5 / template-gallery 7 / media-qa 11
+  registry 6 / stage-order 5 / template-gallery 7 / media-qa 11 / text-metrics-measured 6
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -168,15 +169,19 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 初稿我写「kinetic-line >6 字就溢出」，真渲 16 字才发现：
 **806px 的框能放约 14 个中文字** —— 我低估近 3 倍。
 
-真渲实测（16 中文字 / `123456789`）：**4 个模板全部溢出**，
+真渲实测（16 中文字 / `123456789`）：当时记录「4 个模板全部溢出」，
 `stat-card` 甚至**溢出画面边界**。
+
+🔴 **2026-10-24 D-B2 复核**：按**声明 footprint**，16 字 `tag-float`（427px < 576px）
+与 9 位 `stat-card`（315px < 614px）实际放得下；上述两处「溢出」应来自被覆盖的 footprint。
+详见 §3.1.5 与 `docs/templates/2026-10-24-文本度量实测表.md`。
 
 ⚠️ `whiteSpace: nowrap` 意味着溢出**既不折行也不缩放**
 ⇒ 模型填长文本会让成片出现跑出画面的文字，
 **而 18 项校验完全看不出来**（全是结构判定，不读渲染结果）。
 
-两条处置（渲染期自适应 / 构建期校验）**均未实施、待裁决**，
-理由见手感表 §7 与下方问题 6。
+处置现状（2026-10-24）：**#17 构建期估算 warning（D-B）+ 渲染期 `fitScale`（P6）+
+D-B2 逐模板实测系数**均已落地；剩「warning 升 error」待裁决。详见下方问题 6。
 
 ### 3.1.5 校验项 #17：文本溢出（✅ 2026-10-15 · D-B）
 
@@ -191,20 +196,20 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 **已定三个参数**（D-B 裁决，一并拍定）：CJK 1.0em / 拉丁数字 0.5em / 空格 0.3em；
 余量 **15%**；**warning 不阻断**（同 `DENSITY.maxItemsPerCue` 教训：未校准判定当error 会伤害用户）。
 
-**🔴 实测暴露的盲区（如实记录）**：一套通用系数**套不住差异巨大的字重与容器**。
+**🔴 D-B2 实测复核（2026-10-24）—— 更正 2026-10-15 的两处结论**：
 
-| 模板 | 真渲实测 | 估算 vs 阈值 | 能否捕获 |
-|---|---|---|---|
-| `kinetic-line` | 16 字铺满框 | 864 vs 904 | ❌ 差 40px（余量吃掉），17 字才报 |
-| `tag-float` | 16 字撑破胶囊 | 384 vs 616 | ❌ **远低估** |
-| `stat-card` | `123456789` 溢出画面 | 198 vs 651 | ❌ **严重低估** |
+| 模板 | D-B2 实测文本宽 | 声明 footprint 下的结论 |
+|---|---|---|
+| `kinetic-line` | 16 字 864px（框 806 + 15% 余量） | 16 字不报、17 字报，边界正确 |
+| `tag-float` | 16 字 384px + padding 40 + 边框 3 = **427px** | < 576px 框 ⇒ **放得下，不报是对的**；旧「撑破胶囊」来自被覆盖的 footprint |
+| `stat-card` | 9 位 264px + padding 48 + 边框 3 = **315px** | < 614px 框 ⇒ **放得下**；真正的发现是数字系数被 0.5em **低估 33%**（实测 0.667） |
 
-⚠️ **刻意不调系数让它"看起来对"** —— 把 0.5em 调到 0.6em 能救 `stat-card`，
-但会让 CJK 正文误报；**误差只是从漏报变成误报，总量没减少**。
-已立 **待补 D-B2（逐模板实测度量表）**，倾向「批量真渲测出「字号×字数」表」。
-
-**当前实际价值**：守住「**明显超长**」量级（`tag-float` 40 字、`stat-card` 20 字必报），
-对 CJK 大字判定接近可信；⚠️ 挡不住粗体数字/圆角容器的轻微溢出。
+- **实测表**：`docs/templates/2026-10-24-文本度量实测表.md`（工具 `tools/measure-text-metrics.mts`，
+  6 个文字模板 × CJK/数字 × 1/2/10 字，真实组件 + 像素包围盒）。
+- **契约拆两把尺子**：`charWidthEm`（CJK，实测全 1.000）+ `latinWidthEm`（数字，实测 0.615–0.667）。
+  一个系数乘两个基准（1.0 / 0.5）表达不了 —— 曾以为「调 0.5→0.6 会伤 CJK」，
+  实际正确解法是**分字段**，不是折中调参。
+- **当前实际价值**：守住明显超长（40+ 字 / 30 位数字），仍为 warning 不阻断；升 error 另立裁决。
 
 ### 3.1.6 🔴 真素材端到端首跑（✅ 2026-10-18）—— 抓出 3 个渲染层 bug
 
@@ -232,12 +237,12 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 - **命令**：`npm run templates:gallery` → `out/template-gallery/`
   （`gallery.html` + `images/<slug>-f{6,45,72}.png` + `catalog.json`）。
-- **覆盖**：19 个声明 = **17 个已实现 × 3 帧 = 51 张图** + 2 个未实现（`pointer-callout` / `whip-pan`，画廊里明确标「未实现」）。
+- **覆盖**：19 个声明 = **19 个已实现 × 3 帧 = 57 张图**（2026-10-24 起无未实现项；占位块降级路径仍由单测守护）。
 - **目录真源**：`src/templates/gallery.ts` 从注册表 + `isImplemented()` 派生，
   不手抄模板表；未来 MCP `templates_list` 直接复用。
 - **预览合成**：`TemplateGallery` 只渲一个 item，但走 `MotionItem`（与成片同一条主链）；
   背景是合成底板 + 主体剪影，`center-emphasis` / `split-frame` 的遮挡/分屏形态因此可见。
-- **确定性**：两次生成 51 张图里 50 张 SHA-256 一致；`punch-in` f72 有 1/255 GPU 抖动
+- **确定性**：两次生成 57 张图里仅 `punch-in` f72 有 1/255 GPU 抖动
   （mean diff ≈ 5.6e-6、显著像素比 0），属内容稳定下的像素微差。
 - **测试**：`tests/template-gallery.test.ts` 7 项（覆盖性 / 实现状态 / 三帧 / 必填参数 / 字幕夹具 / HTML 离线转义 / slug）。
 
@@ -281,42 +286,40 @@ linear 在第 2 帧才走 10% ⇒ 观众看到的是"缓慢爬升"。
 
 ## 四、已知问题（🔴 按严重度排序）
 
-### 1. ⚠️ 模板 9/11，剩余 2 个**已无外部阻塞**（2026-10-17 更新）
+### 1. ✅ 模板 **11/11**（2026-10-24 补齐）
 
-已解除"完全无产出"，剩下的是工作量与施工顺序，**不再是依赖问题**：
-- ✅ **`carrier/split-frame`**：**P1–P4 全部完成**（2026-10-17）—— P1 契约 + P2 实现
-  （cover 裁切分屏 + 主体锚定窗口，几何真源 `core/carrier-window.ts` 含 `visibleRegion`）
-  + P3 tier2 真正接线（**通道方案 A**：`render` 侧重算消解 + 写入 `carrier.params.window`）
-  + P4 以 `visibleRegion` 重立 `W-D2-02`（第 18 项）。
-  🔴 同日真渲抽帧抓到并修掉坐标系 bug（分界曾落在 0.75 而非 0.5，偏差 25%）。
-  ⚠️ 仍 `experimental`：`MIN_VISIBLE_RATIO` 等阈值未校准、真素材端到端未验。
-- **`annotation/pointer-callout`**：**主体框已由内置 perceive 产出**，可开工（依赖已解除）。
-- **`transition/whip-pan`**（fullscreen）：**确认闸已实装**，无外部阻塞。
-  ⚠️ **2026-10-16 更正计划书 §4.6 的一处时点判断**：计划书把第 5 批写作「等 06-review 流程就绪」，
-  但 `renderGate()` 里的 fullscreen 人工确认闸（D3-a：读 `06-review/confirmed.json` 的
-  `acknowledgedFullscreen`，未确认即拒绝启动）**已完整实装** ⇒
-  `whip-pan` 的前置条件**事实上已满足**，它只是「排在最后」，不再被任何外部条件阻塞。
+- **`annotation/pointer-callout`**（anchored）：四角括线 + 中心锚点 + 左上 target 标签；
+  footprint 即目标区域（不二次猜测主体位置）；`textMetrics` 已补，长 target 走 `fitScale`。
+  状态仍 `experimental` —— 实现完成 ≠ 锚定质量已验证（依赖 perceive 区域质量）。
+- **`transition/whip-pan`**（fullscreen）：方向性速度线 + 轻暗底，首尾强度归零；
+  `direction` 支持 left/right/up/down，未知值回退 left。会触发 D3-a 人工确认闸（已实装）。
+- **`carrier/split-frame`**：P1–P4 完成；⚠️ 仍 `experimental`（阈值未校准、真素材端到端未验）。
 - **两轮打磨均已落地**：D1 第一轮（5 个）+ 第二轮（缓动曲线、时值配比、进出场质感、参数手感表），
   批次 2 与 D-A 于 2026-10-15～16 补齐至 8 个，真渲已抽帧确认形态两两可辨。
 - **`DUR` 动画配比仍是 PLACEHOLDER**：文档只规定 `minVisibleInFrames`，未规定配比。
   第二轮已给出可用取值（见 §四 3），但**仍待真实素材调校**。
 
-### 2. 🔴 对齐：词级时间会漂，最多 7.06 秒（`M-1d` / `M-1e` 待决）
+### 2. 🔴 对齐：词级时间曾最多漂 7.06 秒（`M-1f` 已修，`M-1d` 门控待校准）
 
-**现象**：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio=1.000`），
+**历史现象**：门控全过（均值 0.9113 / 低置信 3.19% / `alignedRatio=1.000`），
 但某条 cue 的词被放进 **6.74 秒真静音**（8.39–15.13s，`volumedetect` 实测 −58dB），偏差 **−7.06s**。
-kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18%）。
+修复前 kukini 48 条 cue 中 **14 条**词落点与 SRT 窗口覆盖率 <0.8（最低 0.182）。
 
 **根因两层**：① whisper 把跨静音的文本压进一个长分段（`8.14–20.46s`），DP 只能把词平摊；
 ② `alignedRatio` 的定义是「SRT 词对上 **token** 的比例」—— **衡量文本匹配，不衡量时间**，必然报 1.0。
 
-**已判死**：加 `-ml 32 -sow` **无效**（分段仍是 `8.14–20.46s`），已登记 `M-1e`。
+**已判死**：加 `-ml 32 -sow` **无效**（分段仍是 `8.14–20.46s`），登记 `M-1e`。
 
-**已缓解**：字幕完全不受影响（时间/文字/高亮都改以 SRT 为准，见 §3.1.6）——
-但这是**显示层**兜底，产物层的词时依旧错。
+**已修复（`M-1f` 2026-10-19，`M-1e` 随之关闭）**：不再约束 DP，改为**按 SRT 窗口、以字数权重把词铺回 cue 窗口并回写产物**
+（`core/word-timeline.ts` 为唯一真源，`caption.ts` 只 re-export；`core/silence.ts` 供静音取证）。
+kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%→0.88%**、重铺 11 条 cue，
+`alignedRatio` 与置信度未变（好数据没被修坏）。**字幕同时仍以 SRT 为准**（§3.1.6）。
 
-**正解（待裁决）**：用 `ffmpeg silencedetect` 约束 DP，**禁止把词放进静音段**。
-需先定「静音阈值 / 最短时长」，并用 2–3 条素材验证「不会把正常短停顿误判成静音」。
+⚠️ **门控（`M-1d`）2026-10-24 落地告警档**：告警线 `SILENCE.wordRatioWarnMax=0.02` 由单条完整素材定线
+（健康 0.879% vs 病理 5.9% 的对数中点 ≈2.28%，向下取整），`align` 超过即告警但**不阻断**；
+**阻断线未设** —— 需再补 2–3 条完整对齐素材。该线与静音探测参数绑定
+（实测 `minDurationSec` 0.5→0.3 时同一健康素材占比 0.88%→2.97%，须同批重算）。
+复合量 `reweigh-coverage-min=0.8` 的来源不明，修复后剩余 7/48 条为 0.714–0.900 的边缘抖动（非漂移）。
 
 > **原第 2 项「tier2 载体退让是空操作」已于 2026-10-18 修复**（裁决 `D4-t3`）：
 > `validate` 写的 `window` 原本在渲染层无消费者（`MotionItem` 不读 `item.carrier`，
@@ -324,18 +327,18 @@ kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18
 > 折成**影子载体轨**接进背景链；并规定**只在 `params.window` 存在时合成**
 > （声明 ≠ 生效，否则 tier1 已解决的情况会莫名切画面）。
 
-### 3. ⚠️ 占位数值：**11 项 / 18 个数值**（唯一口径见 `docs/decisions/PARAM-DECISIONS.md`）
+### 3. ⚠️ 占位数值：**11 项 / 19 个数值**（唯一口径见 `docs/decisions/PARAM-DECISIONS.md`）
 
 > 🔴 **本节的表格已移除（2026-10-18，D6.4）** —— 手抄的表必然漂移。
 > 本节此前那张表同时犯了四个错：把 `DUR.enter/exit` 混进来（它是"已调优、待复核"，不是占位值）、
 > 把 `ALIGN_GATE` 拆成两行、漏掉 `CONFIDENCE_BANDS` 与 `CARRIER_RATIO_DEFAULT`
 > ⇒ 标题写「7」、表里 8 行、`MEMORY.md` 又按分组数出 8，**三方互不相等**。
 >
-> 现唯一口径：`npm run placeholders` 输出「11 项 / 18 个数值」，
+> 现唯一口径：`npm run placeholders` 输出「11 项 / 19 个数值」，
 > 明细**由代码生成**到 `docs/decisions/PARAM-DECISIONS.md`（真源 `src/core/placeholders.ts`）。
 > 口径定义：**一项 = 一个需要独立做出的校准决定**（同进同退的几个数算一项）；
 > 「数值个数」是另一口径，引用时必须说明指的是哪个。
-> ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`（4 个数）/ `reweigh-coverage-min`（0.8）。
+> ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`（5 个数，10-24 增 `wordRatioWarnMax`）/ `reweigh-coverage-min`（0.8）。
 > ⚠️ 10-20 新增 1 项（节奏表生成器引入）：`rhythm-min-cue-frames`（`RHYTHM.minCueFramesForMotion` = 10）。
 > 🔴 **`reweigh-coverage-min=0.8` 来源不明却已生效并写进产物** —— 11 项里唯一
 > 「不知道凭什么」的阈值，**列为第一优先补依据**。
@@ -392,17 +395,14 @@ kukini 48 条 cue 中 **8 条**词落点与 SRT 窗口覆盖率 <0.8（最低 18
 
 详见 `docs/decisions/OPEN-DECISIONS.md`「问题 9 审计」章节。
 
-### 6. ⚠️ 长文本溢出会跑出画面，但校验器看不见
+### 6. ✅ 长文本溢出：已由 #17（warning）+ 渲染期 fitScale + D-B2 实测兜底（2026-10-24）
 
-`whiteSpace: nowrap` + 模型可填长文本 ⇒ **成片出现跑出画面的文字**，
-而 18 项校验全是结构判定，**完全看不出**。
-
-真渲实测 16 中文字：`kinetic-line`/`lower-third`/`tag-float` 均溢出，
-`stat-card` 溢出画面边界。真实阈值约 13–14 中文字（比初稿估计宽 3 倍）。
-
-两条处置**均未实施**，待裁决（详见手感表 §7）：
-A 渲染期自适应 / B 构建期校验（需先改登记册）。
-**当前依赖模型遵守 SKILL.md 的字数建议 —— 这是纪律，不是强制。**
+- **构建期**：#17 估算 warning（D-B），CJK/数字分系数（D-B2 实测 1.0 / 0.615–0.667）。
+- **渲染期**：`fitScaleFor` 按契约 `textMetrics` 等比缩小（下限 0.7），保证不出画面。
+- **D-B2 更正**：旧「16 字 `tag-float` 撑破 / 9 位 `stat-card` 溢出画面」在声明 footprint 下
+  不可复现（427px < 576px、315px < 614px），以实测表为准。
+- **剩余**：#17 仍为 warning 不阻断，「升 error」需另立裁决；
+  模型起草仍应遵守 SKILL.md 字数建议（纪律 + 渲染兜底，不是强制阻断）。
 
 ### 7. ⚠️ 零消费者导出 13 个（2026-10-18 审计）
 
@@ -460,9 +460,9 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 
 | # | 事项 | 说明 | 状态 |
 |---|------|------|------|
-| 9 | **对齐产物层修漂移** | M-1f 已落地（按 SRT 窗口铺词 + 产物层回写），kukini 静义词 9→0；余 `M-1d` 静义词门控判据未立 | 🔶 显示层+产物层已解，门控待立 |
-| 10 | **占位值校准（11 项 / 18 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）与 `DENSITY.maxItemsPerCue`（占位值却产 error） | ❌ 待做（现在有 3 条素材可用） |
-| 11 | **剩余 2 个模板** | `annotation/pointer-callout`（主体框已就绪）/ `transition/whip-pan`（fullscreen 闸已实装），**无外部阻塞** → 11/11 | ❌ 待做 |
+| 9 | **对齐产物层修漂移** | M-1f 已落地（按 SRT 窗口铺词 + 产物层回写），kukini 静义词 9→0；`M-1d` 告警档已落地（2% 告警线，不阻断），余阻断线待校准 | 🔶 产物层已解，告警档已落地，阻断线待校准 |
+| 10 | **占位值校准（11 项 / 19 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）与 `DENSITY.maxItemsPerCue`（占位值却产 error）；`SILENCE.wordRatioWarnMax=0.02` 为单样本告警线，随 `M-1d` 阻断线一并复核 | ❌ 待做（完整对齐样本仅 1 条；另两条走 M-1g 无字幕，不给覆盖率/占比分布） |
+| 11 | ~~剩余 2 个模板~~ | `pointer-callout` / `whip-pan` 已实现，真渲抽帧确认；模板 **11/11** | ✅ 2026-10-24 |
 | 12 | **渲染基准量化（F4）** | 已有 3 条成片墙钟（6667 帧 1080p60 → 20–22 分钟 / 218MB；另两条 259MB / 256MB）⇒ 样本已够取中位数 | 🔶 3 条成片已就绪，待取中位数 |
 | 13 | **组合场景验证模板** | 今天 3 个 bug 全是「单链正常、双链同时存在才暴露」⇒ 每个新机制都要问「和已有机制**同时**启用时还成立吗」 | 🔶 已成纪律 |
 | 14 | **产物时序守卫升级为 hash 版** | 10-20 已落地 mTime 版（`context.ts#assertStageOrderIsSane`），能拦住「上游更新后下游没重跑」。⚠️ **mTime 会被 `cp`/解压/git checkout改写** ⇒ 更稳的是烘焙时把上游 hash 写进 `storyboard.meta` 再比对 | ❌ 待做（当前 mTime 版够用，hash 版更彻底） |
@@ -501,13 +501,15 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
 错误码      27 条（E-*/W-*，+W-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        712 项全过（43 个测试文件）  ← 449 → 480 → 493 → 498 → 509 → 527 → 672 → 691 → 698 → 709 → 712（10-22 词表回填 +3）
-测试文件    43 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
+单测        731 项全过（44 个测试文件）  ← 449 → 480 → 493 → 498 → 509 → 527 → 672 → 691 → 698 → 709 → 712 → 718 → 729 → 731（10-24 模板 +4 / target +1 / D-B2 +8）
+测试文件    44 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
-登记册      50 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算）
-            OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d / M-1e / M-1f（共 5 条；M-4 已 RESOLVED）
-模板        11 个声明 / 9 个实现      ← 剩余 pointer-callout、whip-pan（均无外部阻塞）
+登记册      53 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-24）
+            OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d（共 3 条；
+                  M-1f 已落地、M-1e 由其收敛关闭，M-4 已 RESOLVED）
+模板        11 个声明 / 11 个实现      ← 2026-10-24 补齐 pointer-callout、whip-pan
+            画廊 19 个已实现 × 3 帧 = 57 张（无未实现项）
 背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）
             机制：src/remotion/carrier.tsx **时间表渲染**（不再嵌套）+ carrier-synth.ts 影子载体轨
 遮挡判定    tier1 平移 + tier2 载体档**都真实施加**（真渲验证：分屏 + 主体锚定成立）
@@ -515,8 +517,8 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
 渲染映射    motion id → 组件映射表已建立     ← 此前不存在，这是灰框的病根
 字幕通道    words.json 已接入 props，且字幕的**时间/文字/高亮全部以 SRT 为准**（C2-6）
             + M-1f 词时重铺（覆盖率 <0.8 时铺回 SRT 窗口）+ M-1g 无字幕模式
-占位数值    **11 项 / 18 个数值** —— **唯一口径：`npm run placeholders`**
-            ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`(4) / `reweigh-coverage-min`(0.8)
+占位数值    **11 项 / 19 个数值** —— **唯一口径：`npm run placeholders`**
+            ⚠️ 10-19 新增 2 项（M-1f 引入）：`silence-thresholds`(5，含 M-1d 告警线) / `reweigh-coverage-min`(0.8)
             ⚠️ 10-20 新增 1 项（节奏表生成器引入）：`rhythm-min-cue-frames`(10)
             🔴 `reweigh-coverage-min=0.8` **来源不明**却已生效 ⇒ 第一优先补依据
             明细由代码生成到 docs/decisions/PARAM-DECISIONS.md（真源 src/core/placeholders.ts）
@@ -526,7 +528,7 @@ A 渲染期自适应 / B 构建期校验（需先改登记册）。
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 712 项全过 · placeholders --check OK
+工程健康    typecheck exit 0 · 731 项全过（44 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：
@@ -610,7 +612,7 @@ npm run pipeline -- render     --job e2e-perceive     # 约 20–22 分钟（666
 npm run typecheck
 npm test
 
-# 模板预览画廊（P0-1）：17 个已实现模板 × 3 帧 → out/template-gallery/
+# 模板预览画廊（P0-1）：19 个已实现模板 × 3 帧 → out/template-gallery/
 npm run templates:gallery
 ```
 

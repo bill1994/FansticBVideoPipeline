@@ -122,6 +122,7 @@ describe('占位值注册表 / 值是真源的引用而非副本', () => {
       minDurationSec: SILENCE.minDurationSec,
       longSilenceSec: SILENCE.longSilenceSec,
       overlapToleranceSec: SILENCE.overlapToleranceSec,
+      wordRatioWarnMax: SILENCE.wordRatioWarnMax,
       REWEIGH_COVERAGE_MIN: REWEIGH_COVERAGE_MIN,
     };
 

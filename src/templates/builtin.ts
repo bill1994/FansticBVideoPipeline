@@ -65,7 +65,8 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     minVisibleInFrames: 30,
     // D-B：fontSize 与组件 `kinetic-line.tsx` 的 54 一致；
     // paddingPx = paddingLeft 16 + borderLeft 4（左侧竖条也占宽）
-    textMetrics: { fontSizePx: 54, paddingPx: 20 },
+    // latinWidthEm：D-B2 实测（2026-10-24）—— 数字 0.617em
+    textMetrics: { fontSizePx: 54, paddingPx: 20, latinWidthEm: 0.617 },
     // 🔴 原`handoffIn: 'from-left'` 已删除（2026-10-15，问题 9 审计）。
     //
     //   删除理由（三条，缺一不可）：
@@ -98,7 +99,8 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     minVisibleInFrames: 45,
     // D-B：按**主文本 title** 判定（副标题 17px 更小，不是最宽的那行）
     // paddingPx = 左右 26 + 20（见 lower-third.tsx 的 padding 与 borderLeft）
-    textMetrics: { fontSizePx: 26, paddingPx: 50 },
+    // latinWidthEm：D-B2 实测（2026-10-24）—— 数字 0.620em
+    textMetrics: { fontSizePx: 26, paddingPx: 50, latinWidthEm: 0.62 },
   },
   {
     id: 'typography/tag-float@1.0',
@@ -114,7 +116,8 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     footprint: [0.5, 0.1, 0.3, 0.2],
     minVisibleInFrames: 36,
     // D-B：fontSize 与组件一致；paddingPx = 左右 20×2
-    textMetrics: { fontSizePx: 24, paddingPx: 40 },
+    // latinWidthEm：D-B2 实测（2026-10-24）—— 数字 0.615em
+    textMetrics: { fontSizePx: 24, paddingPx: 40, latinWidthEm: 0.615 },
     // 🔴 原 `handoffIn: 'fade-up'` 已删除（2026-10-15，问题 9 审计）。
     //   理由同`kinetic-line` 那处：零消费 + 语义与入场方式重复 + 不在
     //   `paramsSchema` 内故模型无法填写。本模板的入场方式由
@@ -142,7 +145,8 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     minVisibleInFrames: 30,
     // D-B：fontSize 与组件 `center-emphasis.tsx` 的 72 一致；
     // paddingPx = 左右 32×2 + 左侧强调竖条 6
-    textMetrics: { fontSizePx: 72, paddingPx: 70 },
+    // latinWidthEm：D-B2 实测（2026-10-24）—— 数字 0.616em
+    textMetrics: { fontSizePx: 72, paddingPx: 70, latinWidthEm: 0.616 },
   },
 
   // ── data ────────────────────────────────────────────────────
@@ -161,7 +165,11 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     minVisibleInFrames: 45,
     // D-B：按 **value** 判定（44px，unit 15px 更小）
     // paddingPx = 左右 24×2
-    textMetrics: { fontSizePx: 44, paddingPx: 48 },
+    // 🔴 D-B2 实测（2026-10-24）：`FONT.numeric` 44px / weight 800 的数字
+    //    每字前进宽 **29.35px = 0.667em**；默认拉丁系数 0.5 低估 33%。
+    //    ⚠️ 必须写 `latinWidthEm` 而不是 `charWidthEm` —— 后者只管 CJK，
+    //    写成 0.667 会把 CJK 估算砍半（一个系数乘两个基准表达不了）。
+    textMetrics: { fontSizePx: 44, paddingPx: 48, latinWidthEm: 0.667 },
   },
 
   // ── annotation ──────────────────────────────────────────────
@@ -178,6 +186,11 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     requiredParams: ['target'], // 无 target 则标注无指向对象，语义上必填
     footprint: [0.3, 0.3, 0.2, 0.2],
     minVisibleInFrames: 24,
+    // 2026-10-24：标签文字 20px；padding = 12×2 + 1px 边框×2。
+    // 与组件 `pointer-callout.tsx` 的 chip 内边距一致 —— 两处数字必须同步，
+    // 否则校验项 #17 与渲染期 `fitScale` 会给出相反结论（D-B 的同款病）。
+    // latinWidthEm：D-B2 实测（2026-10-24）—— 数字 0.617em
+    textMetrics: { fontSizePx: 20, paddingPx: 26, latinWidthEm: 0.617 },
   },
 
   // ── carrier / cinematic（载体类：作用于实拍视频本身）────────

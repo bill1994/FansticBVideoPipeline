@@ -198,7 +198,8 @@ export interface AlignReport {
    * 🔴 **`null` ≠ `0`**：`null` 表示**没测**（ffmpeg 不可用 / 未内置后端），
    *    `0` 表示测了且完全正常。写 0 会让「没测过」看起来像「测过且完美」。
    *
-   * ⚠️ 阈值**尚未校准**（`M-1d` 为 OPEN）⇒ 只报告不阻断。
+   * ⚠️ 2026-10-24 `M-1d` 落地**告警档**：超过 `SILENCE.wordRatioWarnMax`（2%）只告警，
+   *    **不阻断**。阻断线需 2–3 条完整对齐素材后再校准。
    */
   silentWordRatio?: number | null;
 
@@ -211,6 +212,8 @@ export interface AlignReport {
     lowConfidenceRatioMax: number;
     /** 🔴 PLACEHOLDER（新增）：alignedRatio 的下限。须与 meanConfidenceMin 一并校准。 */
     alignedRatioMin: number;
+    /** `M-1d` 告警档：`silentWordRatio` 超过此值只告警（不阻断）。 */
+    silentWordRatioWarnMax: number;
   };
 }
 
