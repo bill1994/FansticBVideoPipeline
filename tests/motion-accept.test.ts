@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { acceptMotionSpec } from '../src/core/motion-accept.ts';
+import { acceptMotionSpec, decideSpecOverwrite } from '../src/core/motion-accept.ts';
 import { getTemplateComponent } from '../src/remotion/templates/index.tsx';
 import { EMPTY_CAPTION } from '../src/remotion/caption.ts';
 import { __resetRegistryForTests } from '../src/templates/registry.ts';
@@ -197,5 +197,47 @@ describe('motion:accept · 六道门槛', () => {
     for (const frame of [6, 45, 72]) {
       expect(render(frame), `帧 ${frame} 两次渲染必须逐字节相等`).toBe(render(frame));
     }
+  });
+});
+
+describe('motion:accept · 入库覆写护栏（修复轮 1）', () => {
+  /** 用已签章全文模拟一个已入库文件（同命令壳落盘形态）。 */
+  function signedOf(raw: string): string {
+    const r = acceptMotionSpec(raw, FILE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('夹具验收失败');
+    return JSON.stringify({ ...JSON.parse(raw), acceptance: r.acceptance }, null, 2);
+  }
+
+  it('⑧ 目标已存在且 hash 不同（同语义名异内容）→ reject，提示含 --force 与「另立版本」', () => {
+    const oldRun = signedOf(rawOf());
+    const rerun = acceptMotionSpec(rawOf({ id: 'custom/accept-fixture@0.2' }), FILE);
+    expect(rerun.ok).toBe(true);
+    if (!rerun.ok) return;
+    const d = decideSpecOverwrite(oldRun, rerun.acceptance.specHash, 'custom/accept-fixture@0.2');
+    expect(d.action).toBe('reject');
+    if (d.action === 'reject') {
+      expect(d.reason).toContain('--force');
+      expect(d.reason).toContain('另立版本');
+      expect(d.reason).toContain('accept-fixture');
+      expect(d.reason).toContain('旧版本');
+    }
+  });
+
+  it('⑨ 目标不存在 → write', () => {
+    const r = acceptMotionSpec(rawOf(), FILE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(decideSpecOverwrite(undefined, r.acceptance.specHash, ID)).toEqual({ action: 'write' });
+  });
+
+  it('⑩ 目标已存在且 hash 相同（重跑同一产物）→ write（幂等）', () => {
+    const r = acceptMotionSpec(rawOf(), FILE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // 已入库文件带 acceptance 块；canonical hash 剥离后必须与本次产物一致（⑤b 幂等性）
+    expect(decideSpecOverwrite(signedOf(rawOf()), r.acceptance.specHash, ID)).toEqual({
+      action: 'write',
+    });
   });
 });

@@ -43,6 +43,7 @@ import {
 } from './spec.ts';
 import type { StoryboardItem } from './types.ts';
 import { hasTemplate, registerTemplate } from '../templates/registry.ts';
+import { parseMotionId } from '../templates/types.ts';
 import { EMPTY_CAPTION } from '../remotion/caption.ts';
 import { getTemplateComponent } from '../remotion/templates/index.tsx';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -95,6 +96,44 @@ const LINT_BANNED: readonly string[] = ['Date.now', 'Math.random', 'useFrame', '
 export function canonicalSpecHash(spec: MotionSpec): string {
   const { acceptance: _stripped, ...canonical } = spec as unknown as Record<string, unknown>;
   return createHash('sha256').update(JSON.stringify(canonical, null, 2), 'utf8').digest('hex');
+}
+
+/**
+ * 入库覆写护栏（P1-b 修复轮 1，AC-9）——「决定写入与否」的纯判定，I/O 在命令壳
+ * （tools/accept-motion-spec.mts 读目标文件、按决定落盘）。
+ *
+ * 裁决（2026-10-24）：目标文件不存在，或 canonical hash 与本次产物相同
+ * （重跑同一产物，幂等）→ 写入；已存在但 hash 不同（同语义名、异内容）→ 拒绝——
+ * 重掷必须**另立版本文件**，已出片 job 引用的旧版本不得被静默覆盖（AC-9）。
+ * `--force` 是命令壳的显式越权旗标，不进本判定——判定层只回答
+ * 「内容层面该不该覆写」，越权是人下的决定。
+ *
+ * 🔴 旧文件解析失败（手改成非法 JSON 等）按异内容处理：无法证明相同即拒绝，
+ *    宁可拦下一次重跑，不静默盖掉一份无法验尸的旧版本。
+ */
+export type SpecWriteDecision = { action: 'write' } | { action: 'reject'; reason: string };
+
+export function decideSpecOverwrite(
+  existingRaw: string | undefined,
+  incomingHash: string,
+  specId: string,
+): SpecWriteDecision {
+  if (existingRaw === undefined) return { action: 'write' };
+  let existingHash: string | null = null;
+  try {
+    existingHash = canonicalSpecHash(JSON.parse(existingRaw) as MotionSpec);
+  } catch {
+    existingHash = null;
+  }
+  if (existingHash === incomingHash) return { action: 'write' };
+  const { subtype } = parseMotionId(specId);
+  return {
+    action: 'reject',
+    reason:
+      `同语义名不同内容：templates/specs/custom-${subtype}.json 已存在且 canonical hash ` +
+      `与本次产物不同——请另立版本文件名（custom/${subtype}@<新版本>，文件名相应改）` +
+      `以保留旧版本供已出片 job 引用；确要覆盖用 --force`,
+  };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {

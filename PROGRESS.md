@@ -63,7 +63,7 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
   zh-normalize 21 / validate 42 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
   carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
-  whisper-path 3 / spec-contract 45 / spec-render 24 / motionboard 22 / motion-accept 8 / spec-loader 5 /
+  whisper-path 3 / spec-contract 45 / spec-render 24 / motionboard 22 / motion-accept 11 / spec-loader 5 /
   rhythm-rules 34 / rhythm-table 31 /
   registry 6 / stage-order 5 / template-gallery 7 / media-qa 11 / text-metrics-measured 6
 
