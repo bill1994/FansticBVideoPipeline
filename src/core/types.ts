@@ -284,7 +284,10 @@ export interface AlignWords {
  * 走势信号 —— 判断「这句话要不要配 motion」的机械依据。
  *
  * 🔴 **全部判据都是词表 / 正则 / 字数比较**（见 `core/rhythm.ts`），
- *    不调用语言模型，也不读时钟或随机数 —— 同一份 SRT 必须产出同一份节奏表。
+ *    不调用语言模型，也不读时钟或随机数。
+ * ⚠️ 「同一份 SRT 必须产出同一份节奏表」的复现性表述**只对规则兜底路径成立**
+ *    （M-3，2026-10-23）：语义路径（`meta.source='semantic'`）由 LLM 创作期判读，
+ *    同一素材允许产出不同判读 —— 随机性关在创作期，渲染期确定性不受影响。
  */
 export type RhythmSignal =
   | 'turn'
@@ -320,8 +323,15 @@ export interface RhythmCue {
   motion?: string;
   /** 人可读的判断依据（为什么做 / 为什么不做）。 */
   reason: string;
-  /** 命中的走势信号，可空。 */
-  signal: RhythmSignal[];
+  /**
+   * 命中的信号，可空。
+   *
+   * 规则兜底路径：只允许 `RhythmSignal` 词表内的值。
+   * 语义路径（M-3，`meta.source='semantic'`）：允许自由文本 ——
+   * 语义判据（「铺垫」「反讽」「口头禅」…）天然不在结构词表里，
+   * LLM 自述依据本就是裁决的一部分。
+   */
+  signal: (RhythmSignal | string)[];
   /** 不做 motion 的结构化原因。 */
   skipped?: 'too-short' | 'no-template-fits';
 }
@@ -339,6 +349,12 @@ export interface RhythmTable {
     /** `aligned` = 有字幕 cue；`no-subtitle` = 无 cue（本阶段无法生成节奏表）。 */
     mode: 'aligned' | 'no-subtitle';
     version: string;
+    /**
+     * 表的来源（M-3，2026-10-23）。缺省 = `'rules'`（向后兼容已落盘产物）。
+     * `semantic` = LLM 创作期语义判定，与 motionboard 同批落盘，
+     * reason 即模型自述依据，供人工核对「pacing 决定 motionboard 分布」的因果。
+     */
+    source?: 'rules' | 'semantic';
   };
   cues: RhythmCue[];
 }

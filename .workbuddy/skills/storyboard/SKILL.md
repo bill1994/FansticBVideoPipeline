@@ -42,6 +42,19 @@ agent_created: true
 `regions.json`（安全区/遮挡预算）、`03-storyboard/pacing.json`（规则生成的意图底稿，
 含每条 cue 的 signal 与 reason —— 在它的基础上增删改，别从零重写）。
 
+**语义 pacing（M-3，2026-10-23 裁决；首选路径）**：规则词表只抓得到结构信号
+（enum／question／number…），抓不到反讽、铺垫、高潮、口头禅 —— 而 pacing 正是
+motionboard 分布的判据。因此你（模型）应当**按语义判读每条 cue**，产出
+`decide`／`motion`／`signal`（语义判据，自由文本）／`reason`（自述依据），
+与 motionboard **同批落盘** `pacing.json` 并写 `meta.source: 'semantic'`。
+`reason` 不是装饰 —— 它是「pacing 决定 motionboard 分布」因果的人工对账凭据。
+纪律：
+- `motion` 必须是已注册模板 id（自造 id 会被 `validate` 结构断言拦下，退出码 2）；
+- `cueIndex` 必须真存在于 `words.json` 的 cues（SRT 修订后重跑 storyboard）；
+- `decide:'none'` 的条目不带 motion 字段（不做的原因写 `skipped` 或 `reason`）；
+- 规则底稿是**先验参考**，可以合法偏离 —— 语义优先于规则（M-3）；
+- 渲染期确定性一字不改：语义判读只发生在创作期，board 定稿后全链路确定性。
+
 **看模板长什么样**：`npm run templates:gallery` → `out/template-gallery/gallery.html`
 （19 个已实现模板各 3 帧 + scope / footprint / 参数 / 标签）。选 intent 或钉死模板前
 先看画廊，不要凭 id 猜形态；未实现的模板在画廊里明确标注，不要选。

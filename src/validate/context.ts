@@ -11,7 +11,7 @@ import path from 'node:path';
 import { ConfigError } from '../core/exit-code.ts';
 import { jobDir, readJson, stageDir } from '../core/io.ts';
 import { STAGES } from '../core/config.ts';
-import { getTemplate } from '../templates/registry.ts';
+import { getTemplate, hasTemplate } from '../templates/registry.ts';
 import type { TemplateDeclaration } from '../templates/types.ts';
 import type {
   AlignReport,
@@ -19,6 +19,7 @@ import type {
   BakeReport,
   Cue,
   PerceiveResult,
+  RhythmTable,
   SourceManifest,
   Storyboard,
   StoryboardItem,
@@ -110,6 +111,7 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
   }
 
   assertStageOrderIsSane(base);
+  assertPacingConsistentIfPresent(base);
 
   const scene: SceneItem[] = [];
   storyboard.tracks.forEach((track, trackIndex) => {
@@ -144,6 +146,70 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
 
 // ─────────────────────────────────────────────────────────────
 // 通用小工具
+
+/**
+ * M-3 契约层（2026-10-23 裁决，2026-10-24 落地）—— pacing 一致性断言。
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * 为什么走结构断言层而不是第 19 项校验
+ * ─────────────────────────────────────────────────────────────────
+ * M-3 ⑤ 明确「不占 18 项名额」。18 项全是**报告级**判定（产 ReportItem、
+ * 计入 summary），而这里查的是**结构合法性**：引用不存在的 cue、未注册的
+ * motion id、decide 与 motion 字段自相矛盾 —— 与「fps 不一致」「时序倒挂」
+ * 同类，是 ConfigError（退出码 2），没有「警告着继续」的中间态。
+ *
+ * ⚠️ **刻意不校验「pacing 与 board 的分布一致」**：语义路径的价值恰恰是
+ * 模型可以合法偏离规则先验（语义优先于规则，M-3 ①），硬绑等于锁死这个能力。
+ * 「pacing 决定 motionboard 分布」的对账手段是人工核对 reason 留痕。
+ *
+ * 判什么（三条，均纯结构化）：
+ *   ① cue 索引存在性 —— pacing 引用的 cueIndex 必须真存在于 words.json
+ *  ② motion id 已注册 —— 防自造模板 id（与校验 #16「模型不能自造键」同精神）
+ *  ③ decide 与条目对齐 —— `decide:'motion'` ⟺ motion 字段存在
+ */
+function assertPacingConsistentIfPresent(base: string): void {
+  const pacingFile = path.join(base, STAGES.storyboard, 'pacing.json');
+  // 无表不拦：规则兜底可缺席（no-subtitle 模式天然无表），一致性只对存在的表负责。
+  if (!fs.existsSync(pacingFile)) return;
+
+  const table = readJson<RhythmTable>(pacingFile);
+  const cues = readJson<AlignWords>(path.join(base, STAGES.align, 'words.json')).cues;
+  const cueIndex = new Set(cues.map((c) => c.index));
+
+  for (const row of table.cues) {
+    if (cueIndex.has(row.cueIndex)) continue;
+    throw new ConfigError(
+      `pacing.json 引用了不存在的 cue：cueIndex=${row.cueIndex}，` +
+        `但 01-align/words.json 只有 ${cues.length} 条 cue。
+` +
+        `  pacing 的 cue 快照以 words.json 为唯一真源；SRT 修订后必须重跑 storyboard（或重写 pacing）。`,
+    );
+  }
+
+  for (const row of table.cues) {
+    if (row.decide === 'motion') {
+      if (typeof row.motion !== 'string' || row.motion.length === 0) {
+        throw new ConfigError(
+          `pacing.json cue#${row.cueIndex} decide='motion' 但缺 motion 字段。` +
+            `决定配动效就必须指明模板（family/subtype@version）。`,
+        );
+      }
+      if (!hasTemplate(row.motion)) {
+        throw new ConfigError(
+          `pacing.json cue#${row.cueIndex} 引用了未注册的模板：${row.motion}。
+` +
+            `  可用模板见 npm run templates:gallery 的 catalog.json；自造 id 是 M-3 契约违规。`,
+        );
+      }
+    } else if (row.motion !== undefined) {
+      throw new ConfigError(
+        `pacing.json cue#${row.cueIndex} decide='${row.decide}' 却带着 motion=${row.motion}。` +
+          `条目自相矛盾：不做动效就不该指模板（skipped 字段承载不做的原因）。`,
+      );
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 
 /**

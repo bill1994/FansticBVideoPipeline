@@ -57,7 +57,7 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**762 项全过**（45 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步，C2-5b +1，D-B3 +5）。按文件：
+- **单测**：**769 项全过**（46 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步，C2-5b +1，D-B3 +5，M-3 契约层 +7）。按文件：
   fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
   template-render 36 / carrier-window 30 / caption 28 / text-overflow 33 / text-align 26 / srt 22 / bake 22 /
   zh-normalize 21 / validate 42 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
@@ -470,6 +470,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 ### 阶段 3 · 可选评估
 
 - **创作期动效生成 + Remotion Studio 审核闸**（用户 10-22 提出）：无合适模板时按 prompt 生成新动效——随机性关在创作期（重掷自由、定稿冻结入库），渲染期确定性红线不改；渲染前加 Studio 人工审核，must_review 条目硬闸确认后才可渲染。提案：`docs/proposals/2026-10-22-创作期动效生成与Studio审核闸.md`（P1-a 审核闸 / P1-b 生成自动化）——提案头 Status: **ACCEPTED**（2026-10-22 四项待裁决问题经会话确认全部采纳；原文「待裁决」标记已过期，按提案为准） | 🔶 **P1-a 已落地（2026-10-24 合并）**：`review` 命令 + Studio 预览 + must_review 硬闸 + storyboard hash 防漂移；用法见 README。P1-b 未开工（待另出 plan；前置契约缺口：board 不产 motion prompt，见 2026-10-23 预期流程对比分析）
+- **M-3 语义 pacing（2026-10-23 裁决，2026-10-24 契约层落地）**：pacing 首选路径 = LLM 创作期语义判定（规则节奏表降级为兜底先验）。已落地：SKILL ×2 语义契约（`meta.source:'semantic'`，reason 自述依据与 board 同批落盘）+ `buildContext` 结构断言三条（cue 索引 / motion id 注册 / decide 对齐；ConfigError 不占 18 项）+ 复现性口径收窄至兜底路径。**剩：真实素材创作期实战检验**（等 T5 素材）
 - shot 级 VLM 兜底（替代 F6的人工兜底）—— 需先用官方文档核实模型能力
 - Qwen3-ForcedAligner 等专用对齐模型 —— ⚠️ 单次上限 5 分钟，
   长视频需切片，且引入 PyTorch 栈与「可复现性」立法意图冲突
@@ -501,8 +502,8 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
 错误码      28 条（E-*/W-*，+W-DB-01 / +E-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        762 项全过（45 个测试文件）  ← 449 → … → 731 → 756（P1-a：review.test +14，confirmed/stage-order/align-gate 等契约断言同步） → 757（C2-5b +1） → 762（D-B3 +5）
-测试文件    45 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
+单测        769 项全过（46 个测试文件）  ← 449 → … → 756（P1-a review +14 等） → 757（C2-5b +1） → 762（D-B3 +5） → 769（M-3 契约层 +7）
+测试文件    46 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
 登记册      53 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-24）
@@ -528,7 +529,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 762 项全过（45 文件）· placeholders --check OK
+工程健康    typecheck exit 0 · 769 项全过（46 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

@@ -57,7 +57,7 @@ description: >-
 |---|---|---|---|
 | `align` | `npm run pipeline -- align --job <id>` | `words.json`（词级时间戳）+ `align-report.json` | 机器（whisper + DP） |
 | `perceive` | `npm run pipeline -- perceive --job <id>` | `shots.json` + `regions.json` | 机器（scdet + YuNet + 显著性） |
-| `storyboard` | `npm run pipeline -- storyboard --job <id>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `motionboard.json`（缺失时内置生成器产出意图底稿） |
+| `storyboard` | `npm run pipeline -- storyboard --job <id>` | `storyboard.json`（已烘焙成绝对帧） | **你** 写 `motionboard.json`（缺失时内置生成器产出意图底稿）；按 M-3 同时落盘**语义 pacing**（`meta.source:'semantic'`，判据写 reason） |
 | `validate` | `npm run pipeline -- validate --job <id>` | `validate-report.json`（18 项 + 2 条 extra） | 机器 |
 | `render` | `npm run pipeline -- render --job <id>` | `out.mp4` | 机器（Remotion） |
 

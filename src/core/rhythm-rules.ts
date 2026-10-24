@@ -78,6 +78,15 @@ export interface MotionDecision {
 const STRONG_SIGNALS: readonly RhythmSignal[] = ['definition', 'number', 'closing'];
 
 /**
+ * M-3 后 `RhythmCue.signal` 可能含语义路径的自由文本（`(RhythmSignal | string)[]`）。
+ * 规则路径的消费者（params 预填 / intent 提取）只认词表值 —— 在调用点收窄，
+ * 非词表值静默剔除：语义判据本来就不是给机械提取用的。
+ */
+const isRuleSignal = (x: RhythmSignal | string): x is RhythmSignal =>
+  STRONG_SIGNALS.includes(x as RhythmSignal) ||
+  ['turn', 'contrast', 'enum', 'question', 'number', 'short-after-long', 'repetition', 'cause-effect'].includes(x as RhythmSignal);
+
+/**
  * 文案长度上限（中文字符数）。
  *
  * 🔴 14 的依据：项目记录的真实溢出阈值是 **13–14 个中文字**
@@ -903,10 +912,10 @@ export function generateMotionboard(
 
     // params 预填判定时的机械提取（同信号同口径）；提取失败不拦 ——
     // 绑定器会按候选再提取 / 记 no-fits，不在这里二次报错。
-    const params = paramsForMotion(row.motion, cue.text ?? '', row.signal);
+    const params = paramsForMotion(row.motion, cue.text ?? '', row.signal.filter(isRuleSignal));
     const item: MotionBoardItem = {
       _author: { anchor },
-      intent: intentFromSignals(row.signal ?? []),
+      intent: intentFromSignals(row.signal.filter(isRuleSignal)),
       confidence: RULE_CONFIDENCE,
       note: row.reason,
     };
