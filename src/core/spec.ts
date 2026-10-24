@@ -260,6 +260,12 @@ const TOP_LEVEL_KEYS = new Set([
   // `_note` 是**显式收录**的文档字段（不参与派生，只给人的说明留位置）。
   // 它不是「放开未知字段」：其它任何键仍按规则 11 拒绝。
   '_note',
+  // `acceptance` 是 motion:accept 六道验收全过后盖在文件顶层的**签章块**
+  // （P1-b，2026-10-24 裁决收录）。不收录它，带签章的 spec 会在装载期被
+  // 规则 11 拒掉 —— 验收产物落回 templates/specs/ 的全链路就断了。
+  // 装载期只验**形状**（见下方校验），不重算 hash：签章与原文的一致性由
+  // 签发方（motion:accept）保证，这里防的是「手编文件把签章写坏」。
+  'acceptance',
 ]);
 
 /**
@@ -795,6 +801,36 @@ export function validateMotionSpec(
   // `_note` 仅供人读（写作用例、约定），不参与派生；类型仍须是字符串。
   if (spec['_note'] !== undefined && typeof spec['_note'] !== 'string') {
     issues.push('_note 必须是字符串（仅文档用途）');
+  }
+
+  // acceptance 签章块（motion:accept 产物）：只验形状，不重算 hash。
+  // ⚠️ 与 `_note` 同款纪律：显式收录 ≠ 放开未知字段 —— 块内键同样走白名单。
+  const acceptance = spec['acceptance'];
+  if (acceptance !== undefined) {
+    if (!isRecord(acceptance)) {
+      issues.push('acceptance 必须是对象（{ toolVersion, specHash, gates }）');
+    } else {
+      for (const k of Object.keys(acceptance)) {
+        if (k !== 'toolVersion' && k !== 'specHash' && k !== 'gates') {
+          issues.push(`acceptance 含未知字段：\`${k}\``);
+        }
+      }
+      if (!isFiniteNumber(acceptance['toolVersion'])) {
+        issues.push('acceptance.toolVersion 必须是数字');
+      }
+      if (
+        typeof acceptance['specHash'] !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(acceptance['specHash'])
+      ) {
+        issues.push(
+          `acceptance.specHash 必须是 64 位十六进制字符串（sha256），当前 ${JSON.stringify(acceptance['specHash'])}`,
+        );
+      }
+      const gates = acceptance['gates'];
+      if (!Array.isArray(gates) || !gates.every((g) => typeof g === 'string')) {
+        issues.push('acceptance.gates 必须是字符串数组');
+      }
+    }
   }
 
   if (issues.length > 0) {

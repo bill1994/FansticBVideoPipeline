@@ -317,6 +317,49 @@ describe('validateMotionSpec —— 拒绝规则逐条', () => {
     rejects((s) => (s['note'] = 'x'), /未知顶层字段：`note`/);
   });
 
+  it('15. acceptance 签章块：合法形状通过（motion:accept 产物可装载）', () => {
+    const acceptance = {
+      toolVersion: 1,
+      specHash: 'a'.repeat(64),
+      gates: ['structure', 'registration', 'frames', 'animates', 'lint'],
+    };
+    const spec = baseSpec();
+    spec['acceptance'] = acceptance;
+    const decl = deriveDeclaration(validateMotionSpec(spec));
+    expect(decl.id).toBe('custom/fade-up@1.0');
+    // 签章块原样随 spec 挂上声明（不参与派生，只随文件走）。
+    // ⚠️ MotionSpec 接口未声明该字段（本次裁决只扩运行时白名单），读取走收窄。
+    expect(decl.spec as unknown as Record<string, unknown>).toMatchObject({ acceptance });
+  });
+
+  it('16. acceptance 形状不符 → 拒绝（对象/三键类型/未知键逐项）', () => {
+    const hex64 = 'a'.repeat(64);
+    rejects((s) => (s['acceptance'] = 'signed'), /acceptance 必须是对象/);
+    rejects(
+      (s) => (s['acceptance'] = { toolVersion: '1', specHash: hex64, gates: ['lint'] }),
+      /acceptance\.toolVersion 必须是数字/,
+    );
+    rejects(
+      (s) => (s['acceptance'] = { toolVersion: 1, specHash: 'xyz', gates: ['lint'] }),
+      /acceptance\.specHash 必须是 64 位十六进制字符串/,
+    );
+    rejects(
+      (s) => (s['acceptance'] = { toolVersion: 1, specHash: hex64.slice(1) }),
+      /acceptance\.specHash 必须是 64 位十六进制字符串/,
+    );
+    rejects(
+      (s) => (s['acceptance'] = { toolVersion: 1, specHash: hex64, gates: 'structure' }),
+      /acceptance\.gates 必须是字符串数组/,
+    );
+    rejects(
+      (s) =>
+        (s['acceptance'] = { toolVersion: 1, specHash: hex64, gates: ['lint'], extra: 1 }),
+      /acceptance 含未知字段：`extra`/,
+    );
+    // 规则 11 对顶层未知键的拒绝不受影响
+    rejects((s) => (s['signed'] = true), /未知顶层字段：`signed`/);
+  });
+
   it('一次列全所有问题（不是遇到第一个就停）', () => {
     const spec = baseSpec();
     spec['foo'] = 1;
