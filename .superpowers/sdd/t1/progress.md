@@ -4,3 +4,4 @@
 
 Pre-flight: T1 与 T3 都动 validate 层，串行执行；T2 只读随时插队；T4 阻塞 T5。
 Task 1: complete (d98d2a2..bf7c9ec, tests: npm test -> 732/732 pass; typecheck exit 0; placeholders --check OK)
+Task 2: complete (bf7c9ec..df892a6, tests: vitest placeholders -> 12/12 pass; 考古只读 + 文档)

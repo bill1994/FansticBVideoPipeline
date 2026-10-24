@@ -150,7 +150,7 @@ npm run pipeline -- validate   --job <id>
 
 | # | 校验项 | 判定 | 来源 | error | warning |
 |---|--------|------|------|-------|---------|
-| **17** | **文本估算宽超出 `footprint`**：按 `textMetrics`（字号 / 内边距 / 余量）估算 CJK 1.0em、拉丁 0.5em | warning，**不阻断** | **D-B** | — | **`W-DB-01`** |
+| **17** | **文本估算宽超出 `footprint`**：按 `textMetrics`（字号 / 内边距 / 余量）估算 CJK 1.0em、拉丁 0.5em；1.15–1.5× 走 warning，**>1.5× 升 error**（fitScale 兜底失效点） | 分档（D-B3） | **D-B / D-B2 / D-B3** | — | **`W-DB-01`** / **`E-DB-01`** |
 
 **载体可见性类（1 项）**
 

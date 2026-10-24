@@ -117,12 +117,20 @@ describe('#17 · D-B2 实测后的边界（旧「16字/9位溢出」结论已复
 
   it('真正「明显超长」仍能捕获（这是本项当前的实际价值）', () => {
     // 各模板塞 40+ 字 CJK，估算下必超阈值 ⇒ 本项能守住量级更大的事故
-    expect(C('typography/tag-float@1.0', { text: '甲'.repeat(40) })).toContain('W-DB-01');
+    // D-B3 后这批案例已过 1.5× 线，升 error 档（fitScale 缩到底也救不回）
+    expect(C('typography/tag-float@1.0', { text: '甲'.repeat(40) })).toContain('E-DB-01');
     // stat-card 的系数按**数字**实测（0.667em，D-B2）；用数字做超长用例，
     // 因为该模板语义上就是数字卡，CJK 不是合法用法（#16 只验类型、不判语义）。
-    expect(C('data/stat-card@1.0', { value: '1'.repeat(30) })).toContain('W-DB-01');
-    // lower-third 阈值 1047px ÷ 26px = 40.2 ⇒ 需 41 字才超（40 字=1040 恰在余量内）
+    expect(C('data/stat-card@1.0', { value: '1'.repeat(30) })).toContain('E-DB-01');
+    // lower-third 阈值 1047px ÷ 26px = 40.2 ⇒ 需 41 字才超 warning 线；
+    // 1.5× 线 = 1365.6px ÷ 26px ≈ 52.6 ⇒ 需 53 字才升 error（各模板线不同）
     expect(C('typography/lower-third@1.0', { title: '甲'.repeat(41) })).toContain('W-DB-01');
+    expect(C('typography/lower-third@1.0', { title: '甲'.repeat(53) })).toContain('E-DB-01');
+  });
+
+  it('D-B2 实测案例不因分档产生 error（分档不引入新误报）', () => {
+    expect(C('typography/tag-float@1.0', { text: LONG_CN })).not.toContain('E-DB-01');
+    expect(C('data/stat-card@1.0', { value: '123456789' })).not.toContain('E-DB-01');
   });
 });
 
@@ -183,15 +191,61 @@ describe('#17 · 不误报的场景', () => {
   });
 
   it('pointer-callout 的 target 参与判定（不是零覆盖字段）', () => {
-    // footprint 0.2×1920=384，padding 26 ⇒ 可用 358×1.15≈412；30 字×20px=600 必超
-    expect(C('annotation/pointer-callout@1.0', { target: '甲'.repeat(30) })).toContain('W-DB-01');
+    // footprint 0.2×1920=384，padding 26 ⇒ 可用 358×1.15≈412；22 字×20px=440 落在 warning 档
+    expect(C('annotation/pointer-callout@1.0', { target: '甲'.repeat(22) })).toContain('W-DB-01');
+    // 30 字×20px=600 > 358×1.5=537 ⇒ D-B3 分档后升 error
+    expect(C('annotation/pointer-callout@1.0', { target: '甲'.repeat(30) })).toContain('E-DB-01');
     // 正常长度（≤20 字 = 400px）不报
     expect(C('annotation/pointer-callout@1.0', { target: '鞋底纹路' })).not.toContain('W-DB-01');
   });
 });
 
-describe('#17 · warning 不阻断 + 编入清单', () => {
-  it('溢出只出 warning，不出 error', () => {
+describe('#17 · D-B3 分档：>1.5× 升 error（fitScale 兜底失效点）', () => {
+  // kinetic-line：可用 786.4px；1.5× 线 = 1179.6px ÷ 54px ≈ 21.8 字
+  it('22 字（1188px，刚过 1.5× 线）→ E-DB-01', () => {
+    const codes = C('typography/kinetic-line@1.0', { text: '甲'.repeat(22) });
+    expect(codes).toContain('E-DB-01');
+    expect(codes).not.toContain('W-DB-01'); // error 档不重复出 warning
+  });
+
+  it('21 字（1134px，1.15–1.5× 区间）→ 仍只 warning', () => {
+    const codes = C('typography/kinetic-line@1.0', { text: '甲'.repeat(21) });
+    expect(codes).toContain('W-DB-01');
+    expect(codes).not.toContain('E-DB-01');
+  });
+
+  it('error 档不阻断的旧断言随分档撤除：溢出报告的 level 由分档决定', () => {
+    const r = runValidation(
+      makeCtx({
+        tracks: [
+          makeTrack('t', 60, [
+            makeItem({ motion: 'typography/kinetic-line@1.0', params: { text: '甲'.repeat(40) } }),
+          ]),
+        ],
+      }),
+    );
+    expect(r.ok).toBe(false); // error 档阻断
+    expect(r.items.find((i) => i.code === 'E-DB-01')?.level).toBe('error');
+  });
+});
+
+describe('#17 · 分档后的阻断语义（D-B3）', () => {
+  it('warning 档（1.15–1.5×）不阻断', () => {
+    // makeItem 默认 footprint 宽 0.3 ⇒ 可用 576−20=556；14 字=756 ⇒ 756/556≈1.36 ∈ (1.15, 1.5)
+    const r = runValidation(
+      makeCtx({
+        tracks: [
+          makeTrack('t', 60, [makeItem({ motion: 'typography/kinetic-line@1.0', params: { text: '甲'.repeat(14) } })]),
+        ],
+      }),
+    );
+    const items = r.items.filter((i) => i.code === 'W-DB-01');
+    expect(items).toHaveLength(1);
+    expect(items[0]?.level).toBe('warning');
+    expect(r.ok).toBe(true); // ⚠️ warning 档不阻断（D-B 裁决，D-B3 保留于中间档）
+  });
+
+  it('error 档（>1.5×）阻断 —— 16 字（LONG_CN）在默认 footprint 下 = 1.55×，几何上已救不回', () => {
     const r = runValidation(
       makeCtx({
         tracks: [
@@ -199,10 +253,8 @@ describe('#17 · warning 不阻断 + 编入清单', () => {
         ],
       }),
     );
-    const items = r.items.filter((i) => i.code === 'W-DB-01');
-    expect(items).toHaveLength(1);
-    expect(items[0]?.level).toBe('warning');
-    expect(r.ok).toBe(true); // 🔴 不阻断 —— D-B 裁决的核心
+    expect(r.items.find((i) => i.code === 'E-DB-01')?.level).toBe('error');
+    expect(r.ok).toBe(false);
   });
 
   it('第 17 项已编入 DOCUMENTED_CHECK_ITEMS', () => {

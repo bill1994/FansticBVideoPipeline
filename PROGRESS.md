@@ -24,7 +24,7 @@ motion-graphic overlay。**2026-10-18：首次用真素材（kukini 1080p60 / 66
 
 **2026-10-24 补充**：模板补齐 **11/11**（`pointer-callout` / `whip-pan` 落地，真渲抽帧确认），
 D-B2 文本度量实测表落地（见 §3.1.5）。
-距「可直接发布」还差：占位值校准（**11 项**）、长文本溢出从 warning 升 error（D-B2 已补证据）。
+距「可直接发布」还差：占位值校准（**11 项**）。（长文本溢出已随 D-B3 分档收口：>1.5× 升 error。）
 
 ---
 
@@ -57,9 +57,9 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
 - **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**757 项全过**（45 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步，C2-5b +1）。按文件：
+- **单测**：**762 项全过**（45 个测试文件，2026-10-24 复核；P1-a 带入 review 14 项 + 契约断言同步，C2-5b +1，D-B3 +5）。按文件：
   fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
-  template-render 36 / carrier-window 30 / caption 28 / text-overflow 28 / text-align 26 / srt 22 / bake 22 /
+  template-render 36 / carrier-window 30 / caption 28 / text-overflow 33 / text-align 26 / srt 22 / bake 22 /
   zh-normalize 21 / validate 42 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
   split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
   carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
@@ -401,8 +401,8 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 - **渲染期**：`fitScaleFor` 按契约 `textMetrics` 等比缩小（下限 0.7），保证不出画面。
 - **D-B2 更正**：旧「16 字 `tag-float` 撑破 / 9 位 `stat-card` 溢出画面」在声明 footprint 下
   不可复现（427px < 576px、315px < 614px），以实测表为准。
-- **剩余**：#17 仍为 warning 不阻断，「升 error」需另立裁决；
-  模型起草仍应遵守 SKILL.md 字数建议（纪律 + 渲染兜底，不是强制阻断）。
+- **D-B3 分档（2026-10-24）**：>1.5× 升 **error `E-DB-01` 阻断**（fitScale 兜底失效点
+  1/0.7≈1.43× 之外，几何必然）；1.15–1.5× 维持 warning。模型起草仍应遵守 SKILL.md 字数建议。
 
 ### 7. ⚠️ 零消费者导出 13 个（2026-10-18 审计）
 
@@ -500,8 +500,8 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 
 ```
 校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
-错误码      27 条（E-*/W-*，+W-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        757 项全过（45 个测试文件）  ← 449 → … → 731 → 756（P1-a：review.test +14，confirmed/stage-order/align-gate 等契约断言同步） → 757（C2-5b +1）
+错误码      28 条（E-*/W-*，+W-DB-01 / +E-DB-01）  ← src/core/errors.ts#ALL_CODES.length
+单测        762 项全过（45 个测试文件）  ← 449 → … → 731 → 756（P1-a：review.test +14，confirmed/stage-order/align-gate 等契约断言同步） → 757（C2-5b +1） → 762（D-B3 +5）
 测试文件    45 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
@@ -528,7 +528,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 757 项全过（45 文件）· placeholders --check OK
+工程健康    typecheck exit 0 · 762 项全过（45 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

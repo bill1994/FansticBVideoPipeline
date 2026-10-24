@@ -179,6 +179,21 @@ export const CODES = {
    */
   TEXT_OVERFLOW: W('W-DB-01', 'text-overflow-footprint', 'D-B', 17, '文本估算宽超出 footprint'),
 
+  /**
+   * `E-DB-01` —— 文本溢出**分档升 error**（D-B3，2026-10-24）。
+   *
+   * 判据与 `W-DB-01` 同源（`validate/text-metrics.ts`），但只在
+   * **估算宽 > 可用宽 × 1.5** 时触发。分档线的物理依据：
+   * 渲染期 `fitScale` 的 `minScale = 0.7`（contract.tsx）最多缩到 0.7×，
+   * 只能救回 est/available ≤ 1/0.7 ≈ 1.43× 的溢出 —— **1.5× 落在兜底
+   * 失效点之外**，且任何字体度量误差（±10% 级）都翻不了案。
+   * 该档位阻断的不是「审美断言」，是几何必然。
+   *
+   * 1.15–1.5× 区间仍走 `W-DB-01`（估算在余量线附近会误报，D-B2 实测证明）。
+   * D-B2 实测案例（tag-float 16 字 / stat-card 9 位）远在线下，不产 error。
+   */
+  TEXT_OVERFLOW_SEVERE: E('E-DB-01', 'text-overflow-footprint', 'D-B', 17, '文本估算宽严重超出 footprint（fitScale 无法挽救）'),
+
   // ── 兜底告警 ─────────────────────────────────────────────────
   /**
    * shot 主体未确。来源 SPEC §5.5 / F6：感知标了 `lowConfidence` 时出此告警，

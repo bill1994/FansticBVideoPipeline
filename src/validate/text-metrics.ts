@@ -19,17 +19,13 @@
  * 超宽 ⟺ 估算宽 > 可用宽 × (1 + slackRatio)
  * ```
  *
- * ── 三个已定参数（D-B 裁决，必须一起定）────────────────────────
+ * ── 已定参数（D-B 裁决 + D-B3 分档，必须一起定）──────────────────
  * | 参数 | 值 | 依据 |
  * |---|---|---|
- * | `charWidthEm` | CJK 1.0 / 拉丁数字 0.5 / 空格 0.3 | 全角≈1em；实测「14 字 ≈ 806px 框」反推 54×14=756 加 padding吻合 |
+ * | `charWidthEm` | CJK 1.0 / 拉丁数字 0.5 / 空格 0.3 | 全角≈1em；D-B2 实测（2026-10-24）：CJK 全 1.000em，数字 0.615–0.667em（分字段回填 `latinWidthEm`） |
  * | `slackRatio` | **0.15** | 字体实际度量可能略宽于估算，留档防误伤 |
- * | 报错档| **warning（不阻断）** | 同 `DENSITY.maxItemsPerCue` 教训：未校准判定当error 用会伤害真实用户 |
- *
- * 🔴 **为何warning 而非 error**：这是**估算**判定，不是精确度量。
- *    若当error 用，估算误差会直接阻断合法创作 —— 那就是
- *    计划书风险 R6「审美断言设计过度 ⇒ 误伤」的具体化。
- *    实测校准后可升error。
+ * | warning 档 | est > available × 1.15 → `W-DB-01` 不阻断 | 估算在余量线附近会误伤合法创作（同 `DENSITY` 教训） |
+ * | error 档 | est > available × **1.5** → `E-DB-01` 阻断 | **D-B3（2026-10-24）**：fitScale 兜底失效点（1/0.7≈1.43×）之外，几何必然 |
  *
  * ── 单一真源纪律 ────────────────────────────────────────────────
  * 字号与内边距**必须**读 `TemplateDeclaration.textMetrics`，
@@ -69,6 +65,16 @@ const EM = {
   /** 空格。 */
   space: 0.3,
 } as const;
+
+/**
+ * D-B3 分档线（2026-10-24）：估算宽 > 可用宽 × 此值 → `E-DB-01` 阻断。
+ *
+ * 物理依据：渲染期 `fitScale` 的 `minScale = 0.7`（`remotion/templates/contract.tsx`）
+ * 最多缩到 0.7×，只能救回 est/available ≤ 1/0.7 ≈ 1.43× 的溢出 ——
+ * **1.5× 落在兜底失效点之外**，任何字体度量误差都翻不了案。
+ * 1.15–1.5× 区间维持 `W-DB-01` warning（估算在余量线附近会误报，D-B2 实测证明）。
+ */
+export const OVERFLOW_SEVERE_RATIO = 1.5;
 
 /**
  * 逐字累加宽度估算。
@@ -140,6 +146,9 @@ function checkOne(s: SceneItem, canvasWidth: number): ReportItem[] {
   const [, , fw] = s.item.footprint;
   const available = fw * canvasWidth - (metrics.paddingPx ?? 0);
   const limit = available * (1 + slack);
+  // D-B3 分档线：>1.5× 升 error。依据：fitScale 的 minScale=0.7 最多救回
+  // 1/0.7≈1.43×，1.5× 已在兜底失效点之外（见 CODES.TEXT_OVERFLOW_SEVERE 注释）。
+  const severeLimit = available * OVERFLOW_SEVERE_RATIO;
 
   for (const key of widthKeysOf(s)) {
     const raw = s.item.params?.[key];
@@ -147,13 +156,13 @@ function checkOne(s: SceneItem, canvasWidth: number): ReportItem[] {
     const est = estimateTextWidthPx(raw, metrics);
     if (est <= limit) continue;
 
-    // ⚠️ 报告只**告知不阻断**（见文件头）。给出可操作的换算：
-    // 在同字号下最多能放几个字 —— 比只说"超了"有用得多。
+    // ⚠️ 报告给出可操作的换算：在同字号下最多能放几个字 —— 比只说"超了"有用得多。
     const perChar = metrics.fontSizePx * (metrics.charWidthEm ?? EM.cjk);
     const maxChars = perChar > 0 ? Math.floor(available / perChar) : 0;
+    const severe = est > severeLimit;
     out.push(
       mk(
-        CODES.TEXT_OVERFLOW,
+        severe ? CODES.TEXT_OVERFLOW_SEVERE : CODES.TEXT_OVERFLOW,
         'build',
         [s.ref],
         [s.start, s.end],
@@ -163,7 +172,9 @@ function checkOne(s: SceneItem, canvasWidth: number): ReportItem[] {
         `模板 ${s.tpl.id} 字号 ${metrics.fontSizePx}px、可用宽约 ${Math.round(available)}px`
           + ` ⇒ 同字号下最多约${maxChars} 字，当前 ${raw.length} 字。`
           + `缩短文案、缩小 footprint，或改小该模板字号（改字号须同步改 builtin.ts 的 textMetrics）。`
-          + `\n⚠️ 此条为**估算**判定（未做字体度量），不阻断；确认误报可忽略。`,
+          + (severe
+            ? `\n⚠️ 已超可用宽 ${Math.round((est / available - 1) * 100)}%：渲染期 fitScale 最多缩至 0.7×，**无法挽救**，本次已阻断。`
+            : `\n⚠️ 此条为**估算**判定（未做字体度量），不阻断；确认误报可忽略。`),
       ),
     );
   }
