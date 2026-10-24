@@ -317,7 +317,11 @@ export const PLACEHOLDERS: readonly PlaceholderParam[] = [
     members: [{ label: 'REWEIGH_COVERAGE_MIN', read: () => REWEIGH_COVERAGE_MIN }],
     basis:
       '**继承自 `highlightWords` 的原值 0.8，不是本项目验证过的结论** —— ' +
-      '它随显示层实现被搬进产物层，来源已不可考。' +
+      '它随显示层实现被搬进产物层。' +
+      '🔴 **考古已结案（2026-10-24）**：git pickaxe 追至首现 commit `60b22d9`' +
+      '（2026-10-18 显示层 `highlightWords`），**该值自始至终无数值推导** —— ' +
+      'commit 与 changelog 只把当日 kukini 分布（8/48 条 <0.8）当「有效果」的佐证，' +
+      '不是定线依据；且与同为占位值的 `ALIGN_GATE.alignedRatioMin=0.8` 同数值，疑似同值呼应。' +
       'kukini 修复后实测分布：最小 0.714 / 25%位 0.857 / 中位 0.900 / 最大 1.000。' +
       '阈值 0.8 恰好把 7 条「首词比 SRT 窗口早约 10 帧」的边缘 cue 判为需重铺，' +
       '而它们的词时**本是对的**（人说话起止略宽于字幕标注，非错位）。',
