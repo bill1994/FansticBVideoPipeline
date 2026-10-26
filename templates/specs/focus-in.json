@@ -5,6 +5,13 @@
   "footprint": [0.12, 0.66, 0.76, 0.16],
   "minVisibleInFrames": 24,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "从轻微失焦 + 放大状态收束到清晰落位。",
+    "fits": ["重要信息落定","需要「聚焦」感的一句话"],
+    "energy": "mid",
+    "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"失焦模糊度写死在 spec，调大容易糊成一片" }],
+    "pitfalls": ["失焦靠 filter blur：帧间差异大，逐帧 diff 类测试要按「允许非零」处理","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "镜头合焦：文字从失焦(blur 8px)+1.15 倍，12 帧内聚焦清晰并缩到 1.0 倍。blur 与 scale 同时收敛才像对焦，只做一个会像'淡入'或'放大'。",
   "elements": [
     {

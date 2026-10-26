@@ -5,6 +5,13 @@
   "footprint": [0.12, 0.6, 0.76, 0.2],
   "minVisibleInFrames": 30,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "多层卡片依次落下堆叠，最后露出主文本。",
+    "fits": ["多条信息罗列","卡片式排版"],
+    "energy": "mid",
+    "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"卡片层数与 stagger 都写死在 spec，改层数要重算" }],
+    "pitfalls": ["多层错峰动画总时长随层数增长：短 cue 会截在堆叠中途","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "卡底 + 文字：panel 必须排在 text 之前（后置会盖住文字）；panel 用 inset:0 占满 footprint，不能缩成文字宽。stagger 4f 让文字比卡底晚 4 帧出现。",
   "stagger": { "perElement": "4f", "order": "index" },
   "elements": [

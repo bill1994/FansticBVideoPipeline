@@ -5,6 +5,13 @@
   "footprint": [0.15, 0.62, 0.7, 0.18],
   "minVisibleInFrames": 24,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "淡入 + 上移 + 微缩放的绝对帧入场，之后保持到句尾。",
+    "fits": ["句子入场","通用文字出现"],
+    "energy": "low",
+    "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"字号 48px；长句触发 #17 估算溢出" }],
+    "pitfalls": ["入场用绝对帧而非 0→1 比例：比例会让整句 4 秒都在缓慢滑动，长句尤其拖沓","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "入场时长用绝对帧（8f–18f ≈ 0.27–0.6s），不用 0→1 比例：比例会让整句 4 秒都在缓慢滑动，长句尤其拖沓。绝对帧保证入场快速完成、之后保持到句尾；上界受 minVisibleInFrames 约束，避免短 cue 把动画截断在中途。",
   "elements": [
     {

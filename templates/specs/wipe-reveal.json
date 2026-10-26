@@ -5,6 +5,13 @@
   "footprint": [0.12, 0.5, 0.76, 0.22],
   "minVisibleInFrames": 28,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "一条擦除边界扫过画面，带出完整文字。",
+    "fits": ["转场式揭示","段落切换"],
+    "energy": "mid-high",
+    "params": [{ "key":"main","typical":"≤10 字（建议）","feel":"擦除速度写死，边界扫过整幅画面" }],
+    "pitfalls": ["擦除边界必须扫完整个 footprint，否则文字露不全","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "自上而下揭幕：起始只保留顶部一条细线（bottom 裁掉 100%），16 帧内展开到完整高度。缓动用 inOut 而非 expoOut —— expoOut 在 p=0.47 时已走完 96%，16 帧的揭幕会变成「瞬间出现」，看不出展开过程。文字本身不位移——位移会让人以为是'滑入'而不是'揭开'。",
   "elements": [
     {

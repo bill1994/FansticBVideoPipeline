@@ -10,6 +10,13 @@
   ],
   "minVisibleInFrames": 32,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "中文逐字显现，像被逐键敲出来。",
+    "fits": ["关键词逐字强调","模拟敲字节奏"],
+    "energy": "mid",
+    "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"逐字节奏与字数线性相关，字越多总时长越长" }],
+    "pitfalls": ["逐字动画时长随字数线性增长：与 cue 时长不匹配时最后一字会压到句尾","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "中文逐字累计揭示：第 i 个字从 i×2 帧起出现并保持，没有逐字淡入淡出。maxUnits=13 是作者声明的字数上界，(13-1)×2+6=30 ≤ minVisible 32；渲染期还会按 (duration-holdFrames)/(n-1) 自动压缩 perUnit 兜底。",
   "elements": [
     {

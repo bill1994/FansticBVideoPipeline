@@ -5,6 +5,13 @@
   "footprint": [0.14, 0.62, 0.72, 0.16],
   "minVisibleInFrames": 24,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "文字下方一条横线从左向右描出。",
+    "fits": ["标题下划线","强调句尾落点"],
+    "energy": "low",
+    "params": [{ "key":"main","typical":"≤10 字（建议）","feel":"横线长度跟随文本宽度" }],
+    "pitfalls": ["描出方向固定从左到右：与阅读方向相反时会显得别扭","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "文字 + 下划线：rule 主轴 100%、at:100 贴底（线绘制在该位置内侧，完全在框内），4px 厚。",
   "elements": [
     {

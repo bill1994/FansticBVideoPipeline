@@ -5,6 +5,13 @@
   "footprint": [0.15, 0.62, 0.7, 0.14],
   "minVisibleInFrames": 24,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "在文字旁生成一条强调色条，先出条后出字。",
+    "fits": ["强调单句","需要色块锚定视觉重心"],
+    "energy": "mid",
+    "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"色条宽度随文本走" }],
+    "pitfalls": ["色条与文字是错峰动画：改色条节奏会连带改变文字出场时点","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "左侧强调竖条 + 文字：bar 沿边 100% 高、6px 厚；bar 先声明（在 text 下面），文字压在其右侧（靠 padding 让位）。",
   "elements": [
     {

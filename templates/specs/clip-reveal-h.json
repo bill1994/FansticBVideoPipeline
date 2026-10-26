@@ -5,6 +5,13 @@
   "footprint": [0.1, 0.58, 0.8, 0.2],
   "minVisibleInFrames": 28,
   "occludesSubject": false,
+  "_doc": {
+    "summary": "用横向裁切窗把文字从左到右揭示出来。",
+    "fits": ["方向性揭示","配合从左到右的阅读方向"],
+    "energy": "mid",
+    "params": [{ "key":"main","typical":"≤10 字（建议）","feel":"裁切窗宽度随文本走" }],
+    "pitfalls": ["裁切是硬边：字与窗边界相切时有轻微锯齿感","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
+  },
   "_note": "横向裁切揭示：clip 从右往左收，文字像被一条竖线扫开。⚠️ 这**不是**逐字打字机——裁切边界会从字符中间扫过，边缘出现半个字（实测「逐」字被竖直切开）。真逐字需要每个字一个独立图元 + stagger 错峰，当前「一个 spec 一个 text 图元」的结构表达不了。取名 clip-reveal-h 而非 typewriter，就是为了不误导后来者。",
   "elements": [
     {
