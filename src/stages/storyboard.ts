@@ -10,6 +10,8 @@
 
 import path from 'node:path';
 import { STAGES } from '../core/config.ts';
+import { computeInputsFingerprint } from '../core/stage-inputs.ts';
+import { loadAligned } from './align.ts';
 import { ConfigError, StageBlockedError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { getTemplate } from '../templates/registry.ts';
@@ -118,6 +120,13 @@ export interface StoryboardOutcome {
   safetyValve: boolean;
 }
 
+/**
+ * 上游输入指纹 —— 实现上提到 `core/stage-inputs.ts`（P0-4，2026-10-26）。
+ *
+ * 🔴 为什么不在本文件：`validate/context.ts` 也要算**同一个** hash 来对拍。
+ *   两处各写一份必然漂移，故抽成唯一实现点。
+ */
+
 export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   const base = jobDir(opts.jobId, opts.jobsDir);
   const outDir = stageDir(opts.jobId, STAGES.storyboard, opts.jobsDir);
@@ -183,7 +192,9 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   assertNoCrossStageReference(referencedStages, STAGES.storyboard);
 
   const source = readJson<SourceManifest>(path.join(base, STAGES.input, 'source.json'));
-  const aligned = readJson<AlignWords>(wordsFile);
+  // 用 align 阶段导出的读取口，而不是在这里重写一遍 readJson<AlignWords>：
+  // 后者会漏掉 `cues ?? []` 的兜底（无字幕模式下 cues 缺失），且同一份结构两处解析必然漂移。
+  const aligned = loadAligned(wordsFile);
   // 🔴 E-D4-01 修复（2026-10-21）：内置生成器必须读区域 —— 不读就是画面全盲，
   //    产出的 storyboard 会在 validate 撞 E-D4-01（基线实测，见节奏表基线报告 §4）。
   const regions = readJson<PerceiveRegion[]>(regionsFile);
@@ -249,6 +260,8 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
   assertMotionboardKeys(board, source.fps);
 
   // 绑定器：调度前解析步 —— intent → 模板绑定（钉死条目直通）。
+  // P0-4：先算上游指纹 —— 此刻 motionboard.json 必然已在（要么原本就有，要么上面刚生成）。
+  const fingerprint = computeInputsFingerprint(opts.jobId, opts.jobsDir);
   const { draft, report: bindReport } = bindMotionboard(board, {
     cues: aligned.cues ?? [],
     words: aligned.words,
@@ -260,7 +273,14 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
     self: STAGES.storyboard,
     target: STAGES.storyboard,
     file: 'bind-report.json',
-    data: bindReport,
+    data: {
+      ...bindReport,
+      // P0-4：记录「这次绑定基于哪一版输入」，供事后追责与 validate 对拍
+      inputs: {
+        motionboardHash: fingerprint.motionboardHash,
+        wordsHash: fingerprint.wordsHash,
+      },
+    },
     jobsDir: opts.jobsDir,
   });
   if (bindReport.noFits > 0) {
@@ -376,6 +396,8 @@ export function runStoryboard(opts: StoryboardOptions): StoryboardOutcome {
       alignmentConfidence: alignReport.meanConfidence,
       ...(metaConfirmedBy ? { confirmedBy: metaConfirmedBy } : {}),
       ...(metaConfirmedAt ? { confirmedAt: metaConfirmedAt } : {}),
+      // P0-4：烘焙时刻的上游指纹 —— validate 用它发现「稿子改过但没重跑 storyboard」
+      inputsHash: fingerprint.inputsHash,
     },
     tracks,
     noMotionRanges: storyboard.noMotionRanges,

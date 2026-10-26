@@ -434,6 +434,67 @@ describe('F6 主体未确 W-F6-01（唯一语义为「不阻断」的码）', ()
     expect(r.items.map((i) => i.code)).toContain('W-F6-01');
     expect(r.ok).toBe(true);
   });
+
+  /**
+   * 🔴 2026-10-26 补漏：**检测退让（不产 region）此前完全静默**。
+   *
+   * `region-derive.ts` 的策略是「框不到就退让，不产 region」——
+   * 那种 shot 连 `lowConfidence` 都没机会标，于是原实现一条不报：
+   * 遮挡校验空跑，报告仍是 0 error，且没有任何字段记下「这段没测」。
+   * `geometry.ts` 里 `if (!safeArea) continue` 的注释却写着「归 W-F6-01 的地盘」。
+   *
+   * 这四条用例把「地盘」真正划出来，并锁死两处收窄（不重复报 / 空镜不报）。
+   */
+  describe('覆盖「检测退让」：shot 无任何 region', () => {
+    const overlayTrack = [makeTrack('a', 60, [makeItem({ fromFrame: 100, durationInFrames: 60 })])];
+
+    it('shot 内叠了 overlay 但无任何 region → 报 W-F6-01，且 ok 仍为 true', () => {
+      const r = runValidation(
+        makeCtx({
+          shots: [{ id: 's1', fromFrame: 0, durationInFrames: 300, safeArea: null, lowConfidence: false }],
+          regions: [],
+          tracks: overlayTrack,
+        }),
+      );
+      const hits = r.items.filter((i) => i.code === 'W-F6-01');
+      expect(hits.length).toBe(1);
+      expect(hits[0]?.targets).toContain('s1');
+      expect(hits[0]?.message).toContain('遮挡校验为空跑');
+      expect(r.ok).toBe(true);
+    });
+
+    it('shot 有 region 覆盖 → 不报（正常路径不受影响）', () => {
+      const codes = codesOf({
+        shots: [{ id: 's1', fromFrame: 0, durationInFrames: 300, safeArea: null, lowConfidence: false }],
+        regions: [
+          { id: 'r-face-s1', kind: 'face', shotId: 's1', fromFrame: 0, durationInFrames: 300, box: [0.3, 0.1, 0.2, 0.3] },
+        ],
+        tracks: overlayTrack,
+      });
+      expect(codes).not.toContain('W-F6-01');
+    });
+
+    it('shot 内没有 overlay（纯空镜）→ 不报，不制造噪音', () => {
+      const codes = codesOf({
+        shots: [{ id: 's1', fromFrame: 0, durationInFrames: 300, safeArea: null, lowConfidence: false }],
+        regions: [],
+        // overlay 落在 shot 之外（shot 是 [0,300)，item 是 [400,460)）
+        tracks: [makeTrack('a', 60, [makeItem({ fromFrame: 400, durationInFrames: 60 })])],
+      });
+      expect(codes).not.toContain('W-F6-01');
+    });
+
+    it('已标 lowConfidence 的 shot 不因「无 region」重复报', () => {
+      const r = runValidation(
+        makeCtx({
+          shots: [{ id: 's1', fromFrame: 0, durationInFrames: 300, safeArea: null, lowConfidence: true }],
+          regions: [],
+          tracks: overlayTrack,
+        }),
+      );
+      expect(r.items.filter((i) => i.code === 'W-F6-01').length).toBe(1);
+    });
+  });
 });
 
 describe('禁配段 E-E5-01（SPEC §1.4 / E5）', () => {

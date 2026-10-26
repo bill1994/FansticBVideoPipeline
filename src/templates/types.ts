@@ -66,7 +66,45 @@ export function isMasterSlavePair(a: Scope, b: Scope): boolean {
   return (isCarrierScope(a) && isOverlayScope(b)) || (isOverlayScope(a) && isCarrierScope(b));
 }
 
+/**
+ * 模板成熟度标记。
+ *
+ * 🔴 **如实说明消费面（2026-10-26 核查）**：
+ *   - 唯一代码消费者是 `gallery.ts` 的**画廊展示**（卡片上的「状态」一行）；
+ *   - **调度 / 校验 / 渲染链一律不读它** —— `validate`、`motionboard` 绑定、
+ *     `render` 都不因某模板是 `experimental` 而改变行为；
+ *   - skill 文档（`.workbuddy/skills/*` 与根 `SKILL.md`）也不读它。
+ *
+ * 也就是说：「未验证的模板不得标 core」是一条**人工评审纪律**，不是代码强制。
+ * 改这一点的正确做法是走登记册开一条裁决（例如「引用 experimental 模板时产 warning」），
+ * 而不是在某个调用点偷偷 `if (status === 'experimental')` 埋一个隐形规则。
+ */
 export type TemplateStatus = 'core' | 'experimental' | 'custom';
+
+/**
+ * 模板「配方卡」—— 让人和模型**不用渲染成片**就知道这个模板长什么样、什么时候该用。
+ *
+ * 来源：EAC 对比方案 P0-3（借 Shotcraft 的镜头卡片结构：
+ * 一句话 / 适用 / 时长 / 能量 / 参数表 / 已知坑）。
+ *
+ * 🔴 **纯元数据，不参与任何判定**：不进 footprint 计算、不进 #16/#17 校验、
+ *   也不进签章 hash 的语义部分 —— `canonicalSpecHash` 显式剥离 `_doc`
+ *   （见 `motion-accept.ts`）。它唯一的消费者是 gallery 卡片与 skill 选型说明。
+ *
+ * ⚠️ 键名用英文：整个 spec/declaration 契约都是英文键，中文只出现在**值**里。
+ */
+export interface SpecDoc {
+  /** 一句话：这个模板是干什么的。 */
+  summary: string;
+  /** 适用场景 —— 模型选型时按这个匹配。 */
+  fits: string[];
+  /** 能量档：决定配在强句还是弱句上（`mid-high` = 强调但不抢镜）。 */
+  energy: 'low' | 'mid' | 'mid-high' | 'high';
+  /** 参数手感：键 / 典型值 / 调大调小各会怎样。 */
+  params?: { key: string; typical: string; feel: string }[];
+  /** 已知坑 —— 前人踩过的，避免重复。 */
+  pitfalls?: string[];
+}
 
 /** 模板声明契约。来源：SPEC §3.2。 */
 export interface TemplateDeclaration {
@@ -97,6 +135,13 @@ export interface TemplateDeclaration {
    */
   requiredParams?: string[];
   status: TemplateStatus;
+  /**
+   * 配方卡（P0-3，2026-10-26）。
+   *
+   * 省略 = **尚未撰写**，不是「这个模板没有特点」。内置 11 个逐一写过；
+   * `custom/*` 由 spec 的 `_doc` 经 `deriveDeclaration` 透传而来。
+   */
+  doc?: SpecDoc;
   /** 默认占位矩形；item 可覆盖。 */
   footprint: Footprint;
   /** 该 motion 的最小可见时长。校验项 #6 用。 */

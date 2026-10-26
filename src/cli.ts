@@ -25,6 +25,9 @@ import { runStoryboard } from './stages/storyboard.ts';
 import { runValidateStage } from './stages/validate.ts';
 import { runReview } from './stages/review.ts';
 import { runRender } from './stages/render.ts';
+import { EXEC_ORDER } from './core/config.ts';
+import { markStageFinished, markStageRunning } from './core/pipeline-state.ts';
+import { runCancelCommand, runResumeCommand, runStatusCommand } from './cli-state.ts';
 
 interface Args {
   stage: string;
@@ -100,6 +103,11 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
               （P1-a：must_review 条目须确认后才可 render；hash 防 storyboard 漂移）
   render      C6 双栈映射 + 本地渲染（必须显式 --gl=angle）
 
+状态类命令（P1-2，不参与五阶段调度）：
+  status      打印各阶段状态 / 耗时 / 退出码；顺带把「进程已死但标着 running」修复为 failed
+  cancel      终止正在运行的阶段（按 pid 杀整棵进程树，含 ffmpeg / whisper / chrome）
+  resume      从执行顺序上第一个未完成阶段继续；**停在 render 之前**（那一步须人工看片）
+
 选项：
   --job, -j <id>     job 标识（除 init 外必填）
   --jobs-dir <dir>   job 根目录，默认 jobs
@@ -107,6 +115,9 @@ const USAGE = `Remotion overlay pipeline —— 在实拍视频上叠加 motion-
   --force            忽略不可变快照，强制重跑本阶段
   --dry-run          只做映射与启动闸检查，不真正渲染
   --no-subtitle      align 阶段：声明本片不做字幕对齐（只能用 abs: 锚点）
+
+长任务状态落 jobs/<id>/pipeline-state.json（job 根目录，不进任何阶段快照）。
+cancel 不要求阶段支持 abort —— 它靠 pid + taskkill /T，见 core/pipeline-state.ts 文件头。
 `;
 
 /** 阶段目录清单，供 init 打印。 */
@@ -154,21 +165,30 @@ async function main(): Promise<ExitCode> {
   if (args.stage === 'init') return runInit(args);
 
   if (!args.job) throw new ConfigError(`阶段 ${args.stage} 需要 --job <jobId>`);
+  // 提到闭包外：`dispatchStage` 是箭头函数，TS 的类型收窄在闭包里失效，
+  // 每次用 `args.job` 都要重申一次非空，这里收敛成一个局部常量。
+  const jobId: string = args.job;
 
-  switch (args.stage) {
+  /**
+   * 阶段调度本体 —— 抽成函数只为**统一包状态跟踪**（P1-2，2026-10-26）：
+   * 每个阶段开始时写 `running`、结束时写 `done/failed`，异常路径也能落 `failed`。
+   * 保持原有缩进不动，避免为了对齐产生上百行噪音 diff。
+   */
+  const dispatchStage = async (stage: string): Promise<ExitCode> => {
+  switch (stage) {
     case 'align': {
       // 🔴 `M-1g`：显式声明「本片不做字幕对齐」。产出的是**显式标记的空产物**
       //   （`mode:'no-subtitle'`），不是伪造的测量值 —— 见
       //   `createNoSubtitleAlignReport` 的说明。
       if (args.noSubtitle) {
         runNoSubtitleAlign({
-          jobId: args.job,
+          jobId,
           jobsDir: args.jobsDir,
           force: args.force,
         });
         return EXIT.OK;
       }
-      const outcome = runAlign({ jobId: args.job, jobsDir: args.jobsDir, force: args.force });
+      const outcome = runAlign({ jobId, jobsDir: args.jobsDir, force: args.force });
       const r = outcome.report;
       printBlock(
         [
@@ -195,7 +215,7 @@ async function main(): Promise<ExitCode> {
 
     case 'perceive': {
       const outcome = await runPerceive({
-        jobId: args.job,
+        jobId,
         jobsDir: args.jobsDir,
         force: args.force,
         ...(args.interval !== null ? { frameIntervalSec: args.interval } : {}),
@@ -212,7 +232,7 @@ async function main(): Promise<ExitCode> {
 
     case 'storyboard': {
       const outcome = runStoryboard({
-        jobId: args.job,
+        jobId,
         jobsDir: args.jobsDir,
       });
       if (outcome.safetyValve) {
@@ -223,13 +243,13 @@ async function main(): Promise<ExitCode> {
     }
 
     case 'validate': {
-      const { report } = runValidateStage({ jobId: args.job, jobsDir: args.jobsDir });
+      const { report } = runValidateStage({ jobId, jobsDir: args.jobsDir });
       return report.ok ? EXIT.OK : EXIT.VALIDATION_FAILED;
     }
 
     case 'review': {
       runReview({
-        jobId: args.job,
+        jobId,
         jobsDir: args.jobsDir,
         ...(args.dryRun ? { dryRun: true } : {}),
       });
@@ -237,8 +257,8 @@ async function main(): Promise<ExitCode> {
     }
 
     case 'render': {
-      const outcome = runRender({
-        jobId: args.job,
+      const outcome = await runRender({
+        jobId,
         jobsDir: args.jobsDir,
         ...(args.dryRun ? { dryRun: true } : {}),
       });
@@ -247,8 +267,53 @@ async function main(): Promise<ExitCode> {
     }
 
     default:
-      throw new ConfigError(`未知阶段：${args.stage}\n\n${USAGE}`);
+      throw new ConfigError(`未知阶段：${stage}\n\n${USAGE}`);
   }
+  };
+
+  // ── 状态类命令（不跟踪自身状态，也不属于五阶段）────────────
+  if (args.stage === 'status') return runStatusCommand({ job: args.job, jobsDir: args.jobsDir });
+  if (args.stage === 'cancel') return runCancelCommand({ job: args.job, jobsDir: args.jobsDir });
+  if (args.stage === 'resume') {
+    return await runResumeCommand(
+      { job: args.job, jobsDir: args.jobsDir },
+      // 注入调度函数：resume 不反向依赖 cli，同时复用同一套阶段实现
+      async (s) => runTracked(s),
+    );
+  }
+
+  /** 带状态跟踪地跑一个阶段。 */
+  async function runTracked(stage: string): Promise<ExitCode> {
+    const tracked = (EXEC_ORDER as readonly string[]).includes(stage);
+    if (tracked) markStageRunning(jobId, stage, stage, args.jobsDir);
+    try {
+      const code = await dispatchStage(stage);
+      if (tracked) {
+        markStageFinished(
+          jobId,
+          stage,
+          code === EXIT.OK ? 'done' : 'failed',
+          code,
+          args.jobsDir,
+        );
+      }
+      return code;
+    } catch (e) {
+      if (tracked) {
+        markStageFinished(
+          jobId,
+          stage,
+          'failed',
+          exitCodeFor(e),
+          args.jobsDir,
+          ((e as Error).message ?? String(e)).split('\n')[0]?.slice(0, 200),
+        );
+      }
+      throw e;
+    }
+  }
+
+  return await runTracked(args.stage);
 }
 
 const code = await (async (): Promise<ExitCode> => {

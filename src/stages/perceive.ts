@@ -21,7 +21,6 @@ import { ConfigError } from '../core/exit-code.ts';
 import { exists, jobDir, readJson, stageDir, writeStageJson } from '../core/io.ts';
 import { log } from '../core/log.ts';
 import type { PerceiveRegion, PerceiveResult, RegionKind, Shot, SourceManifest } from '../core/types.ts';
-import { OCCLUSION_BUDGET } from '../core/config.ts';
 import { runBuiltinPerceive } from './builtin-perceive.ts';
 import { detectShotSpans } from './shot-detect.ts';
 
@@ -107,11 +106,6 @@ export function assertPerceiveShape(result: PerceiveResult): void {
       throw new ConfigError(`region ${r.id} 的 box 必须是 [x,y,w,h]`);
     }
   }
-}
-
-/** 预算表快照 —— 供下游报告引用，避免「预算从哪来」说不清。 */
-export function budgetSnapshot(): Record<RegionKind, number> {
-  return { ...OCCLUSION_BUDGET };
 }
 
 export interface PerceiveOutcome {

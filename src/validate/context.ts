@@ -11,6 +11,8 @@ import path from 'node:path';
 import { ConfigError } from '../core/exit-code.ts';
 import { jobDir, readJson, stageDir } from '../core/io.ts';
 import { STAGES } from '../core/config.ts';
+import { targetRef } from '../core/report.ts';
+import { composeInputsHash, fileSha256 } from '../core/stage-inputs.ts';
 import { getTemplate, hasTemplate } from '../templates/registry.ts';
 import type { TemplateDeclaration } from '../templates/types.ts';
 import type {
@@ -111,6 +113,7 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
   }
 
   assertStageOrderIsSane(base);
+  assertInputsUnchanged(base, storyboard);
   assertPacingConsistentIfPresent(base);
 
   const scene: SceneItem[] = [];
@@ -125,7 +128,7 @@ export function buildContext(jobId: string, jobsDir?: string): ValidateContext {
         tpl: getTemplate(item.motion),
         start: item.fromFrame,
         end: item.fromFrame + item.durationInFrames,
-        ref: `${track.id}/${String(itemIndex).padStart(3, '0')}`,
+        ref: targetRef(track.id, itemIndex),
       });
     });
   });
@@ -249,6 +252,43 @@ function assertPacingConsistentIfPresent(base: string): void {
  *   更稳的做法是在烘焙时把上游 hash 写进 `storyboard.meta` 再比对——
  *   已登记为待办（见 PROGRESS.md 待办），本函数是成本低、可立即落地的版本。
  */
+/**
+ * 输入指纹守卫（P0-4，2026-10-26）。
+ *
+ * 比对 `storyboard.meta.inputsHash` 与**当前** motionboard / words 算出的合成值。
+ * 不一致 ⇒ 稿子或对齐产物在烘焙之后被改过，而 storyboard 没有重跑 ——
+ * 此时校验的是**旧绑定**：报告全绿，但成片与稿子对不上。
+ *
+ * 与 mTime 版 `assertStageOrderIsSane` 的分工：
+ *  · mTime 版管「阶段先后顺序」，但会被 `cp` / 解压 / `git checkout` 改写时间戳（假阳性、假阴性都有）；
+ *  · 本守卫管「输入内容是否变过」，与时间戳无关，是更硬的判据。
+ *  两者**并存**：mTime 版挡住「下游比上游旧」的粗情形，本守卫挡住「输入变了」的真情形。
+ *
+ * 三条跳过条件（都不报错，避免误伤）：
+ *  ① 旧产物没有 `inputsHash`（P0-4 之前烘焙的 job）；
+ *  ② 任一输入文件已不存在 —— 缺产物由 `readJson` 的「缺少前置产物」负责，本守卫不越权；
+ *  ③ 指纹比对相同 —— 正常路径。
+ */
+function assertInputsUnchanged(base: string, storyboard: Storyboard): void {
+  const expected = storyboard.meta.inputsHash;
+  if (expected === undefined) return;
+
+  const mbFile = path.join(base, STAGES.storyboard, 'motionboard.json');
+  const wordsFile = path.join(base, STAGES.align, 'words.json');
+  if (!fs.existsSync(mbFile) || !fs.existsSync(wordsFile)) return;
+
+  const actual = composeInputsHash(fileSha256(mbFile), fileSha256(wordsFile));
+  if (actual === expected) return;
+
+  throw new ConfigError(
+    `storyboard 与当前输入不一致：烘焙之后 motionboard / 对齐产物被改过，但没有重跑 storyboard。\n` +
+      `  storyboard.meta.inputsHash = ${expected.slice(0, 12)}…\n` +
+      `  当前输入合成的指纹     = ${actual.slice(0, 12)}…\n` +
+      `  继续校验只会验证**旧绑定** —— 报告能通过，但成片与稿子对不上。\n` +
+      `  ↳ 重跑：npm run pipeline -- storyboard --job <id>（会重新绑定并烘焙）`,
+  );
+}
+
 function assertStageOrderIsSane(base: string): void {
   /** 上游产物 → 下游产物。任一存在时序倒挂即报错。 */
   const pairs: { upstream: string; downstream: string; stage: string }[] = [

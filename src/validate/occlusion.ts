@@ -497,6 +497,45 @@ export function checkSubjectUnknown(ctx: ValidateContext): ReportItem[] {
       ),
     );
   }
+
+  // 🔴 2026-10-26 补漏：**shot 没有任何 region** 此前完全静默。
+  //
+  //   `geometry.ts` 的 `if (!safeArea) continue` 处写着「主体不在场 ⇒ 不判
+  //   （归 W-F6-01 的地盘）」，但那个地盘原先只认两件事：`shot.lowConfidence`
+  //   与 `region.lowConfidence`。而 `region-derive.ts` 的策略恰恰是
+  //   「框不到就**退让（不产 region）**」—— 连 region 都没有，哪来的 lowConfidence 可标？
+  //   ⇒ 该 shot 的遮挡校验空跑，报告照样 `0 error`，且**没有任何字段记下「这段没测」**。
+  //   与 M-1f 修的「对齐结构盲区」（alignedRatio=1.0 却词落进真静音）同源：
+  //   指标只衡量「测到的部分」，测不到的部分没人记账。
+  //
+  //   两处收窄，避免噪音：
+  //   ① 已在 `lowConfidence` 段报过的不重复报；
+  //   ② 只报**该 shot 内确实叠了 overlay** 的 —— 没配动效就不存在遮挡问题，
+  //      纯空镜不该被要求人工确认主体。
+  for (const shot of ctx.perceive.shots) {
+    if (shot.lowConfidence) continue;
+    const shotEnd = shot.fromFrame + shot.durationInFrames;
+    const covered = ctx.perceive.regions.some(
+      (r) => r.fromFrame < shotEnd && shot.fromFrame < r.fromFrame + r.durationInFrames,
+    );
+    if (covered) continue;
+    const hasOverlay = ctx.scene.some(
+      (s) => isOverlayScope(s.tpl.scope) && s.start < shotEnd && shot.fromFrame < s.end,
+    );
+    if (!hasOverlay) continue;
+    out.push(
+      mk(
+        CODES.SUBJECT_UNKNOWN,
+        'build',
+        [shot.id],
+        [shot.fromFrame, shotEnd],
+        `shot ${shot.id} 没有任何主体区域（检测退让），该段的遮挡校验为空跑`,
+        '不阻断。若该镜头确实无人/无主物，可忽略；否则人工在 02-perceive/shots.json ' +
+          '补 subjectBox（或 regions.json 补 box）后重跑 storyboard。',
+      ),
+    );
+  }
+
   return out;
 }
 

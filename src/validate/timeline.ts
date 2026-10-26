@@ -3,7 +3,7 @@
  */
 
 import { CODES } from '../core/errors.ts';
-import type { ReportItem } from '../core/report.ts';
+import { targetRef, type ReportItem } from '../core/report.ts';
 import { DENSITY, HANDOFF_GAP_SECONDS } from '../core/config.ts';
 import type { Cue } from '../core/types.ts';
 import type { ValidateContext } from './context.ts';
@@ -40,7 +40,7 @@ export function checkTiming(ctx: ValidateContext): ReportItem[] {
 
     if (r.fromFrame >= lowerBound && r.fromFrame <= r.wordEndFrame) continue;
 
-    const ref = `${r.trackId}/${String(r.itemIndex).padStart(3, '0')}`;
+    const ref = targetRef(r.trackId, r.itemIndex);
     const tooEarly = r.fromFrame < lowerBound;
     const boundDesc = cue
       ? `锚定词所在 cue#${cue.index} 的起点`

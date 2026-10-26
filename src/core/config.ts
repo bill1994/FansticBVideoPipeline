@@ -30,6 +30,30 @@ export const STAGE_ORDER = [
 export const DEFAULT_JOBS_DIR = 'jobs';
 
 /**
+ * **执行顺序**（短名）—— 与 `STAGE_ORDER`（目录编号序、目录名）不是同一个东西。
+ *
+ * 🔴 为什么要分开（P1-2，2026-10-26）：
+ *   `STAGE_ORDER` 是**目录层级**（`05-render` 排在 `06-review` 前），它服务的是
+ *   `assertNotWritingUpstream`（下游不得回写上游）；
+ *   而实际执行里 **`review`（看片闸）必须先于 `render`** —— 没人工看片就不许出片（P1-a）。
+ *   两个顺序混用会让 `resume` 产出「先渲后审」的错序，闸门形同虚设。
+ *
+ * ⚠️ **用短名而非目录名**：CLI 的 `<stage>` 参数就是短名（`align` / `render`），
+ *   `pipeline-state.json` 的键也用短名（人读友好）。短名与 `STAGES` 的键一一对应，
+ *   **新增阶段时两处都要改** —— 这是一处需要人工保持的对应关系，故写在此处显式提醒。
+ */
+export const EXEC_ORDER = [
+  'align',
+  'perceive',
+  'storyboard',
+  'validate',
+  'review',
+  'render',
+] as const;
+
+export type ExecStage = (typeof EXEC_ORDER)[number];
+
+/**
  * C2-2 强制对齐置信度门控阈值。
  *
  * 来源：登记册 C2-2「均值 < 0.60 或低置信词占比 > 30% → 阻断」。

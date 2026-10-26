@@ -94,7 +94,19 @@ const LINT_BANNED: readonly string[] = ['Date.now', 'Math.random', 'useFrame', '
  * 供 spec-loader 验签复用（AC-7）：`acceptance.specHash === canonicalSpecHash(spec)`。
  */
 export function canonicalSpecHash(spec: MotionSpec): string {
-  const { acceptance: _stripped, ...canonical } = spec as unknown as Record<string, unknown>;
+  // 🔴 剥离 `acceptance`（签章本体）与 `_doc`（配方卡，2026-10-26）。
+  //
+  //   为什么必须剥离 `_doc`：给它加内容会改变 specHash，而 `custom/*` 入库文件
+  //   验签严格对拍 ⇒ 「给已入库的 template 补一段配方卡」会直接把它变成
+  //   「签章与文件内容不符」而拒装载。文档字段不该影响「可渲染语义是否通过验收」。
+  //
+  //   ⚠️ **`_note` 刻意不剥离** —— 它与 `_doc` 虽然都是文档字段，但既有测试
+  //   （`spec-loader.test.ts` 用例 ②）正是用「手改 `_note`」来模拟文件被篡改，
+  //   即「`_note` 参与 hash」是当前已生效的语义。改它会同时改变三条既有测试的
+  //   判定，属于行为变更而非本次 P0-3 的范围。若要统一（两个都剥离），
+  //   须同批更新那几条测试并走一次显式裁决。
+  const { acceptance: _stripped, _doc: _docStripped, ...canonical } =
+    spec as unknown as Record<string, unknown>;
   return createHash('sha256').update(JSON.stringify(canonical, null, 2), 'utf8').digest('hex');
 }
 

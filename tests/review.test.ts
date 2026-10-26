@@ -119,9 +119,9 @@ const previewFile = () => path.join(root, JOB, '06-review', 'preview-props.json'
 const renderPropsFile = () => path.join(root, JOB, '05-render', 'render-props.json');
 
 describe('writePreviewProps —— 同源映射与确定性（AC-1）', () => {
-  it('🔴 preview-props 除 storyboardHash 外与 render-props 完全同源（同一 composeRenderProps）', () => {
+  it('🔴 preview-props 除 storyboardHash 外与 render-props 完全同源（同一 composeRenderProps）', async () => {
     makeJob();
-    runRender({ jobId: JOB, jobsDir: root, dryRun: true });
+    await runRender({ jobId: JOB, jobsDir: root, dryRun: true });
     const out = writePreviewProps({ jobId: JOB, jobsDir: root });
 
     const renderProps = JSON.parse(fs.readFileSync(renderPropsFile(), 'utf8'));

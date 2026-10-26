@@ -11,7 +11,7 @@
 ```bash
 npm install
 npm run typecheck      # 应零错误
-npm test               # 应 731 项全过（44 文件）
+npm test               # 应 845 项全过（56 文件）
 
 # 无需真实素材的端到端 demo
 npm run pipeline -- storyboard --job demo --jobs-dir examples
@@ -19,8 +19,9 @@ npm run pipeline -- validate   --job demo --jobs-dir examples
 npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 
-⚠️ **`align` / `perceive` 未配置外部模型时直接退出码 2**，这是**设计**不是缺陷。
-详见 §4「三条不可违背的红线」。
+✅ **`align` / `perceive` 都有内置后端（whisper.cpp / YuNet），不配外部命令也能跑**；
+外部 `ALIGNER_CMD` / `PERCEIVER_CMD` 只是可选覆盖。内置后端缺依赖（whisper 二进制/模型、
+ONNX 模型）时**显式报错**，绝不伪造结果。详见 §4「三条不可违背的红线」。
 
 ---
 
@@ -29,7 +30,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 ```
 00-input → 01-align → 02-perceive → 03-storyboard → 04-validate → 05-render
                             ↑                            ↓
-                      ⚠️ 需外部感知器            纯 JSON→JSON，18 项
+                      ✅ 有内置后端            纯 JSON→JSON，18 项
 ```
 
 **核心心智模型：帧是真相。**
@@ -41,7 +42,7 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 | `src/core/` | 类型契约、调度、烘焙、IO | `bake.ts`（锚点→帧）、`types.ts` |
 | `src/validate/` | **18 项**构建期校验（纯函数） | `geometry.ts`（#18 载体可见比，P4 最新） |
 | `src/templates/` | 11 个模板的**声明**（非实现） | `builtin.ts` |
-| `src/remotion/` | 渲染层 | `templates/`（**9 个真实实现**）、`tokens.ts`、`carrier.tsx`（背景链分段包裹）、`core/carrier-window.ts`（载体窗口几何真源） |
+| `src/remotion/` | 渲染层 | `templates/`（**11 个真实实现**）、`tokens.ts`、`carrier.tsx`（背景链分段包裹）、`core/carrier-window.ts`（载体窗口几何真源） |
 | `.workbuddy/skills/` | 五阶段执行期行为契约 | `perceive/SKILL.md` 等 |
 
 ---
@@ -88,8 +89,9 @@ npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
 子组件只收 `frame` prop。
 禁 `Date.now()` / `Math.random()` / CSS animation / transition。
 
-### ② 未配置外部模型时直接报错，绝不伪造结果
-`align` / `perceive` 没配置就退出码 2。
+### ② 测量失败就显式报错，绝不伪造结果
+`align` / `perceive` 的**内置后端**（whisper.cpp / YuNet）缺依赖时显式失败；
+外部命令不可用也走显式失败。**不配外部命令 ≠ 失败**（内置后端会接管）。
 **一条静默产出的错误 storyboard，比一次显式失败危险得多。**
 
 ### ③ 增补校验项**须先改登记册**

@@ -40,7 +40,7 @@ VideoPipeline 的壁垒在“测量”：SRT 文本权威、whisper 时间推导
 - 10 个模板声明完整，其中 5 个 `overlay-safe` 模板已有真实 Remotion 组件，另外 5 个进入显眼占位块，见 [src/templates/builtin.ts](../../src/templates/builtin.ts) 与 [src/remotion/templates/index.tsx](../../src/remotion/templates/index.tsx)。
 - 内置 whisper 路径仍默认写死 `G:/VideoPipeline/whisper.cpp`，见 [src/stages/builtin-align.ts](../../src/stages/builtin-align.ts)。
 - `CARRIER_FALLBACK` 为空，tier2 只返回“尚未实现”的状态，不改写 motion 或 footprint，见 [src/core/config.ts](../../src/core/config.ts) 与 [src/validate/occlusion.ts](../../src/validate/occlusion.ts)。
-- README 推荐的 demo 重跑路径目前会被 draft 中两处已禁止的 `highlightColor` 拦住；该参数不在 `karaoke-word` 的 `paramsSchema` 内，见 [examples/demo/03-storyboard/draft.json](../../examples/demo/03-storyboard/draft.json)。
+- README 推荐的 demo 重跑路径目前会被 draft 中两处已禁止的 `highlightColor` 拦住；该参数不在 `karaoke-word` 的 `paramsSchema` 内，见 [examples/demo/03-storyboard/motionboard.json](../../examples/demo/03-storyboard/motionboard.json)。
 - 项目没有根 `SKILL.md`、`.env.example`、`SETUP.md`、`doctor` 命令、ESLint 配置和 GitHub Actions 工作流。
 
 ### 2.2 对标仓库核验

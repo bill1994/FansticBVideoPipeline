@@ -59,6 +59,21 @@ motionboard 分布的判据。因此你（模型）应当**按语义判读每条
 （19 个已实现模板各 3 帧 + scope / footprint / 参数 / 标签）。选 intent 或钉死模板前
 先看画廊，不要凭 id 猜形态；未实现的模板在画廊里明确标注，不要选。
 
+🔴 **先读配方卡，再选型**（P0-3，2026-10-26）。每个模板在画廊卡片与
+`out/template-gallery/catalog.json` 的 `doc` 字段里都有一张配方卡：
+
+| 字段 | 怎么用 |
+|---|---|
+| `summary` | 一句话确认它是不是你要的效果 |
+| `fits` | **按这个选 intent** —— 与你的句子语义对不上就别用 |
+| `energy` | `low` 配陈述句、`mid-high`/`high` 配需要抢注意力的强句；同一 cue 不要叠两个 `high` |
+| `params` | 参数的典型值与手感（调大会怎样），填 `params` 前先看 |
+| `pitfalls` | **已知坑** —— 前人踩过的，选之前扫一眼，尤其是溢出字数与进出场限制 |
+
+选型顺序固定：**`fits` 命中 → `energy` 匹配句子强度 → 查 `pitfalls` → 才写条目**。
+不要跳过配方卡凭 id 猜；`doc` 为 `null` 的模板说明**尚未撰写配方卡**（不是没有特点），
+此时退回看画廊三帧。
+
 **纪律**：intent 与 motion 二选一；featuredText 必须是提炼短语；`note` 不进任何判定；
 禁写坐标/帧数/颜色/CSS。绑定失败（候选全不满足时长门控）会在 `bind-report.json`
 记 no-fits 并告警 —— 看到后换 intent 或删条目，不要硬塞。
@@ -158,7 +173,7 @@ Spec 附录 A 第 1 条硬约束明文「禁写坐标 / 帧数 / **颜色** / CS
 
 **不做隐式转换** —— `"1.08"` ≠ `1.08`。校验器不替模型做决策。
 
-> 完整判定口径见 [`.workbuddy/skills/validate/SKILL.md`](validate/SKILL.md) 与 Spec §2.11。
+> 完整判定口径见 [`.workbuddy/skills/validate/SKILL.md`](../validate/SKILL.md) 与 Spec §2.11。
 
 ## 铁律 2：写锚点，不手算帧
 

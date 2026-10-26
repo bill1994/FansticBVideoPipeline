@@ -1,8 +1,8 @@
 # 项目进度 — Remotion 视频动效叠加管线
 
-> 最近更新：**2026-10-19**（17:10 全量审计，只读复算，非转述）
+> 最近更新：**2026-10-26**（合并远端 29 提交后复核：56 文件 / 845 项全过，占位值 11 项 / 19 数值，错误码 28 条）
 > 状态标记：✅ 完成 / 🔶 进行中 / ⛔ 明确不做 / ❌ 未做
-> 📄 本次审计报告：`docs/reviews/2026-10-19-全量进展审计报告.md`
+> 📄 最近一次全量审计：`docs/reviews/2026-10-19-全量进展审计报告.md`（该报告的计数已部分过期，以本文件为准）
 
 ---
 
@@ -39,10 +39,10 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 | `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**合计 77 shot（kukini 15 / 3月22日 29 / 5月28日 33），**0 低置信**（`real30` 尚未跑 perceive，不计入） |
 | `03-storyboard` 起草 | ✅ | 管线通；模型只写 `motion` / `footprint` / `params`（禁写帧与坐标）。锚点支持 `word:N` / **`cue:N`（C2-6，字幕专用）** / `abs:`。kukini 实测：7 轨 / 55 条锚点 / 闸1 阈值 T=0.800 |
 | `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比）+ **2 条起草原生约束**；kukini 实测 **0 error / 11 warning**（demo 0 error / 2 warning）。tier1 平移消解、tier2 载体档均已真实施加 |
-| `05-render` 渲染 | ✅ | 9 个模板有真实实现；**真素材成片已产出**（kukini 6667 帧 / 218MB / 墙钟 20–22 分钟）。通道方案 A 在画面上被证实：校验期平移的 footprint 确实改变了成片位置 |
+| `05-render` 渲染 | ✅ | **11 个模板全部有真实实现**；**真素材成片已产出**（kukini 6667 帧 / 218MB / 墙钟 20–22 分钟）。通道方案 A 在画面上被证实：校验期平移的 footprint 确实改变了成片位置 |
 
 **结论：六道闸全部打通，真素材可端到端出片。** 剩下的不是「能不能出」，而是
-「字幕/对白精度、参数手感、剩下 2 个模板」这类**质量**问题。
+「字幕/对白精度、参数手感、占位值校准」这类**质量**问题。
 
 
 ---
@@ -56,16 +56,20 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 
 - **烘焙器**：锚点 `{anchor:"word:37", offset:"-8f"}` → `fromFrame` + `durationInFrames`
 - **调度**：两道闸串联 + 动态阈值 T + 安全阀 + 产路地板
-- **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）+ 渲染期兜底三类
-- **单测**：**792 项全过**（48 个测试文件，2026-10-25 复核；P1-a review +14 与契约同步，C2-5b +1，D-B3 +5，M-3 +7，P1-b +23：motion-accept 13 / spec-loader 5 / motionboard +3 / spec-contract +2 / 覆写护栏与终审 +5）。按文件：
-  fit-text 14 / draft-keys 7 / review-queue 4 / video-size 6 / exit-code 5 / confirmed 18 / word-timeline 31 /
-  template-render 36 / carrier-window 30 / caption 28 / text-overflow 33 / text-align 26 / srt 22 / bake 22 /
-  zh-normalize 21 / validate 42 / pacing-contract 7 / motion-accept 13 / spec-loader 5 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 / shot-detect 14 /
-  split-frame 14 / placeholders 12 / region-derive 12 / doctor 11 / occlusion-tier 11 / subject-visible 10 /
-  carrier-contract 10 / align-gate 15 / carrier-synth 7 / stage-io 6 / perceive-sampling 6 / dtw-unit 5 /
-  whisper-path 3 / spec-contract 45 / spec-render 24 / motionboard 22 / motion-accept 13 / spec-loader 5 /
-  rhythm-rules 34 / rhythm-table 31 /
-  registry 6 / stage-order 5 / template-gallery 7 / media-qa 11 / text-metrics-measured 6
+- **校验器**：构建期 **18 项**（纯 JSON→JSON）+ **2 条起草原生约束**（记入 `summary.extra`：`W-D3-01` / `W-F6-01`）。
+  渲染期兜底三类（`E-RT-01/02/03`）**已于 2026-10-26 接线**：`spawn` 流式转发 + 尾部文本分类，
+  失败写入 `05-render/render-report.json` 的 `items` + `failure`（未命中判据时 `classified:null`，不猜）。
+- **单测**：**814 项全过**（51 个测试文件，2026-10-26 实跑复核；P1-a review +14 与契约同步，C2-5b +1，D-B3 +5，M-3 +7，P1-b +23：motion-accept 13 / spec-loader 5 / motionboard +3 / spec-contract +2 / 覆写护栏与终审 +5；**10-26 第一档修复 +22**：F6 覆盖「无 region」+4 / 渲染期兜底接线 +11 / GBK 解码 +3 / 素材存在性闸 +5，其中 validate 42→46）。按文件：
+  spec-contract 45 / validate 46 / template-render 36 / rhythm-rules 34 / text-overflow 33 / word-timeline 31 /
+  rhythm-table 31 / carrier-window 30 / confirmed 29 / caption 28 / text-align 26 / spec-render 24 /
+  srt 22 / motionboard 22 / bake 22 / zh-normalize 21 / schedule 19 / carrier 18 / yunet 17 / params-schema 17 /
+  align-gate 15 / split-frame 14 / shot-detect 14 / review 14 / motion-accept 13 / fit-text 13 / region-derive 12 / placeholders 12 /
+  occlusion-tier 11 / media-qa 11 / doctor 11 / subject-visible 10 / carrier-contract 10 /
+  template-gallery 7 / pacing-contract 7 / draft-keys 7 / carrier-synth 7 /
+  video-size 6 / text-metrics-measured 6 / stage-io 6 / registry 6 / perceive-sampling 6 /
+  stage-order 5 / spec-loader 5 / exit-code 5 / dtw-unit 5 / review-queue 4 / whisper-path 3 /
+  render-failure 11 / render-failure-write 2 / render-video-presence 5 / doc-recipe 7 / inputs-hash 7 / pipeline-e2e 5 / render-success 3 / pipeline-state 9
+  （56 文件逐项相加 = 845，与 `npm test` 实跑一致；旧清单把 motion-accept / spec-loader 各记两遍，加总只有 786）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -272,7 +276,7 @@ D-B2 逐模板实测系数**均已落地；剩「warning 升 error」待裁决�
 
 | 文件 | 作用 |
 |------|------|
-| `docs/decisions/OPEN-DECISIONS.md` | **裁决唯一真源**，42 条 RESOLVED |
+| `docs/decisions/OPEN-DECISIONS.md` | **裁决唯一真源**，56 条 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-26） |
 | `docs/spec/SPEC-*.md` | 实现规格 v0.6（与真源冲突时以真源为准） |
 | `docs/templates/2026-10-13-模板库首批清单.md` | 首批 10 个模板 + 契约值推导依据 |
 | `docs/proposals/2026-10-14-后续提升优化计划书.md` | **D1–D7 优化方向** + 分批路线图 + 风险登记 |
@@ -453,18 +457,18 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 | 8 | ~~字幕按 SRT 切分与定时~~ | `cue:N` 锚点（C2-6）；时间/文字/高亮全部改以 SRT 为准 | ✅ 2026-10-18 |
 
 > ✅ **硬阻断已解除（2026-10-17）**：此前缺 `02-perceive` 产物时 `validate` **直接拒绝启动**、
-> 而 `perceive` 本身未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
-> 内置后端上线后这条路通了。剩余缺口不再是「无路可走」，而是**感知覆盖不全**：
-> `handheld`（手持讲解物品）与 `broll`（B-roll 主体）两通道未实现（见 5b）。
+> 而 `perceive` 当时未配 `PERCEIVER_CMD` 即退出码 2 ⇒ **真实素材在 `01-align` 之后无路可走**。
+> 内置后端上线后这条路通了（**现已不存在「未配外部命令即失败」**）。剩余缺口不再是「无路可走」，而是**感知覆盖不全**
+> —— 注：`handheld`（人脸框外扩）与 `broll`（经典显著性）已于 10-17 一并落地，本句为当时口径。
 
 ### 阶段 2 · 补齐质量（当前主战场）
 
 | # | 事项 | 说明 | 状态 |
 |---|------|------|------|
 | 9 | **对齐产物层修漂移** | M-1f 已落地（按 SRT 窗口铺词 + 产物层回写），kukini 静义词 9→0；`M-1d` 告警档已落地（2% 告警线，不阻断），余阻断线待校准 | 🔶 产物层已解，告警档已落地，阻断线待校准 |
-| 10 | **占位值校准（11 项 / 19 个数值）** | 🔴 尤其 `REWEIGH_COVERAGE_MIN=0.8`（**来源不明**却已生效）；`DENSITY.maxItemsPerCue` 占位阈值已随 C2-5b 降级为 warning 不阻断（2026-10-24）；`SILENCE.wordRatioWarnMax=0.02` 为单样本告警线，随 `M-1d` 阻断线一并复核 | ❌ 待做（完整对齐样本仅 1 条；另两条走 M-1g 无字幕，不给覆盖率/占比分布） |
+| 10 | **占位值校准（11 项 / 19 个数值）** | 🔴 `REWEIGH_COVERAGE_MIN=0.8` **已考古结案**（M-1f-a，2026-10-24）：自诞生起无数值推导（首现 `60b22d9`，与 `alignedRatioMin` 同值疑为呼应），重定线等 ≥2 条完整对齐素材、按分布空隙数据驱动；`DENSITY.maxItemsPerCue` 占位阈值已随 C2-5b 降级为 warning 不阻断（2026-10-24）；`SILENCE.wordRatioWarnMax=0.02` 为单样本告警线，随 `M-1d` 阻断线一并复核 | ❌ 待做（完整对齐样本仅 1 条；另两条走 M-1g 无字幕，不给覆盖率/占比分布） |
 | 11 | ~~剩余 2 个模板~~ | `pointer-callout` / `whip-pan` 已实现，真渲抽帧确认；模板 **11/11** | ✅ 2026-10-24 |
-| 12 | **渲染基准量化（F4）** | 已有 3 条成片墙钟（6667 帧 1080p60 → 20–22 分钟 / 218MB；另两条 259MB / 256MB）⇒ 样本已够取中位数 | 🔶 3 条成片已就绪，待取中位数 |
+| 12 | **渲染基准量化（F4）** | 3 条成片墙钟（6667→21 分 / 7596→25 分 / 6319→20 分）。🔴 **中位数 = 21 分钟**；归一化 **0.190 秒/帧**（三条 0.189 / 0.190 / 0.197）⇒ 新片长可直接按 0.190 s/帧预估（例：7596 帧 ≈ 24.0 分钟） | ✅ 2026-10-26 取中位数（数据取自历史成片记录，非本轮实测） |
 | 13 | **组合场景验证模板** | 今天 3 个 bug 全是「单链正常、双链同时存在才暴露」⇒ 每个新机制都要问「和已有机制**同时**启用时还成立吗」 | 🔶 已成纪律 |
 | 14 | **产物时序守卫升级为 hash 版** | 10-20 已落地 mTime 版（`context.ts#assertStageOrderIsSane`），能拦住「上游更新后下游没重跑」。⚠️ **mTime 会被 `cp`/解压/git checkout改写** ⇒ 更稳的是烘焙时把上游 hash 写进 `storyboard.meta` 再比对 | ❌ 待做（当前 mTime 版够用，hash 版更彻底） |
 
@@ -501,13 +505,14 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 > 全量审计结论仍以 `docs/reviews/2026-10-19-全量进展审计报告.md` 为准）
 
 ```
-校验项      18 项（构建期）+ 3 类（渲染期兜底）   ← validate-report.summary.checked=18
+校验项      18 项（构建期）   ← validate-report.summary.checked=18
+            + 渲染期兜底 3 类（已接线：失败时写 render-report.json 的 items）
 错误码      28 条（E-*/W-*，+W-DB-01 / +E-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        792 项全过（48 个测试文件）  ← 449 → … → 756（P1-a review +14 等） → 757（C2-5b +1） → 762（D-B3 +5） → 769（M-3 契约层 +7） → 779（P1-b 六道验收 +10 / genPrompt +3 / 验签 +5） → 782（覆写护栏 +3） → 792（文件名派生 +2 / 终审加固 +1 / 签名后体积 +1）
+单测        845 项全过（56 个测试文件）  ← 449 → … → 756（P1-a review +14 等） → 757（C2-5b +1） → 762（D-B3 +5） → 769（M-3 契约层 +7） → 779（P1-b 六道验收 +10 / genPrompt +3 / 验签 +5） → 782（覆写护栏 +3） → 792（文件名派生 +2 / 终审加固 +1 / 签名后体积 +1） → 809（10-26 第一档修复：F6 无 region +4 / 渲染期兜底接线 +11 / GBK 解码 +3） → 814（素材存在性闸 +5） → 828（P0-3 配方卡 +7 / P0-4 输入指纹 +7） → 836（跨阶段集成 +5 / 渲染成功路径 +3） → 845（P1-2 状态与恢复 +9）
 测试文件    48 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
-登记册      53 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-24）
+登记册      56 条表格行含 RESOLVED（`grep -cE '^\|.*RESOLVED'` 可复算，2026-10-26）
             OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d（共 3 条；
                   M-1f 已落地、M-1e 由其收敛关闭，M-4 已 RESOLVED）
 模板        11 个声明 / 11 个实现      ← 2026-10-24 补齐 pointer-callout、whip-pan
@@ -530,7 +535,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 792 项全过（48 文件）· placeholders --check OK
+工程健康    typecheck exit 0 · 845 项全过（56 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

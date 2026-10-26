@@ -68,9 +68,3 @@ export const MotionItem: FC<{
     </div>
   );
 };
-
-/** item 内的归一化进度 0–1。纯函数，服务端与客户端结果一致。 */
-export function normalizeFrame(frame: number, durationInFrames: number): number {
-  if (durationInFrames <= 0) return 0;
-  return Math.min(Math.max(frame / durationInFrames, 0), 1);
-}

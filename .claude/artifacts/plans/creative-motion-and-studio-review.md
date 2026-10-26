@@ -1,6 +1,10 @@
 # 创作期动效生成 × Studio 审核闸 Implementation Plan（P1-a）
 
-> Status: APPROVED
+> Status: APPROVED —— **IMPLEMENTED（2026-10-24 实施完成；2026-10-26 复核补记状态）**
+> 落地证据：`src/stages/review.ts`（review 命令）、`src/stages/render-props.ts`（`composeRenderProps` 共用映射）、
+> `src/stages/render.ts` 的 `renderGate` must_review 硬闸（preview-props 存在 + storyboardHash 防漂移 +
+> `acknowledgedReview` 覆盖）、`src/core/confirmed.ts` 的 `acknowledgedReview` 字段、`tests/review.test.ts` 14 项全过；
+> commit `fa8d6df` / `5ba6de4` / `f13d31e` / `475eadc` / `622480f` / `3eaf9a3`。
 > Source: [.claude/artifacts/designs/creative-motion-and-studio-review.md](../designs/creative-motion-and-studio-review.md)（ALIGNED）
 > Mode: (default)
 > Iterations: 1 / 3

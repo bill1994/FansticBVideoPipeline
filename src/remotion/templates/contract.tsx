@@ -148,19 +148,6 @@ export function fitScale(
 }
 
 /**
- * 满铺一格（footprint 通常不占满屏，但强调类模板需要溢出可见）。 */
-export function fillParent(children: ReactNode, extra?: CSSProperties): CSSProperties {
-  return {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...extra,
-  };
-}
-
-/**
  * 按模板契约算出 `fitScale` 需要的两个数 —— **组件侧的 `textMetrics` 唯一入口**。
  *
  * ─────────────────────────────────────────────────────────────

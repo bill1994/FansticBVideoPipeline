@@ -37,7 +37,7 @@ import { log } from '../core/log.ts';
 import { parseSrt } from '../core/srt.ts';
 import type { AlignWords, WordTimestamp, Cue } from '../core/types.ts';
 import { composeWords, type WhisperSegment } from './text-align.ts';
-import { WHISPER_CPP_VERSION, DTW_FRAME_MS, resolveWhisperCppRoot } from './whisper-adapter.ts';
+import { resolveWhisperCppRoot } from './whisper-adapter.ts';
 import {
   REWEIGH_COVERAGE_MIN,
   silentWordRatio,
@@ -331,10 +331,4 @@ export function runBuiltinAlign(
   };
 }
 
-/** 供测试与诊断：把 `t_dtw`（10ms 帧）换算为毫秒。 */
-export function dtwToMs(tDtw: number): number {
-  return tDtw * DTW_FRAME_MS;
-}
-
 /** whisper.cpp 版本（与 adapter 同源，避免两处漂移）。 */
-export const BUILTIN_WHISPER_VERSION = WHISPER_CPP_VERSION;

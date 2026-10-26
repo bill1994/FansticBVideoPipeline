@@ -110,6 +110,20 @@ export interface StoryboardMeta {
   alignmentConfidence: number;
   confirmedBy?: string;
   confirmedAt?: string;
+  /**
+   * 烘焙时**上游输入**的合成哈希（P0-4，2026-10-26）。
+   *
+   * = `sha256(JSON.stringify({ motionboardHash, wordsHash }))`，两者都是文件原始字节的 sha256
+   * （与 `hashStoryboardFile` 同一套语义，不另造算法）。
+   *
+   * 🔴 为什么需要：`motionboard.json` 是唯一可编辑意图层，但产物里没有任何记录说
+   *   「这份 storyboard 基于哪一版输入烘焙的」。改完稿子忘了重跑 storyboard，
+   *   `validate` 会拿**旧的**绑定结果照常通过 —— 报告全绿、成片与稿子对不上。
+   *   现有的 mTime 时序守卫挡不住这个（`cp`/解压/`git checkout` 都会改写 mtime）。
+   *
+   * ⚠️ 旧 job 没有这个字段：`validate` 的比对在缺失时**跳过**（向后兼容），不报错。
+   */
+  inputsHash?: string;
 }
 
 export interface Storyboard {
@@ -465,6 +479,22 @@ export interface SourceManifest {
    */
   width?: number;
   height?: number;
+  /**
+   * 显式声明「本 job 故意没有实拍视频」（2026-10-26）。
+   *
+   * 🔴 为什么需要这个开关：`render` 对「视频文件不存在」的处理是**走占位底**
+   *   （`render-props.ts` 的 `hasVideo: fs.existsSync(...)`），这条路是 demo 用的合法路径。
+   *   但它同时意味着：**素材忘拷进来 / `video` 路径写错，也会静默产出一个没有实拍画面的成片，
+   *   且报告看起来全绿**（实测：视频指向不存在的文件，Remotion 照样渲完 30 帧）。
+   *
+   * 故改为：真渲染前检查 `00-input/<video>` 是否存在，
+   *   - 存在 → 正常渲染；
+   *   - 不存在且**未**声明本字段 → `StageBlockedError` 阻断（提示补素材或加此开关）；
+   *   - 不存在且 `allowNoVideo: true` → 放行，走占位底，`render-report.json` 记 `videoMissing: true`。
+   *
+   * `--dry-run` 不做该检查（只验结构，不需要素材）。
+   */
+  allowNoVideo?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -560,6 +590,21 @@ export interface BindReport {
   records: BindRecord[];
   /** no-fits 条数（显式计数，绝不静默）。 */
   noFits: number;
+  /**
+   * 本次绑定所依据的上游输入指纹（P0-4，2026-10-26）。
+   *
+   * 由 IO 层（`stages/storyboard.ts`）算好后注入 —— 绑定器本身不读盘、不碰 hash，
+   * 保持纯函数可测。`storyboard.meta.inputsHash` 是这两者的合成值，
+   * `validate` 用它对拍「稿子改过但没重跑」。
+   *
+   * 省略 = 旧产物（P0-4 之前烘焙的），比对时跳过。
+   */
+  inputs?: {
+    /** `03-storyboard/motionboard.json` 原始字节的 sha256。 */
+    motionboardHash: string;
+    /** `01-align/words.json` 原始字节的 sha256。 */
+    wordsHash: string;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────

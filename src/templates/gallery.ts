@@ -15,6 +15,7 @@ import type { Cue, Footprint, StoryboardItem, WordTimestamp } from '../core/type
 import type { CaptionData } from '../remotion/caption.ts';
 import { isImplemented } from '../remotion/templates/index.tsx';
 import { listTemplates } from './registry.ts';
+import type { SpecDoc } from './types.ts';
 
 /** 每个已实现模板统一预览 3 秒（90 帧 @30fps）。 */
 const PREVIEW_DURATION = 90;
@@ -57,7 +58,11 @@ function makeCaption(): CaptionData {
 
 interface GalleryMeta {
   name: string;
-  description: string;
+  /**
+   * ⚠️ 2026-10-26 起**不再有 `description`**：一句话描述的唯一真源是模板契约的
+   * `doc.summary`（P0-3 配方卡）。这里曾有一份手写 description，与 doc.summary
+   * 是同一件事 —— 并存即「同一概念两个真源」，本项目已栽过四次。
+   */
   tags: string[];
   /** 预览参数；必须覆盖该模板的 requiredParams。 */
   params?: Record<string, unknown>;
@@ -71,68 +76,57 @@ const META: Record<string, GalleryMeta> = {
   // ── 内置：手写组件 ─────────────────────────────────────────
   'caption/karaoke-word@1.0': {
     name: '逐词高亮字幕',
-    description: '底部字幕带，说到哪个字哪个字变亮；文本来自 SRT，不由 params 填写。',
     tags: ['字幕', '逐词', 'karaoke'],
     params: { boxed: true },
     caption: CAPTION_FIXTURE,
   },
   'typography/kinetic-line@1.0': {
     name: '动感文字行',
-    description: '中部偏左的强调大字，逐字切出、短暂停留；带左侧强调竖条。',
     tags: ['文字', '强调', '入场'],
     params: { text: '真正被看见的一句话', enter: 'from-left' },
   },
   'typography/lower-third@1.0': {
     name: '左下身份条',
-    description: '贴左滑入的姓名 / 职务双行条，方角深色底板。',
     tags: ['文字', '身份', '左下'],
     params: { title: '林知远', subtitle: '产品设计负责人' },
   },
   'typography/tag-float@1.0': {
     name: '右上关键词气泡',
-    description: '右上角圆角胶囊 + 小尖角，上浮入场、下沉出场。',
     tags: ['文字', '关键词', '气泡'],
     params: { text: '关键结论' },
   },
   'typography/center-emphasis@1.0': {
     name: '居中大字强调',
-    description: '压在主体身上的居中大字；模板库唯一会触发遮挡预算的叠加模板。',
     tags: ['文字', '强调', '遮挡'],
     params: { text: '记住这一点' },
   },
   'data/stat-card@1.0': {
     name: '数字卡片',
-    description: '大号数字 + 小号单位的卡片，缩放落定；刻意不做 digit roll。',
     tags: ['数据', '数字', '卡片'],
     params: { value: '3.2x', unit: '效率提升' },
   },
   'carrier/split-frame@1.0': {
     name: '裁切分屏',
-    description: '把视频裁成一条竖屏窗口并锚定主体，另一侧留给 overlay。',
     tags: ['背景链', '分屏', '主体'],
     params: { side: 'right', ratio: 0.5 },
   },
   'cinematic/punch-in@1.0': {
     name: '画面推近',
-    description: '对视频做缓慢推近 / 回退；作用于背景链，不覆盖画面。',
     tags: ['背景链', '推近', '镜头'],
     params: { scale: 1.12 },
   },
   'ambience/noise-grain@1.0': {
     name: '胶片颗粒',
-    description: '全屏 feTurbulence 颗粒层，每帧重排但完全由 frame 决定。',
     tags: ['氛围', '颗粒', '全屏'],
     params: { opacity: 0.08 },
   },
   'annotation/pointer-callout@1.0': {
     name: '指向标注',
-    description: '四角括线 + 中心锚点 + 左上标签，标注画面中的目标区域。',
     tags: ['标注', '指向', '区域'],
     params: { target: '鞋底纹路' },
   },
   'transition/whip-pan@1.0': {
     name: '甩镜头转场',
-    description: '方向性速度线全屏扫过；`direction` 取 left / right / up / down。',
     tags: ['转场', '甩镜头', '全屏'],
     params: { direction: 'left' },
   },
@@ -140,49 +134,41 @@ const META: Record<string, GalleryMeta> = {
   // ── MotionSpec：custom/* ───────────────────────────────────
   'custom/fade-up@1.0': {
     name: '淡入上移',
-    description: '淡入 + 上移 + 微缩放的绝对帧入场，之后保持到句尾。',
     tags: ['文字', '入场', '淡入'],
     params: { main: '动效预览文本' },
   },
   'custom/typewriter-cn@1.0': {
     name: '中文打字机',
-    description: '中文逐字显现，像被逐键敲出来。',
     tags: ['文字', '逐字', '揭示'],
     params: { main: '动效预览文本' },
   },
   'custom/bar-accent@1.0': {
     name: '强调色条',
-    description: '在文字旁生成一条强调色条，先出条后出字。',
     tags: ['装饰', '色条', '强调'],
     params: { main: '动效预览文本' },
   },
   'custom/rule-underline@1.0': {
     name: '下划线描画',
-    description: '文字下方一条横线从左向右描出。',
     tags: ['装饰', '下划线', '描画'],
     params: { main: '动效预览文本' },
   },
   'custom/focus-in@1.0': {
     name: '聚焦入场',
-    description: '从轻微失焦 + 放大状态收束到清晰落位。',
     tags: ['文字', '聚焦', '入场'],
     params: { main: '动效预览文本' },
   },
   'custom/card-stack@1.0': {
     name: '卡片堆叠',
-    description: '多层卡片依次落下堆叠，最后露出主文本。',
     tags: ['卡片', '堆叠', '面板'],
     params: { main: '动效预览文本' },
   },
   'custom/clip-reveal-h@1.0': {
     name: '横向裁切揭示',
-    description: '用横向裁切窗把文字从左到右揭示出来。',
     tags: ['文字', '裁切', '揭示'],
     params: { main: '动效预览文本' },
   },
   'custom/wipe-reveal@1.0': {
     name: '擦除揭示',
-    description: '一条擦除边界扫过画面，带出完整文字。',
     tags: ['文字', '擦除', '揭示'],
     params: { main: '动效预览文本' },
   },
@@ -214,6 +200,11 @@ export interface TemplateCatalogEntry {
   tags: string[];
   license: string;
   provenance: string;
+  /**
+   * 配方卡（P0-3）。`null` = 该模板尚未撰写，不是「没有特点」。
+   * 模型选型时读这里：summary / fits / energy / params / pitfalls。
+   */
+  doc: SpecDoc | null;
   preview: GalleryPreview | null;
 }
 
@@ -247,7 +238,10 @@ export function buildTemplateCatalog(): TemplateCatalogEntry[] {
         footprint: [...decl.footprint] as Footprint,
         minVisibleInFrames: decl.minVisibleInFrames,
         name: meta?.name ?? decl.subtype,
-        description: meta?.description ?? '',
+        // 一句话描述的唯一真源 = 模板契约的 `doc.summary`（P0-3，2026-10-26）。
+        // `META` 不再重复写一份 —— 那份已删除，避免「同一概念两个真源」。
+        description: decl.doc?.summary ?? '',
+        doc: decl.doc ?? null,
         tags: meta?.tags ?? [decl.family],
         license: 'MIT',
         provenance:
@@ -327,6 +321,27 @@ export function renderGalleryHtml(entries: readonly TemplateCatalogEntry[]): str
       const params = entry.preview
         ? `<code class="params">${escapeHtml(JSON.stringify(entry.preview.params))}</code>`
         : '';
+      /**
+       * 配方卡（P0-3）—— 用现成的 `dl` 样式输出，不新增 CSS。
+       * 空白时**不占位**：没写就是没写，不留一句「暂无」占版面。
+       */
+      const docBlock =
+        entry.doc === null
+          ? ''
+          : `
+          <dl class="doc-block">
+            <dt>适用</dt><dd>${escapeHtml(entry.doc.fits.join(' · '))}</dd>
+            <dt>能量</dt><dd>${escapeHtml(entry.doc.energy)}</dd>${(entry.doc.params ?? [])
+              .map(
+                (p) =>
+                  `<dt>${escapeHtml(p.key)}</dt><dd>${escapeHtml(p.typical)} — ${escapeHtml(p.feel)}</dd>`,
+              )
+              .join('')}${
+              (entry.doc.pitfalls ?? []).length === 0
+                ? ''
+                : `<dt>已知坑</dt><dd>${escapeHtml((entry.doc.pitfalls ?? []).join('；'))}</dd>`
+            }
+          </dl>`;
       if (entry.preview === null) {
         return `
       <article class="card missing" data-gallery-card="0" data-motion="${escapeHtml(entry.id)}" id="${slug}">
@@ -334,7 +349,7 @@ export function renderGalleryHtml(entries: readonly TemplateCatalogEntry[]): str
         <div class="body">
           <div class="title-row"><h2>${escapeHtml(entry.name)}</h2><span class="badge warn">未实现</span></div>
           <code class="id">${escapeHtml(entry.id)}</code>
-          <p>${escapeHtml(entry.description)}</p>
+          <p>${escapeHtml(entry.description)}</p>${docBlock}
           <div class="tags">${tags}</div>
           <dl>
             <dt>scope</dt><dd>${escapeHtml(entry.scope)}</dd>
@@ -361,7 +376,7 @@ export function renderGalleryHtml(entries: readonly TemplateCatalogEntry[]): str
         <div class="body">
           <div class="title-row"><h2>${escapeHtml(entry.name)}</h2><span class="badge">${escapeHtml(entry.scope)}</span></div>
           <code class="id">${escapeHtml(entry.id)}</code>
-          <p>${escapeHtml(entry.description)}</p>
+          <p>${escapeHtml(entry.description)}</p>${docBlock}
           <div class="tags">${tags}</div>
           <dl>
             <dt>footprint</dt><dd>${escapeHtml(JSON.stringify(entry.footprint))}</dd>

@@ -22,7 +22,7 @@
 import { ConfigError } from './exit-code.ts';
 import { parseTime, parseUnitFrames } from './spec-time.ts';
 import { COLOR, RADIUS, SHADOW } from '../remotion/tokens.ts';
-import { parseMotionId, type TemplateDeclaration } from '../templates/types.ts';
+import { parseMotionId, type SpecDoc, type TemplateDeclaration } from '../templates/types.ts';
 import type { Footprint, RhythmSignal } from './types.ts';
 
 // ─────────────────────────────────────────────────────────────
@@ -199,6 +199,15 @@ export interface MotionSpec {
   /** 仅文档用途的说明（写作用例、单位约定）。不参与派生，禁止塞实现细节。 */
   _note?: string;
   /**
+   * 配方卡（P0-3，2026-10-26）。与 `_note` 同属文档字段，但**有结构**：
+   * 一句话 / 适用 / 能量 / 参数表 / 已知坑，供 gallery 卡片与模型选型直接消费。
+   *
+   * 🔴 不参与派生、不进校验判定、**不被签章 hash 覆盖**
+   *    （`canonicalSpecHash` 剥离名单含 `_doc` 与 `_note`）——
+   *    否则「给已入库的 custom spec 补文档」会让它验签失败。
+   */
+  _doc?: SpecDoc;
+  /**
    * motion:accept 六道验收全过后盖上的签章块（P1-b）。可选：现有 8 份基线
    * spec 没有它照常装载；`custom-*` 入库文件由 spec-loader 强制验签（AC-7）。
    */
@@ -280,6 +289,9 @@ const TOP_LEVEL_KEYS = new Set([
   // `_note` 是**显式收录**的文档字段（不参与派生，只给人的说明留位置）。
   // 它不是「放开未知字段」：其它任何键仍按规则 11 拒绝。
   '_note',
+  // `_doc` 是 `_note` 的结构化版本（P0-3 配方卡，2026-10-26）：一句话/适用/能量/参数表/已知坑。
+  // 同样只收文档、不参与派生；两者并存是为了不破坏已有 spec 的 `_note` 用法。
+  '_doc',
   // `acceptance` 是 motion:accept 六道验收全过后盖在文件顶层的**签章块**
   // （P1-b，2026-10-24 裁决收录）。不收录它，带签章的 spec 会在装载期被
   // 规则 11 拒掉 —— 验收产物落回 templates/specs/ 的全链路就断了。
@@ -913,6 +925,8 @@ export function deriveDeclaration(spec: MotionSpec): TemplateDeclaration {
     occludesSubject: spec.occludesSubject,
     paramsSchema,
     ...(requiredParams.length > 0 ? { requiredParams } : {}),
+    // 配方卡透传：spec 的 `_doc` → 声明的 `doc`，让 gallery / skill 只认一处。
+    ...(spec._doc === undefined ? {} : { doc: spec._doc }),
     ...(main === undefined
       ? {}
       : { textMetrics: { fontSizePx: main.sizePx, paddingPx: main.paddingPx } }),

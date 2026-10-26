@@ -1,5 +1,12 @@
 # P1-b 创作期动效生成 Implementation Plan
 
+> ✅ **本计划四个 Task 全部执行完毕（2026-10-24，2026-10-26 复核勾选）**。
+> 全 20 个 Step 已完成；下方 checkbox 原先全空是「执行后未回填」，不代表未做。
+> 复核证据：`src/core/motion-accept.ts` / `src/core/spec-loader.ts` / `tools/accept-motion-spec.mts`
+> 均在；`tests/motionboard.test.ts` 22 项（= Task 1 预期 19+3）、`tests/motion-accept.test.ts` 13 项、
+> `tests/spec-loader.test.ts` 5 项全过；SKILL.md 有「创作期动效生成」节；
+> commit `f3440f8` / `90a0b8a` / `6392900` / `424daff` / `4d57090` / `60a6b45` / `6357cbd` / `17a7afc` 齐全。
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 落地提案 P1-b——无合适模板时按 `motionboard.genPrompt` 生成新 MotionSpec，过六道验收后版本化入库并可被引用；渲染期确定性一字不改。
@@ -44,7 +51,7 @@
 - Consumes: 现有 `assertMotionboardKeys`、`bindMotionboard(board, opts)` → `{ draft, report }`（`src/core/motionboard.ts:203`）
 - Produces: `MotionBoardItem.genPrompt?: string`——Task 4 的 skill 契约引用此字段名
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/motionboard.test.ts`）
+- [x] **Step 1: 写失败测试**（追加到 `tests/motionboard.test.ts`）
 
 ```ts
 describe('genPrompt 契约（提案 §4.5）', () => {
@@ -65,22 +72,22 @@ describe('genPrompt 契约（提案 §4.5）', () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认红**
+- [x] **Step 2: 跑测试确认红**
 
 Run: `npx vitest run tests/motionboard.test.ts`
 Expected: FAIL——第一条因白名单未放行抛错（`genPrompt` 是未知键）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `types.ts`：`MotionBoardItem` 增 `genPrompt?: string`，注释写明「仅创作期生成器与人审读；binder/validate/render 零消费（守 P0）；禁坐标/帧/颜色/CSS」
 - `motionboard.ts`：白名单数组加 `'genPrompt'`
 
-- [ ] **Step 4: 跑测试确认绿**
+- [x] **Step 4: 跑测试确认绿**
 
 Run: `npx vitest run tests/motionboard.test.ts`
 Expected: PASS（19 + 3）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/types.ts src/core/motionboard.ts tests/motionboard.test.ts
@@ -110,7 +117,7 @@ git commit -m "feat(motionboard): genPrompt 契约——创作期生成 prompt �
 { "acceptance": { "toolVersion": 1, "specHash": "<sha256 of raw bytes>", "gates": ["structure", "registration", "frames", "animates", "lint"] } }
 ```
 
-- [ ] **Step 1: 写失败测试**（`tests/motion-accept.test.ts`，用 `tests/_ctx.ts` 与现有 spec 夹具的构造方式；合法 spec 夹具可从 `templates/specs/fade-up.json` 复制改 id 为 `custom/accept-fixture@0.1`）
+- [x] **Step 1: 写失败测试**（`tests/motion-accept.test.ts`，用 `tests/_ctx.ts` 与现有 spec 夹具的构造方式；合法 spec 夹具可从 `templates/specs/fade-up.json` 复制改 id 为 `custom/accept-fixture@0.1`）
 
 ```ts
 // ① 合法 custom spec → ok:true，返回的 spec.id === 'custom/accept-fixture@0.1'
@@ -122,19 +129,19 @@ git commit -m "feat(motionboard): genPrompt 契约——创作期生成 prompt �
 // ⑦ 确定性回归（AC-8）：任一帧渲染两次，markup 逐字节相等
 ```
 
-- [ ] **Step 2: 跑测试确认红**
+- [x] **Step 2: 跑测试确认红**
 
 Run: `npx vitest run tests/motion-accept.test.ts`
 Expected: FAIL——模块不存在
 
-- [ ] **Step 3: 实现** `src/core/motion-accept.ts`（六道，任一失败即短路人畜报因）+ `tools/accept-motion-spec.mts`（读 argv 路径 → `acceptMotionSpec` → 失败逐条 stderr + exit 1；成功把**带签章的全文**写到 `templates/specs/custom-<名>.json` 并打印入库路径）
+- [x] **Step 3: 实现** `src/core/motion-accept.ts`（六道，任一失败即短路人畜报因）+ `tools/accept-motion-spec.mts`（读 argv 路径 → `acceptMotionSpec` → 失败逐条 stderr + exit 1；成功把**带签章的全文**写到 `templates/specs/custom-<名>.json` 并打印入库路径）
 
-- [ ] **Step 4: 跑测试确认绿**
+- [x] **Step 4: 跑测试确认绿**
 
 Run: `npx vitest run tests/motion-accept.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/motion-accept.ts tools/accept-motion-spec.mts package.json tests/motion-accept.test.ts
@@ -151,7 +158,7 @@ git commit -m "feat(motion): motion:accept 六道验收命令——结构/注册
 - Consumes: Task 2 的签章格式（`acceptance.specHash` = sha256(raw bytes)）
 - Produces: 装载许可语义——`custom/*` 必须有吻合签章；非 custom（现有 8 份基线 spec）不要求（向后兼容）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // ① 无签章 custom spec → ConfigError，消息含文件名与「motion:accept」指引
@@ -161,19 +168,19 @@ git commit -m "feat(motion): motion:accept 六道验收命令——结构/注册
 // ⑤ 同目录 custom/x@0.1 与 custom/x@0.2 并存 → 双双注册，getTemplate 各自可达
 ```
 
-- [ ] **Step 2: 跑测试确认红**
+- [x] **Step 2: 跑测试确认红**
 
 Run: `npx vitest run tests/spec-loader.test.ts`
 Expected: FAIL——目前无验签逻辑（① 通过装载、② 不报错）
 
-- [ ] **Step 3: 实现**——装载循环内：解析出的 spec 若 `id` 以 `custom/` 开头 → 校验 `acceptance` 块存在且 `specHash === sha256(文件原始字节)`，否则 ConfigError（错误信息给可执行做法：`node --experimental-strip-types tools/accept-motion-spec.mts <file>` 重新验收）
+- [x] **Step 3: 实现**——装载循环内：解析出的 spec 若 `id` 以 `custom/` 开头 → 校验 `acceptance` 块存在且 `specHash === sha256(文件原始字节)`，否则 ConfigError（错误信息给可执行做法：`node --experimental-strip-types tools/accept-motion-spec.mts <file>` 重新验收）
 
-- [ ] **Step 4: 跑测试确认绿 + 全量回归**
+- [x] **Step 4: 跑测试确认绿 + 全量回归**
 
 Run: `npx vitest run tests/spec-loader.test.ts && npm test`
 Expected: PASS；全量绿（现有 8 份基线 spec 无签章不受影响）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/spec-loader.ts tests/spec-loader.test.ts
@@ -192,18 +199,18 @@ git commit -m "feat(motion): spec-loader 验签——custom/* 无签章或 hash 
 - Consumes: Task 1 `genPrompt` 字段、Task 2 `npm run motion:accept`、bind-report `noFits`（`storyboard.ts:266` 已打印）
 - Produces: 无代码接口；文档即交付物
 
-- [ ] **Step 1: 根 SKILL.md 增「创作期动效生成」流程节**——内容按提案 §2 图与 §4.5：触发三条件（bind-report noFits / 安全阀转 custom / 人工指定）→ 读该条目 `genPrompt` → 按 spec 契约产 MotionSpec JSON（语法内编排；语法外需求**诚实报告**转 Tier 2，禁硬编）→ `npm run motion:accept -- <file>` → 过则入库 `templates/specs/custom-<名>.json` → motionboard 条目改 `motion` 钉死（或 intent 指向）→ 重掷 = 新版本文件名（`custom/<名>@0.1` → `0.2`…，定稿 `1.0`）；旧 job 引用不受影响
+- [x] **Step 1: 根 SKILL.md 增「创作期动效生成」流程节**——内容按提案 §2 图与 §4.5：触发三条件（bind-report noFits / 安全阀转 custom / 人工指定）→ 读该条目 `genPrompt` → 按 spec 契约产 MotionSpec JSON（语法内编排；语法外需求**诚实报告**转 Tier 2，禁硬编）→ `npm run motion:accept -- <file>` → 过则入库 `templates/specs/custom-<名>.json` → motionboard 条目改 `motion` 钉死（或 intent 指向）→ 重掷 = 新版本文件名（`custom/<名>@0.1` → `0.2`…，定稿 `1.0`）；旧 job 引用不受影响
 
-- [ ] **Step 2: storyboard skill 增 genPrompt 纪律**——写形态/质感/节奏，不写坐标/帧/颜色/CSS；intent 仍是绑定键，genPrompt 并存不替代；无 genPrompt 的 no-fit 维持 B4/N-3 custom 人工逃生口（生成是增强不是替换）
+- [x] **Step 2: storyboard skill 增 genPrompt 纪律**——写形态/质感/节奏，不写坐标/帧/颜色/CSS；intent 仍是绑定键，genPrompt 并存不替代；无 genPrompt 的 no-fit 维持 B4/N-3 custom 人工逃生口（生成是增强不是替换）
 
-- [ ] **Step 3: 文档收尾**——提案头加「P1-b 落地（2026-10-24，plan：本文档同目录）」注记；PROGRESS 阶段 3 P1-b 状态改「🔶 已落地」+ 测试计数更新；changelog 记当日四任务
+- [x] **Step 3: 文档收尾**——提案头加「P1-b 落地（2026-10-24，plan：本文档同目录）」注记；PROGRESS 阶段 3 P1-b 状态改「🔶 已落地」+ 测试计数更新；changelog 记当日四任务
 
-- [ ] **Step 4: 全量验证**
+- [x] **Step 4: 全量验证**
 
 Run: `npm test && npm run typecheck && npm run placeholders -- --check`
 Expected: 全绿
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add SKILL.md .workbuddy/skills/storyboard/SKILL.md docs/proposals/ PROGRESS.md docs/changelog/

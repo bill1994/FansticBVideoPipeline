@@ -17,6 +17,7 @@
  */
 
 import { ConfigError } from './exit-code.ts';
+import { targetRef } from './report.ts';
 import {
   builtinTemplateLookup,
   carrierRouteForSpan,
@@ -216,7 +217,7 @@ export function bindMotionboard(
     trackId: string,
     itemIndex: number,
   ): { out?: DraftItem; record: BindRecord } => {
-    const ref = `${trackId}/${String(itemIndex).padStart(3, '0')}`;
+    const ref = targetRef(trackId, itemIndex);
     const span = anchorSpan(item._author.anchor, ctx.words, ctx.cues);
 
     // ── 钉死条目：直通 ──────────────────────────────────────

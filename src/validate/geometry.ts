@@ -6,7 +6,7 @@
  */
 
 import { CODES } from '../core/errors.ts';
-import type { ReportItem } from '../core/report.ts';
+import { targetRef, type ReportItem } from '../core/report.ts';
 import { ConfigError } from '../core/exit-code.ts';
 import {
   MIN_VISIBLE_RATIO,
@@ -53,7 +53,7 @@ export function assertStructuralIntegrity(ctx: ValidateContext): void {
     for (const [idx, item] of t.items.entries()) {
       const carrier = item.carrier;
       if (carrier === undefined) continue;
-      const ref = `${t.id}/${String(idx).padStart(3, '0')}`;
+      const ref = targetRef(t.id, idx);
 
       if (typeof carrier.template !== 'string' || carrier.template === '') {
         throw new ConfigError(`item ${ref} 的 carrier.template 必须是非空字符串`);
@@ -240,7 +240,11 @@ export function checkSubjectVisibleRegion(ctx: ValidateContext): ReportItem[] {
       (sh) => sh.fromFrame <= s.start && s.start < sh.fromFrame + sh.durationInFrames,
     );
     const safeArea = shot?.safeArea ?? null;
-    if (!safeArea) continue; // 🔴 主体不在场 ⇒ 不判（归 W-F6-01 的地盘）
+    if (!safeArea) continue; // 🔴 主体不在场 ⇒ #18 不判，**归 W-F6-01 的地盘**
+    // ✅ 2026-10-26 起这个地盘真的有人管了：`occlusion.ts#checkSubjectUnknown` 第三段
+    //    会对「shot 无任何 region 且该段叠了 overlay」出 W-F6-01。
+    //    此前那句注释是空头支票（W-F6-01 只认 lowConfidence 标记，
+    //    而「框不到 ⇒ 不产 region」连标记的机会都没有），遮挡校验静默空跑。
 
     const safeAreaArea = rectArea(safeArea);
     if (safeAreaArea <= 0) continue;
@@ -268,12 +272,4 @@ export function checkSubjectVisibleRegion(ctx: ValidateContext): ReportItem[] {
     );
   }
   return out;
-}
-
-/**
- * 供外部（如 render 阶段）复用的 scope 查询。
- * 未注册的 motion 会抛 ConfigError —— 不静默跳过。
- */
-export function scopeOf(motion: string): string {
-  return getTemplate(motion).scope;
 }

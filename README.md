@@ -102,8 +102,10 @@ must_review 条目（`typo-main/002`）—— `render` 在此条目被人工确�
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest：45 个测试文件 / 756 项（校验 41 · 模板渲染 36 · 模板画廊 7 · 媒体 QA 11 …）
+npm run verify      # 一条命令三段：typecheck + test + demo 端到端（A3）
+npm test            # vitest：56 个测试文件 / 845 项（校验 · 模板渲染 · 集成 · spec 契约 …）
 npm run templates:gallery  # 生成模板预览画廊 → out/template-gallery/gallery.html
+npm run determinism -- --job demo --jobs-dir examples  # 双渲像素一致性检查（抽样帧各渲两次比 PNG 字节）
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）
 ```
 
@@ -258,7 +260,7 @@ export PERCEIVER_CMD="python tools/perceive.py --video {video} --frames {frames_
 | 安全区上部比例 `safeAreaTopRatio` | `0.6` | 🔴 **占位值**：SPEC 只写「取 bbox 上部」，无精确比例 |
 | 手持物外扩 `HANDHELD_EXPANSION` | 宽 `3×` / 高 `2.5×` | 🔴 **占位值**：由单条素材反推，只对当前构图成立 |
 | 显著性目标面积 `targetAreaRatio` | `0.35` | 🔴 **占位值**：三素材目视可接受，未量化 |
-| 分屏可见比 `MIN_VISIBLE_RATIO` | `0.5` | 🔴 **占位值**：D4-t2 派生判据，**尚未实现** |
+| 分屏可见比 `MIN_VISIBLE_RATIO` | `0.5` | 🔴 **占位值**：D4-t2 派生判据，**已落地**并被校验 #18（`W-D2-02`）消费；阈值本身待真实素材校准 |
 | 渲染基准 | 10 分钟成片的墙钟时长 + CPU 峰值 | 首次渲染时量 |
 
 改这些值前，请先看 [`.workbuddy/memory/MEMORY.md`](.workbuddy/memory/MEMORY.md) 与登记册的对应条目。
