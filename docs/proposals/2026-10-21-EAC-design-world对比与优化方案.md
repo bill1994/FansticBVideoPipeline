@@ -8,7 +8,8 @@
 >
 > 🟢 **实施状态（2026-10-27 更新，详见 §十一）**：**P0 四项全部落地；P1-2 已落地；P1-1 裁决不做**
 > （P0-1/P0-2 于 10-22，P0-3/P0-4 于 10-26，P1-2 于 10-26，P1-1 于 10-27 由用户裁决不做）。
-> **P1-3 / P1-4 仍未开工**；P2-1~P2-4 为探索项，触发条件未到。
+> **P1-3 已改道**（2026-10-27：借手法不抄代码，从「导入组件」变「研究后自研」）；
+> **P1-4 仍未开工**；P2-1~P2-4 为探索项，触发条件未到。
 > 🔴 **P1-1 不做的理由**：本项目**本身就是 skill 管线**（`SKILL.md` + `npm run pipeline` 即工具层），
 > 再建 MCP server 只会形成「CLI / MCP 双入口」，两套参数与错误语义必然漂移。
 > 若是将来出现**非 WorkBuddy 的 MCP 客户端**，再按需薄封装，不要提前建。
@@ -438,6 +439,31 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 
 #### P1-3 精选 Shotcraft 镜头导入
 
+> 🔴 **2026-10-27 裁决：走「借手法，不抄代码」路线。**
+> 本节原文的「适配层 + 导入 5–8 个组件」**废置** —— 它与 2026-10-14 计划里已定的纪律
+> 「**借手法，不抄代码**」直接冲突（把它的组件包进 `TemplateProps` 就是复制 + 修改代码），
+> 且会同时引入 Apache-2.0 的署名/修改声明义务与「自研 22 个模板 vs 外来 8 个」的风格割裂。
+>
+> **新方向：Shotcraft 是研究材料，不是代码来源。**
+>
+> | 借（合法且要做的） | 不借（碰都不要碰） |
+> |---|---|
+> | 缓动曲线与**时值配比**（入场几帧、停留几帧、退场几帧） | 任何 `.tsx` 源码、组件签名、props 结构 |
+> | 组件拆分方式、层级组织 | 硬编码色值、字体、`assets/` 里的任何素材（含音频，那是 Mixkit 另授权） |
+> | 参数手感（哪些参数值得暴露、取值范围） | 品牌页面 / 示例内容 |
+> | **配方卡的文档结构**（一句话/适用/时长/能量/参数表/已知坑，可直接学） | 它的 catalog/recipe 数据结构本身 |
+>
+> **产出形态**：先出手法卡片（一句话 / 借用点 / 我们的落点 / 差异说明），
+> 再按我们的 `MotionSpec` 或 `.tsx` 契约**重写**；来源登记进 ATTRIBUTION（只登记"参考了哪个文件、
+> 借了什么手法"，不复制内容）。
+> **许可结论：不产生 Apache-2.0 义务**（未复制代码），但 ATTRIBUTION 登记仍是硬要求 ——
+> 这是学术诚实，不是法律义务。
+>
+> **验收改为**：至少 3 个手法落地为自研模板，且每个都有配方卡与"与参考来源的差异"说明；
+> 不要求 `vendor/shotcraft/LICENSE`（不 vendor 任何代码）。
+>
+> 以下原文保留，作为「若将来用户改判为允许复制代码」时的参考。
+
 **问题**：我们只有 17 个模板形态，视觉重复度高。Shotcraft 是 **Apache-2.0 + Remotion TSX**，
 与我们的技术栈和许可都兼容，是成本最低的扩词汇路径。[cite:8][cite:9]
 
@@ -579,7 +605,7 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 | P0-4 motionboard 哈希/修订守卫 | ✅ **2026-10-26 落地（hash 部分，未做 revision 乐观锁）** | `core/stage-inputs.ts` 为唯一实现（字节 sha256，与 `hashStoryboardFile` 同语义）；`bind-report.inputs` 记两子 hash、`storyboard.meta.inputsHash` 记合成值；`validate` 的 `assertInputsUnchanged` 对拍，不一致 → `ConfigError` 指向重跑命令；旧产物无该字段时**跳过**（向后兼容）；`tests/inputs-hash.test.ts` 7 项，其中一条用 `utimesSync` 证明「mTime 版放过、hash 版拦住」 |
 | P1-1 MCP 工具层 | ⛔ **不做（用户裁决 2026-10-27）** | 🔴 **本项目本身就是 skill 管线**：能力经 `SKILL.md` + `npm run pipeline -- <stage>` 暴露给模型，不另建 MCP server。核对后方案列的 9 个工具**全部已有 CLI 对应**：`pipeline_status`→`pipeline status`（P1-2）、`templates_list`/`template_read`→`catalog.json`（P0-3 带 `doc`）+ `npm run templates:gallery`、`validate`→CLI、`render_submit`→`render`、`render_status`/`cancel`→P1-2、`placeholders_list`→`npm run placeholders`、`doctor`→`npm run doctor`。<br>再加一层 server 的代价是**双入口**（CLI 与 MCP 各一套参数与错误语义，漂移无人管），而收益仅是「结构化调用」；本项目真正的痛点其实是**可发现性**，已落 SKILL.md（新增 `verify` / `determinism` / `status`·`cancel`·`resume`）。<br>⚠️ 例外：将来若有**非 WorkBuddy 的 MCP 客户端**要接，再按需薄封装，**不要提前建** |
 | P1-2 任务队列 / 状态 / 取消 / 恢复 | ✅ **2026-10-26 落地（有意偏离原方案，见下）** | `core/pipeline-state.ts`：状态落 `jobs/<id>/pipeline-state.json`（**job 根目录**，不进任何阶段快照）；原子写（`.tmp` + rename，防中途被杀留下截断 JSON）；崩溃恢复判据是 **runnerPid 是否存活**而非时间阈值。CLI 新增 `status` / `cancel` / `resume`（`src/cli-state.ts`），阶段调度统一走 `runTracked` 包状态记录。<br>🔴 **偏离原方案**：原文要求「把 `spawnSync` 改为可中断的 `spawn`」。核对代码后**没这么做** —— `cancel` 由**另一个进程**发起，只需 pid + `taskkill /T /F` 杀整棵树（ffmpeg/whisper/chrome 都是树的子孙）；改成 async spawn 要把 `align` 整条链同步→异步（波及 cli、测试、stdio 语义），收益为零。<br>`resume` **刻意停在 render 之前**（那一步须人工看片，P1-a 闸），自动续跑到 render 只会撞闸。`status` 对 P1-2 之前的老 job 标「有产物·无记录」（`◌`），避免误导重跑。<br>验证：`tests/pipeline-state.test.ts` 9 项 + 真实子进程实测 cancel（taskkill 回执中文正常、进程确已终止）。<br>⚠️ 顺带修：`taskkill` 回执的 **GBK 乱码**（同 render `outputTail` 那个坑）→ 解码上提为 `core/child-output.ts` 唯一实现 |
-| P1-3 精选 Shotcraft 镜头导入 | ⏳ **未实施** | 计划见 §六 P1-3 |
+| P1-3 精选 Shotcraft 镜头导入 | 🔶 **改道（用户裁决 2026-10-27）：借手法，不抄代码** | 原「适配层 + 导入 5–8 个组件」**废置** —— 与 2026-10-14 的「借手法，不抄代码」纪律冲突（包组件 = 复制+修改代码），且引入 Apache-2.0 署名义务与风格割裂。<br>**新路径**：Shotcraft 仅作研究材料，借**时值配比 / 缓动 / 参数手感 / 配方卡文档结构**，不碰 `.tsx` 源码、色值、字体、`assets/`；产出为手法卡片 → 按我们的契约重写 → 来源登记 ATTRIBUTION。<br>**许可结论：不产生 Apache-2.0 义务**（未复制代码）；ATTRIBUTION 登记仍保留（学术诚实）。验收改为「≥3 个手法落地为自研模板 + 每个有配方卡与差异说明」，不再要求 vendor LICENSE |
 | P1-4 样式包 / 设计令牌 | ⏳ **未实施** | 计划见 §六 P1-4 |
 
 > 🔴 **2026-10-26 复核结论（本段同日三次更正）**：**P0 四项全部落地**
