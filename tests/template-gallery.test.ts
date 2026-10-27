@@ -19,8 +19,8 @@ describe('模板预览画廊', () => {
       .map((t) => t.id)
       .sort();
     expect(catalog.map((e) => e.id).sort()).toEqual(declared);
-    // 19 = 11 个内置实现（2026-10-24 补齐 pointer-callout / whip-pan）+ 8 个 MotionSpec
-    expect(catalog.filter((e) => e.implemented)).toHaveLength(19);
+    // 20 = 12 个内置实现（2026-10-24 补齐 pointer-callout / whip-pan；2026-10-27 加 marker-underline）+ 8 个 MotionSpec
+    expect(catalog.filter((e) => e.implemented)).toHaveLength(20);
     expect(catalog.filter((e) => !e.implemented)).toEqual([]);
   });
 
@@ -58,12 +58,12 @@ describe('模板预览画廊', () => {
     expect(entry?.preview?.caption?.words.length).toBeGreaterThan(0);
   });
 
-  test('gallery.html 离线、确定、19 张卡全部有图、无未实现', () => {
+  test('gallery.html 离线、确定、20 张卡全部有图、无未实现', () => {
     const catalog = buildTemplateCatalog();
     const html = renderGalleryHtml(catalog);
-    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(19);
+    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(20);
     expect((html.match(/data-gallery-card="0"/g) ?? [])).toHaveLength(0);
-    expect((html.match(/<img /g) ?? [])).toHaveLength(57);
+    expect((html.match(/<img /g) ?? [])).toHaveLength(60);
     expect(html).not.toMatch(/https?:\/\//);
     expect(html).toBe(renderGalleryHtml(catalog));
   });

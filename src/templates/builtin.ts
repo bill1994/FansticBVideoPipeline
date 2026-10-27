@@ -172,6 +172,49 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     //   `templates/tag-float.tsx` 固定为「上浮 +24px」，无需声明式表达。
   },
   {
+    // ── P1-3（2026-10-27）：「借手法不抄代码」路线的第一个落地模板 ──
+    // 手法借自 `video-shotcraft` @ 43bd349 的 `marker-underline-title` **手法文档**
+    // （Apache-2.0，未复制源码）。借来的是时值配比：划线 10f（原文「14f 版被裁偏慢」）、
+    // 字底 -0.1em、左低右高（原文「画反一眼假——返工判例」）、中段宽首尾收细。
+    // · 与 `custom/rule-underline@1.0` **不是变体关系**：那是不倾斜、等宽、纯色的
+    //   制图式直线；本模板是微上斜、变宽、边缘柔化的人手马克笔。两者可并存。
+    // · `status: 'experimental'`：新模板未经真实素材验证，按准入纪律不标 core。
+    id: 'typography/marker-underline@1.0',
+    family: 'typography',
+    subtype: 'marker-underline',
+    version: '1.0',
+    doc: {
+      summary: '标题落定后，关键词下方一笔手绘马克笔从左到右划过（微上斜、变宽、墨色渗开）。',
+      fits: ['标题里强调单个词', '手写感 / 有人味的调性', '正文式标注'],
+      energy: 'low',
+      params: [
+        {
+          key: 'text',
+          typical: '2–8 字（与标题同字号）',
+          feel: '划线宽度跟随文字；超过一屏宽的 2/3 时线会显得比字更抢',
+        },
+      ],
+      pitfalls: [
+        '划线 10f 是实测节奏：**14f 版被裁偏慢**，>14f 读作进度条',
+        '左低右高是硬约束 —— **画反一眼假**（借用方的返工判例）',
+        '起笔必须晚于标题落定 +4~8f：同动会抢戏，划线是「看完标题后的强调」',
+        '不用 rule-underline 替代：等宽直线读作分隔线，没有「人拿笔圈重点」的语义',
+      ],
+    },
+    scope: 'overlay-safe',
+    layer: 60,
+    occludesSubject: false,
+    status: 'experimental',
+    paramsSchema: { text: 'string' },
+    requiredParams: ['text'],
+    // 高度给足：文字行高 + 下方 -0.1em 的划线与渗开层
+    footprint: [0.18, 0.58, 0.64, 0.22],
+    minVisibleInFrames: 30,
+    // 字号 54 与 `kinetic-line` 相同 ⇒ latinWidthEm 直接复用其 D-B2 实测值 0.617
+    //（不比自编一个数诚实：同字体同字号的 em 度量必然一致）
+    textMetrics: { fontSizePx: 54, paddingPx: 0, latinWidthEm: 0.617 },
+  },
+  {
     // ── D-A（2026-10-16 落地）：首批里**唯一** `occludesSubject: true` 的叠加模板 ──
     // 「居中大字强调」：一行大字压在画面中部（主体所在区），是口播视频里
     // 「压在人身上的大字」这一高频手法的具象。它让 D2 的遮挡判定链路

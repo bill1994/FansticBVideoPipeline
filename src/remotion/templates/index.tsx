@@ -30,6 +30,7 @@ import { KaraokeWord } from './karaoke-word.tsx';
 import { KineticLine } from './kinetic-line.tsx';
 import { LowerThird } from './lower-third.tsx';
 import { TagFloat } from './tag-float.tsx';
+import { MarkerUnderline } from './marker-underline.tsx';
 import { StatCard } from './stat-card.tsx';
 import { PunchIn } from './punch-in.tsx';
 import { NoiseGrain } from './noise-grain.tsx';
@@ -44,6 +45,7 @@ const IMPLEMENTED: Record<string, TemplateComponent> = {
   'typography/kinetic-line@1.0': KineticLine,
   'typography/lower-third@1.0': LowerThird,
   'typography/tag-float@1.0': TagFloat,
+  'typography/marker-underline@1.0': MarkerUnderline,
   'data/stat-card@1.0': StatCard,
   // ── 批次 2（不依赖 perceive / D4）────────────────────────────
   // punch-in 是首个背景链实现：它**包裹视频**（children 透传），

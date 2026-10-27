@@ -103,6 +103,8 @@ describe('fitScale 的字号与内边距只从契约取', () => {
       'data/stat-card@1.0',
       // 2026-10-24：pointer-callout 的 target 标签也接 fitScale
       'annotation/pointer-callout@1.0',
+      // 2026-10-27：marker-underline 的文字也走 fitScale
+      'typography/marker-underline@1.0',
     ];
     expect(WITH_TEXT.map((t) => t.id).sort()).toEqual(covered.sort());
   });

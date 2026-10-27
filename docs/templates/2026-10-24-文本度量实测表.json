@@ -31,7 +31,7 @@
   "environment": {
     "platform": "win32",
     "arch": "x64",
-    "node": "v21.2.0",
+    "node": "v22.22.2",
     "fontSans": "\"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"Source Han Sans SC\", sans-serif",
     "fontNumeric": "\"Helvetica Neue\", Arial, \"Microsoft YaHei\", sans-serif"
   },
@@ -150,6 +150,45 @@
           "pxPerChar": 14.767123287671232,
           "measuredEm": 0.615296803652968,
           "currentEm": 0.615
+        }
+      }
+    },
+    {
+      "id": "typography/marker-underline@1.0",
+      "key": "text",
+      "fontSizePx": 54,
+      "classes": {
+        "cjk": {
+          "char": "测",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            50,
+            104,
+            536
+          ],
+          "pxPerChar": 54,
+          "measuredEm": 1,
+          "currentEm": 1
+        },
+        "latin": {
+          "char": "1",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            16,
+            50,
+            316
+          ],
+          "pxPerChar": 33.301369863013704,
+          "measuredEm": 0.6166920345002538,
+          "currentEm": 0.617
         }
       }
     },
