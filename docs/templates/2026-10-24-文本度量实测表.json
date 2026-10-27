@@ -5,6 +5,7 @@
     "composition": "TextMetricsProbe",
     "background": "#FF00FF",
     "frame": 45,
+    "frameOverride": "typography/gradient-sweep 用 frame 0（见 measureFrameOf 注释）",
     "lengths": [
       1,
       2,
@@ -227,7 +228,46 @@
           ],
           "pxPerChar": 49.301369863013704,
           "measuredEm": 0.5869210697977822,
-          "currentEm": 0.616
+          "currentEm": 0.587
+        }
+      }
+    },
+    {
+      "id": "typography/gradient-sweep@1.0",
+      "key": "text",
+      "fontSizePx": 84,
+      "classes": {
+        "cjk": {
+          "char": "测",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            77,
+            161,
+            833
+          ],
+          "pxPerChar": 84,
+          "measuredEm": 1,
+          "currentEm": 1
+        },
+        "latin": {
+          "char": "1",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            27,
+            79,
+            493
+          ],
+          "pxPerChar": 51.76712328767124,
+          "measuredEm": 0.6162752772341814,
+          "currentEm": 0.617
         }
       }
     },
@@ -299,12 +339,12 @@
             10
           ],
           "widthsPx": [
-            17,
+            16,
             46,
             281
           ],
-          "pxPerChar": 29.34931506849315,
-          "measuredEm": 0.6670298879202989,
+          "pxPerChar": 29.417808219178085,
+          "measuredEm": 0.6685865504358656,
           "currentEm": 0.667
         }
       }
@@ -338,9 +378,9 @@
             10
           ],
           "widthsPx": [
-            6,
-            18,
-            117
+            5,
+            17,
+            116
           ],
           "pxPerChar": 12.349315068493151,
           "measuredEm": 0.6174657534246576,

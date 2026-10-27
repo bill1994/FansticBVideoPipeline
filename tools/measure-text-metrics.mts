@@ -60,6 +60,18 @@ const mdOut = path.join(docsDir, '2026-10-24-文本度量实测表.md');
 const LENGTHS = [1, 2, 10] as const;
 /** 中段帧：入场（约 14 帧）已结束、出场（约 70 帧）未开始。 */
 const MEASURE_FRAME = 45;
+
+/**
+ * 个别模板在那个"中段帧"上的形态不适合按色测量，需要指定自己的测量帧。
+ *
+ * · `gradient-sweep`：45f 时整词已被渐变彩层覆盖（多色），按任何单一文字色都只能
+ *   量到部分字 ⇒ 包围盒宽度失真。改在 **frame 0**（扫充尚未开始、只有白字底层）测。
+ *   代价：测不到辉光对包围盒的影响 —— 但辉光本就该被排除，反而更准。
+ */
+function measureFrameOf(id: string): number {
+  if (id.startsWith('typography/gradient-sweep')) return 0;
+  return MEASURE_FRAME;
+}
 /** 两类字符：CJK 与拉丁数字。数字用 800 粗体模板（stat-card）验证字重差异。 */
 const CLASSES = [
   { name: 'cjk', char: '测' },
@@ -215,7 +227,7 @@ async function main(): Promise<void> {
             composition,
             serveUrl,
             output,
-            frame: MEASURE_FRAME,
+            frame: measureFrameOf(tpl.id),
             inputProps,
             puppeteerInstance: browser,
             imageFormat: 'png',
@@ -253,6 +265,7 @@ async function main(): Promise<void> {
       composition: 'TextMetricsProbe',
       background: PROBE_BACKGROUND,
       frame: MEASURE_FRAME,
+      frameOverride: 'typography/gradient-sweep 用 frame 0（见 measureFrameOf 注释）',
       lengths: [...LENGTHS],
       footprint: [0, 0, 1, 1],
       classes: CLASSES.map((c) => ({ name: c.name, char: c.char })),

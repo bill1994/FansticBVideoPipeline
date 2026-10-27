@@ -271,6 +271,51 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     textMetrics: { fontSizePx: 84, paddingPx: 0, latinWidthEm: 0.587 },
   },
   {
+    // ── P1-3 第三个（也是最后一个）落地模板（2026-10-27）──
+    // 手法借自 `video-shotcraft` @ 43bd349 的 `gradient-word-sweep`（Apache-2.0，未复制源码）。
+    // 三层叠：渐变彩层被 clip-path 揭开 + 波前高光带 + 填满后跳闪电。
+    // 🔴 三个关键判例：波前必须有**梯度**（无梯度＝静态渐变裁切）；
+    //    泛光封顶 0.72（0.75+ 被裁"泛光感有点强"）；**禁跟随光点**（被裁"廉价装饰"）。
+    id: 'typography/gradient-sweep@1.0',
+    family: 'typography',
+    subtype: 'gradient-sweep',
+    version: '1.0',
+    doc: {
+      summary: '关键词被渐变彩光从左扫过"充能"：波前最亮、向后衰减，填满后跳细闪电、整词泛光呼吸。',
+      fits: ['卖点词充能', '能量高潮段的文字戏', '黑场标语里的关键词'],
+      energy: 'high',
+      params: [
+        {
+          key: 'text',
+          typical: '2–6 字（84px / 900 字重）',
+          feel: '字越多扫充跨度越长；超过 8 字"扫过"的过程会失去冲击',
+        },
+        {
+          key: 'onLight',
+          typical: 'true / false（默认 false）',
+          feel: '亮底时底层文字转深墨（渐变彩层与辉光不变，它们在亮底上依然可见）',
+        },
+      ],
+      pitfalls: [
+        '🔴 波前必须带**梯度**（前亮后暗）：没有它就是"把字涂成彩色"，不是"充能"（原文判例）',
+        '泛光封顶 0.72：0.75+ 档被裁"泛光感有点强"；辉光层数 <3 会读作纯色',
+        '🚫 **填充过程中不要加跟随移动的光点**：原文实测判例「读作廉价装饰，删」',
+        '闪电要稀疏：同屏 ≤1 道、间歇 >8f、持续约 6f；频率高读作电弧故障',
+        '扫充 15–20f：>28f 读作进度条',
+      ],
+    },
+    scope: 'overlay-safe',
+    layer: 62,
+    occludesSubject: false,
+    status: 'experimental',
+    paramsSchema: { text: 'string', onLight: 'boolean' },
+    requiredParams: ['text'],
+    footprint: [0.15, 0.55, 0.72, 0.2],
+    minVisibleInFrames: 60,
+    // fontSize 与组件一致（84）；拉丁系数为 D-B2 实测值（900 字重与 700 的差异 <0.002）
+    textMetrics: { fontSizePx: 84, paddingPx: 0, latinWidthEm: 0.616 },
+  },
+  {
     // ── D-A（2026-10-16 落地）：首批里**唯一** `occludesSubject: true` 的叠加模板 ──
     // 「居中大字强调」：一行大字压在画面中部（主体所在区），是口播视频里
     // 「压在人身上的大字」这一高频手法的具象。它让 D2 的遮挡判定链路

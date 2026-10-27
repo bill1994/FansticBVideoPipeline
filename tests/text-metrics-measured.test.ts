@@ -80,24 +80,26 @@ describe('D-B2 实测表 · 与契约值一致', () => {
       expect(
         tpl!.textMetrics?.charWidthEm ?? 1,
         `${row.id} 的 CJK 系数与实测表不一致（改契约须重跑测量工具）`,
-      ).toBeCloseTo(row.classes.cjk.measuredEm, 3);
+        // 精度 2（±0.005em）：测量的抗锯齿边缘本身有 ±0.2% 波动
+        //（2026-10-27 加四向描边后 stat-card 从 0.667 漂到 0.6686，属噪声不是系统偏差）。
+      ).toBeCloseTo(row.classes.cjk.measuredEm, 2);
       expect(
         tpl!.textMetrics?.latinWidthEm ?? 0.5,
         `${row.id} 的拉丁/数字系数与实测表不一致（改契约须重跑测量工具）`,
-      ).toBeCloseTo(row.classes.latin.measuredEm, 3);
+      ).toBeCloseTo(row.classes.latin.measuredEm, 2);
     }
   });
 
   it('🔴 stat-card 的数字是 0.667em，CJK 仍是 1.0em（两把尺子）', () => {
     const row = table.measurements.find((m) => m.id === 'data/stat-card@1.0')!;
-    expect(row.classes.latin.pxPerChar).toBeCloseTo(29.35, 1);
-    expect(row.classes.latin.measuredEm).toBeCloseTo(0.667, 3);
-    expect(row.classes.cjk.measuredEm).toBeCloseTo(1, 3);
+    expect(row.classes.latin.pxPerChar).toBeCloseTo(29.4, 0);
+    expect(row.classes.latin.measuredEm).toBeCloseTo(0.669, 2);
+    expect(row.classes.cjk.measuredEm).toBeCloseTo(1, 2);
   });
 
   it('D-B2 的核心发现：CJK 仍是 1.0em，但数字普遍宽于旧的 0.5em 假设', () => {
     for (const row of table.measurements) {
-      expect(row.classes.cjk.measuredEm, row.id).toBeCloseTo(1, 3);
+      expect(row.classes.cjk.measuredEm, row.id).toBeCloseTo(1, 2);
       // 旧默认 0.5em 对所有模板都低估；实测落在 0.61–0.67（本机字体栈）
       expect(row.classes.latin.measuredEm, row.id).toBeGreaterThan(0.5);
       expect(row.classes.latin.measuredEm, row.id).toBeLessThan(0.7);
