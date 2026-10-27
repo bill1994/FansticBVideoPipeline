@@ -16,6 +16,7 @@
  */
 
 import type { CSSProperties, FC, ReactNode } from 'react';
+import type { StylePack as PackStyle } from '../../core/style-pack.ts';
 import type { StoryboardItem } from '../../core/types.ts';
 import { getTemplate } from '../../templates/registry.ts';
 import type { CaptionData } from '../caption.ts';
@@ -55,6 +56,17 @@ export interface TemplateProps {
    * 不再是常量（竖屏/任意分辨率都可能）。
    */
   canvasWidth?: number;
+  /**
+   * 样式包（EAC P1-4，2026-10-27）—— **色值的真源**。
+   *
+   * 由 `00-input/source.json` 的 `stylePack` 选定，经 render 组装 props 传进来。
+   * 缺省为 `undefined` ⇒ 模板回落到 `tokens.ts` 的 `COLOR`
+   * （保证旧 props / 单测不需要构造它，行为与改造前等价）。
+   *
+   * ⚠️ 模板从这里取的是**语义键**（`style.colors.brand`），不是 hex ——
+   * 「模型不写颜色」那条纪律依然成立，只是色值的来源从常量换成了 job 级配置。
+   */
+  style?: PackStyle;
 }
 
 export type TemplateComponent = FC<TemplateProps>;

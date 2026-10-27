@@ -1,0 +1,27 @@
+{
+  "name": "light",
+  "mode": "light",
+  "description": "亮底包 —— 深墨字配深橙强调，用于白墙 / 浅色棚拍 / 亮天光等画面",
+  "colors": {
+    "ink": "#101418",
+    "inkDim": "rgba(16,20,24,0.72)",
+    "brand": "#C2410C",
+    "accent": "#1D4ED8",
+    "plate": "rgba(255,255,255,0.86)",
+    "hairline": "rgba(16,20,24,0.28)"
+  },
+  "fonts": {
+    "sans": "\"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"Source Han Sans SC\", sans-serif",
+    "numeric": "\"Helvetica Neue\", Arial, \"Microsoft YaHei\", sans-serif"
+  },
+  "radius": {
+    "sm": "6px",
+    "md": "12px",
+    "lg": "20px"
+  },
+  "shadow": {
+    "text": "0 0 2px rgba(255,255,255,0.85)",
+    "textOnLight": "0 0 2px rgba(255,255,255,0.85)",
+    "card": "0 8px 32px rgba(120,120,120,0.35)"
+  }
+}

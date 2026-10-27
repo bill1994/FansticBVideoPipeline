@@ -61,10 +61,17 @@ export const GradientSweep: TemplateComponent = ({
   durationInFrames,
   item,
   canvasWidth,
+  style,
 }) => {
   const text = str(item.params, 'text');
-  const onLight = bool(item.params, 'onLight', false);
-  const tone = toneOf(onLight);
+  /**
+   * 配色来源（EAC P1-4，2026-10-27）：**`style`（job 级 pack）优先**。
+   *
+   * `onLight` 是上一版留下的 per-item 简写，保留兼容但不推荐 —— 新代码用
+   * `00-input/source.json` 的 `stylePack`，一处设置全模板生效。
+   */
+  const onLight = style?.mode === 'light' || bool(item.params, 'onLight', false);
+  const tone = style?.colors ?? toneOf(onLight);
   const { exit } = enterExitProgress(frame, durationInFrames);
   const fit = fitScaleFor(text, item.motion, item, canvasWidth);
 

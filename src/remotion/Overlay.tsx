@@ -7,6 +7,7 @@ import { hydrateTemplates } from '../templates/registry.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { isCarrierScope, getScopeOf } from './scope.ts';
 import { CarrierTimeline } from './carrier.tsx';
+import type { StylePack as PackStyle } from '../core/style-pack.ts';
 
 /**
  * 渲染 props —— 由 `05-render/render-props.json` 经 `--props` 注入。
@@ -37,6 +38,13 @@ export type RenderProps = {
   storyboard: Storyboard;
   stacks: { background: string[]; overlay: string[] };
   /**
+   * 样式包（EAC P1-4，2026-10-27）—— 由 `00-input/source.json` 的 `stylePack` 选定，
+   * render 组装 props 时解析成对象写在这里。
+   *
+   * 可选：旧 props 没有这个字段 ⇒ 模板回落到 `tokens.ts` 的 `COLOR`，行为与改造前等价。
+   */
+  stylePack?: PackStyle;
+  /**
    * 影子载体轨（D4-t3）—— 由「叠加 item 上的 `carrier` 声明」在 render 侧合成。
    *
    * 🔴 它**不在** `storyboard.tracks` 里：`storyboard` 必须保持模型产物的原貌，
@@ -66,7 +74,11 @@ export type RenderProps = {
 };
 
 /** 单个 track 的渲染片段（不含定位）。 */
-const TrackBody: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track, caption }) => {
+const TrackBody: FC<{ track: StoryboardTrack; caption: CaptionData; stylePack?: PackStyle }> = ({
+  track,
+  caption,
+  stylePack,
+}) => {
   const start = Math.min(...track.items.map((i) => i.fromFrame));
   return (
     <>
@@ -76,7 +88,13 @@ const TrackBody: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track
           from={item.fromFrame - start}
           durationInFrames={item.durationInFrames}
         >
-          <MotionItem trackId={track.id} itemIndex={idx} item={item} caption={caption} />
+          <MotionItem
+            trackId={track.id}
+            itemIndex={idx}
+            item={item}
+            caption={caption}
+            {...(stylePack === undefined ? {} : { style: stylePack })}
+          />
         </Sequence>
       ))}
     </>
@@ -92,13 +110,17 @@ const TrackBody: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track
  * ⚠️ **禁用 `<Series>`**：它语义是「依次播放」，内部自动把后一个的起点算作
  *    前一个的终点，**结构上无法表达重叠**，与硬约束 3 直接冲突。
  */
-const TrackSequence: FC<{ track: StoryboardTrack; caption: CaptionData }> = ({ track, caption }) => {
+const TrackSequence: FC<{
+  track: StoryboardTrack;
+  caption: CaptionData;
+  stylePack?: PackStyle;
+}> = ({ track, caption, stylePack }) => {
   if (track.items.length === 0) return null;
   const start = Math.min(...track.items.map((i) => i.fromFrame));
   const end = Math.max(...track.items.map((i) => i.fromFrame + i.durationInFrames));
   return (
     <Sequence from={start} durationInFrames={end - start}>
-      <TrackBody track={track} caption={caption} />
+      <TrackBody track={track} caption={caption} stylePack={stylePack} />
     </Sequence>
   );
 };
@@ -140,6 +162,7 @@ export const Overlay: FC<RenderProps> = ({
   caption,
   carrierTracks,
   templates,
+  stylePack,
 }) => {
   // 🔴 必须在本组件**任何** getTemplate 之前执行：`MotionItem` 渲染时会
   //    查注册表，`custom/*` 未 hydrate 会直接抛 ConfigError。
@@ -201,7 +224,7 @@ export const Overlay: FC<RenderProps> = ({
       {/* 叠加栈：其余四类，并列 */}
       {overlays.map(({ track }) => (
         <AbsoluteFill key={track.id}>
-          <TrackSequence track={track} caption={cap} />
+          <TrackSequence track={track} caption={cap} stylePack={stylePack} />
         </AbsoluteFill>
       ))}
     </AbsoluteFill>

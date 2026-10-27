@@ -1,0 +1,26 @@
+{
+  "name": "dark",
+  "mode": "dark",
+  "description": "默认包 —— 深底浅字，与改造前的 tokens.ts 逐字一致（保证现有 job 行为不变）",
+  "colors": {
+    "ink": "#FFFFFF",
+    "inkDim": "rgba(255,255,255,0.72)",
+    "brand": "#FFC53D",
+    "accent": "#4DA3FF",
+    "plate": "rgba(14,17,20,0.78)",
+    "hairline": "rgba(255,255,255,0.22)"
+  },
+  "fonts": {
+    "sans": "\"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"Source Han Sans SC\", sans-serif",
+    "numeric": "\"Helvetica Neue\", Arial, \"Microsoft YaHei\", sans-serif"
+  },
+  "radius": {
+    "sm": "6px",
+    "md": "12px",
+    "lg": "20px"
+  },
+  "shadow": {
+    "text": "0 0 1px rgba(0,0,0,0.92), 0 1px 0 rgba(0,0,0,0.85), 0 -1px 0 rgba(0,0,0,0.85), 1px 0 0 rgba(0,0,0,0.85), -1px 0 0 rgba(0,0,0,0.85), 0 2px 8px rgba(0,0,0,0.85)",
+    "card": "0 8px 32px rgba(0,0,0,0.55)"
+  }
+}

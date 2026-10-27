@@ -1,6 +1,6 @@
 # 项目进度 — Remotion 视频动效叠加管线
 
-> 最近更新：**2026-10-26**（合并远端 29 提交后复核：57 文件 / 852 项全过，占位值 11 项 / 19 数值，错误码 28 条）
+> 最近更新：**2026-10-26**（合并远端 29 提交后复核：58 文件 / 860 项全过，占位值 11 项 / 19 数值，错误码 28 条）
 > 状态标记：✅ 完成 / 🔶 进行中 / ⛔ 明确不做 / ❌ 未做
 > 📄 最近一次全量审计：`docs/reviews/2026-10-19-全量进展审计报告.md`（该报告的计数已部分过期，以本文件为准）
 
@@ -68,8 +68,8 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
   template-gallery 7 / pacing-contract 7 / draft-keys 7 / carrier-synth 7 /
   video-size 6 / text-metrics-measured 6 / stage-io 6 / registry 6 / perceive-sampling 6 /
   stage-order 5 / spec-loader 5 / exit-code 5 / dtw-unit 5 / review-queue 4 / whisper-path 3 /
-  render-failure 11 / render-failure-write 2 / render-video-presence 5 / doc-recipe 7 / inputs-hash 7 / pipeline-e2e 5 / render-success 3 / pipeline-state 9 / spec-intent-binding 7
-  （57 文件逐项相加 = 852，与 `npm test` 实跑一致；旧清单把 motion-accept / spec-loader 各记两遍，加总只有 786）
+  render-failure 11 / render-failure-write 2 / render-video-presence 5 / doc-recipe 7 / inputs-hash 7 / pipeline-e2e 5 / render-success 3 / pipeline-state 9 / spec-intent-binding 7 / style-pack 8
+  （58 文件逐项相加 = 860，与 `npm test` 实跑一致；旧清单把 motion-accept / spec-loader 各记两遍，加总只有 786）
 
 ### 3.1.1 `01-align` 全通（✅ 2026-10-14）
 
@@ -508,7 +508,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
 校验项      18 项（构建期）   ← validate-report.summary.checked=18
             + 渲染期兜底 3 类（已接线：失败时写 render-report.json 的 items）
 错误码      28 条（E-*/W-*，+W-DB-01 / +E-DB-01）  ← src/core/errors.ts#ALL_CODES.length
-单测        852 项全过（57 个测试文件）  ← 449 → … → 756（P1-a review +14 等） → 757（C2-5b +1） → 762（D-B3 +5） → 769（M-3 契约层 +7） → 779（P1-b 六道验收 +10 / genPrompt +3 / 验签 +5） → 782（覆写护栏 +3） → 792（文件名派生 +2 / 终审加固 +1 / 签名后体积 +1） → 809（10-26 第一档修复：F6 无 region +4 / 渲染期兜底接线 +11 / GBK 解码 +3） → 814（素材存在性闸 +5） → 828（P0-3 配方卡 +7 / P0-4 输入指纹 +7） → 836（跨阶段集成 +5 / 渲染成功路径 +3） → 845（P1-2 状态与恢复 +9） → 852（spec 接线 +7）
+单测        860 项全过（58 个测试文件）  ← 449 → … → 756（P1-a review +14 等） → 757（C2-5b +1） → 762（D-B3 +5） → 769（M-3 契约层 +7） → 779（P1-b 六道验收 +10 / genPrompt +3 / 验签 +5） → 782（覆写护栏 +3） → 792（文件名派生 +2 / 终审加固 +1 / 签名后体积 +1） → 809（10-26 第一档修复：F6 无 region +4 / 渲染期兜底接线 +11 / GBK 解码 +3） → 814（素材存在性闸 +5） → 828（P0-3 配方卡 +7 / P0-4 输入指纹 +7） → 836（跨阶段集成 +5 / 渲染成功路径 +3） → 845（P1-2 状态与恢复 +9） → 852（spec 接线 +7） → 860（P1-4 样式包 +8）
 测试文件    48 个 `.test.ts(x)` + 1 个共享夹具 `tests/_ctx.ts`
 契约字段    occludesSubject 已补实现；handoffIn 已删除；item.carrier 已立契约（D4-t2）
             anchor 语法：word:N / cue:N（C2-6）/ abs:<帧|秒s>
@@ -535,7 +535,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             墙钟/帧数/大小/画面尺寸见 `05-render/render-report.json`
 成片 QA       `render-report.json.qa`：解码 / 时长 / 黑场 / 静帧 / 音频 / `contact-sheet.jpg`（P0-2）
 整体完成度  约 88%（功能层 100% / 质量层约 60%）
-工程健康    typecheck exit 0 · 852 项全过（57 文件）· placeholders --check OK
+工程健康    typecheck exit 0 · 860 项全过（58 文件）· placeholders --check OK
 ```
 
 **真素材端到端实测（2026-10-19 复核）**：

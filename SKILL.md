@@ -37,11 +37,16 @@ description: >-
 |---|---|---|
 | 1 | 扫描 `00-input/` | 视频、SRT **各恰好一份** → 直接进入第 2 步；多份或缺失 → **这是唯一提问点**，请用户指认哪个配哪个 |
 | 2 | `ffprobe` 实测视频 | `fps`（r_frame_rate）、时长秒数、`width`/`height`；`durationInFrames = round(时长秒 × fps)`，若 ffprobe 给出 `nb_frames` 则交叉对账，不一致停下报告 |
-| 3 | 写 `source.json` | 四个必填字段 + 分辨率（竖屏素材**建议**显式填 width/height，不填则 render 阶段 ffprobe 自动探测） |
+| 3 | 写 `source.json` | 四个必填字段 + 分辨率（竖屏素材**建议**显式填 width/height，不填则 render 阶段 ffprobe 自动探测）+ **`stylePack`**（见下） |
 | 4 | 向用户**报告实测值** | 「实测 30fps / 3337 帧 / 1920×1080，已写入」——报告事实，不是索要数据 |
 
 **纪律**：
 - 🔴 `fps` / `durationInFrames` **只能来自 ffprobe 实测**，禁止凭记忆、估算或「常见值」填写——它们是全管线时间轴的锚，填错则所有帧语义漂移
+- 🎨 **`stylePack`（可选，P1-4）**：配色包名，取 `styles/packs/` 下的文件名（当前 `dark` / `light`）。
+  不填 = `dark`（与改造前完全一致）。**画面是浅色（白墙 / 亮棚 / 雪地）时填 `light`** ——
+  否则白字落在白底上几乎看不见（实渲验证过）。
+  ⚠️ 这里写的是**一个包名**，不是颜色值：色值由 `styles/packs/*.json` 决定，「模型不写颜色」依然成立。
+  写错包名会直接 `ConfigError` 并列出可用包（不会静默回退）。
 - 🔴 `source.json` 已存在时**不改写**（与「管线只读用户文件」同一精神）；只在缺失时生成
 - 用户可手改 `source.json`；改了 `fps` ⇒ 全部已烘焙帧作废，须重跑 03 起的全部阶段
 

@@ -6,10 +6,12 @@
 > （需 FFmpeg / Edge / Windows SAPI / 本地转录模型，且仓库未安装依赖）
 > 对比基线：本地 `VideoPipeline` main @ `20457b5`（2026-10-21，691 项测试全过）
 >
-> 🟢 **实施状态（2026-10-27 更新，详见 §十一）**：**P0 四项全部落地；P1-2 已落地；P1-1 裁决不做**
-> （P0-1/P0-2 于 10-22，P0-3/P0-4 于 10-26，P1-2 于 10-26，P1-1 于 10-27 由用户裁决不做）。
-> **P1-3 已改道**（2026-10-27：借手法不抄代码，从「导入组件」变「研究后自研」）；
-> **P1-4 仍未开工**；P2-1~P2-4 为探索项，触发条件未到。
+> 🟢 **实施状态（2026-10-27 更新，详见 §十一）**：**P0 四项全落地；P1-2 / P1-3 / P1-4 全部落地；P1-1 裁决不做**
+> （P0-1/P0-2 于 10-22；P0-3/P0-4 于 10-26；P1-2 于 10-26；P1-3 三个手法于 10-27；P1-4 于 10-27；
+> P1-1 于 10-27 由用户裁决不做）。
+> ⚠️ **P1-3 是改道落地的**：原方案「导入 5–8 个 Shotcraft 组件」被废置（撞「借手法不抄代码」纪律），
+> 改为「读手法文档 → 自己重写」，产出 3 个自研模板（marker-underline / outline-fill / gradient-sweep）。
+> **P1-4 的 pack 内容自建**（未导 OpenDesign，理由见 §11.1 对应行）；P2-1~P2-4 为探索项，触发条件未到。
 > 🔴 **P1-1 不做的理由**：本项目**本身就是 skill 管线**（`SKILL.md` + `npm run pipeline` 即工具层），
 > 再建 MCP server 只会形成「CLI / MCP 双入口」，两套参数与错误语义必然漂移。
 > 若是将来出现**非 WorkBuddy 的 MCP 客户端**，再按需薄封装，不要提前建。
@@ -606,7 +608,7 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 | P1-1 MCP 工具层 | ⛔ **不做（用户裁决 2026-10-27）** | 🔴 **本项目本身就是 skill 管线**：能力经 `SKILL.md` + `npm run pipeline -- <stage>` 暴露给模型，不另建 MCP server。核对后方案列的 9 个工具**全部已有 CLI 对应**：`pipeline_status`→`pipeline status`（P1-2）、`templates_list`/`template_read`→`catalog.json`（P0-3 带 `doc`）+ `npm run templates:gallery`、`validate`→CLI、`render_submit`→`render`、`render_status`/`cancel`→P1-2、`placeholders_list`→`npm run placeholders`、`doctor`→`npm run doctor`。<br>再加一层 server 的代价是**双入口**（CLI 与 MCP 各一套参数与错误语义，漂移无人管），而收益仅是「结构化调用」；本项目真正的痛点其实是**可发现性**，已落 SKILL.md（新增 `verify` / `determinism` / `status`·`cancel`·`resume`）。<br>⚠️ 例外：将来若有**非 WorkBuddy 的 MCP 客户端**要接，再按需薄封装，**不要提前建** |
 | P1-2 任务队列 / 状态 / 取消 / 恢复 | ✅ **2026-10-26 落地（有意偏离原方案，见下）** | `core/pipeline-state.ts`：状态落 `jobs/<id>/pipeline-state.json`（**job 根目录**，不进任何阶段快照）；原子写（`.tmp` + rename，防中途被杀留下截断 JSON）；崩溃恢复判据是 **runnerPid 是否存活**而非时间阈值。CLI 新增 `status` / `cancel` / `resume`（`src/cli-state.ts`），阶段调度统一走 `runTracked` 包状态记录。<br>🔴 **偏离原方案**：原文要求「把 `spawnSync` 改为可中断的 `spawn`」。核对代码后**没这么做** —— `cancel` 由**另一个进程**发起，只需 pid + `taskkill /T /F` 杀整棵树（ffmpeg/whisper/chrome 都是树的子孙）；改成 async spawn 要把 `align` 整条链同步→异步（波及 cli、测试、stdio 语义），收益为零。<br>`resume` **刻意停在 render 之前**（那一步须人工看片，P1-a 闸），自动续跑到 render 只会撞闸。`status` 对 P1-2 之前的老 job 标「有产物·无记录」（`◌`），避免误导重跑。<br>验证：`tests/pipeline-state.test.ts` 9 项 + 真实子进程实测 cancel（taskkill 回执中文正常、进程确已终止）。<br>⚠️ 顺带修：`taskkill` 回执的 **GBK 乱码**（同 render `outputTail` 那个坑）→ 解码上提为 `core/child-output.ts` 唯一实现 |
 | P1-3 精选 Shotcraft 镜头导入 | 🔶 **改道（用户裁决 2026-10-27）：借手法，不抄代码** | 原「适配层 + 导入 5–8 个组件」**废置** —— 与 2026-10-14 的「借手法，不抄代码」纪律冲突（包组件 = 复制+修改代码），且引入 Apache-2.0 署名义务与风格割裂。<br>**新路径**：Shotcraft 仅作研究材料，借**时值配比 / 缓动 / 参数手感 / 配方卡文档结构**，不碰 `.tsx` 源码、色值、字体、`assets/`；产出为手法卡片 → 按我们的契约重写 → 来源登记 ATTRIBUTION。<br>**许可结论：不产生 Apache-2.0 义务**（未复制代码）；ATTRIBUTION 登记仍保留（学术诚实）。验收改为「≥3 个手法落地为自研模板 + 每个有配方卡与差异说明」，不再要求 vendor LICENSE |
-| P1-4 样式包 / 设计令牌 | ⏳ **未实施** | 计划见 §六 P1-4 |
+| P1-4 样式包 / 设计令牌 | ✅ **2026-10-27 落地（pack 内容自建，未导外部）** | `core/style-pack.ts` + `styles/packs/{dark,light}.json`；job 在 `00-input/source.json` 写 `stylePack`（缺省 `dark`）；`render` 解析后写进 `render-props.json`，经 `Overlay → TrackSequence → TrackBody → MotionItem` 传到 `TemplateProps.style`；三个新模板已改为 `style.colors.brand` 取值。<br>🔴 **未知包名直接 ConfigError**（不静默回退——回退会把「包名打错」变成「配色莫名不对」）。<br>🔴 **pack 内容自建、未导 OpenDesign**：那 152 套是否逐条 MIT 未经核实（原文写的是筛选条件不是全集属性），且 SPEC §5.5 已明确「外部 layout / 主题 token 体系不采纳」。先自建 2 套把机制跑通，零许可风险。<br>验收三条全过：同一模板两 pack 渲出不同（白底实测：dark 白字金线 / light 深墨深橙）；未知包报错；demo 默认不变（dark 与改造前 `tokens.ts` **逐字一致**，有测试钉住） |
 
 > 🔴 **2026-10-26 复核结论（本段同日三次更正）**：**P0 四项全部落地**
 > （P0-1 / P0-2 于 10-22，P0-3 / P0-4 于 10-26）；**P1-2 任务队列已于 10-26 落地**。
@@ -660,8 +662,10 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 方案列的 9 个工具全部已有 CLI 对应。再建 server 会形成双入口，收益小于维护成本。
 **替代路径**：把可发现性做进 SKILL.md（已补 `verify` / `determinism` / `status`·`cancel`·`resume`）。
 
-**下一步只剩 P1-3 / P1-4** —— 两者都是内容与视觉扩张（精选镜头导入、样式包/设计令牌），
-需先过许可确认与视觉裁决，不能直接开工。
+✅ **P1-3 / P1-4 均已落地（2026-10-27）**：P1-3 三个手法（marker-underline / outline-fill /
+gradient-sweep）全部实现；P1-4 样式包机制跑通（2 套自建 pack）。
+④ **P1-4 的 pack 内容仍可扩张**：机制已就绪，加一套风格只需往 `styles/packs/` 放一个 JSON，
+   不涉及代码改动。外部风格导入需先逐条核实许可。
 
 > 🔴 2026-10-26 备注：`P0-4` 只做了 hash 守卫，**未做**方案里的 `meta.revision` 乐观锁。
 > revision 要求人工/模型每次改稿手动递增，属额外纪律负担；hash 已能覆盖「改过没重跑」这个真实事故。

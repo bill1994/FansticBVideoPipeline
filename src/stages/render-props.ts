@@ -23,6 +23,7 @@ import {
   probeVideoSize,
   resolveRenderSize,
 } from '../core/video-size.ts';
+import { loadStylePack, resolveStylePackName } from '../core/style-pack.ts';
 import { log } from '../core/log.ts';
 import type { SourceManifest } from '../core/types.ts';
 import { buildContext } from '../validate/context.ts';
@@ -207,11 +208,18 @@ export function composeRenderProps(jobId: string, jobsDir?: string): ComposedRen
     log.info(`画面尺寸：${size.width}×${size.height}（ffprobe 从素材读得）`);
   }
 
+  /**
+   * 样式包（EAC P1-4，2026-10-27）：job 级配色真源。
+   * 未知包名在这里就抛 ConfigError（退出码 2）—— 不要拖到浏览器侧再炸。
+   */
+  const stylePack = loadStylePack(resolveStylePackName(source));
+
   const props: RenderProps = {
     jobId,
     fps: source.fps,
     durationInFrames: source.durationInFrames,
     // 画面尺寸（P4）：由 `Root.tsx` 的 calculateMetadata 透传给 Composition
+    stylePack,
     width: size.width,
     height: size.height,
     // 🔴 2026-10-18 实测修正：**不能传 `../00-input/x.mp4`，也不能只传文件名**。

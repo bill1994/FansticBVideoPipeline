@@ -73,14 +73,17 @@ export const MarkerUnderline: TemplateComponent = ({
   durationInFrames,
   item,
   canvasWidth,
+  style,
 }) => {
   const text = str(item.params, 'text');
   /**
-   * 亮底模式（2026-10-27）：模型/人只说「这段画面是亮的」，**不给色值**。
-   * 具体配色由 `toneOf` 从令牌里选 —— 这既解决了白底看不见，也没突破「颜色走令牌」。
+   * 配色来源（EAC P1-4，2026-10-27）：**`style`（job 级 pack）优先**。
+   *
+   * `onLight` 是上一版留下的 per-item 简写，保留兼容但不推荐 —— 新代码用
+   * `00-input/source.json` 的 `stylePack`，一处设置全模板生效。
    */
-  const onLight = bool(item.params, 'onLight', false);
-  const tone = toneOf(onLight);
+  const onLight = style?.mode === 'light' || bool(item.params, 'onLight', false);
+  const tone = style?.colors ?? toneOf(onLight);
   /** 内容派生的确定性 id（见文件头纪律 2）。 */
   let h = 0;
   for (const ch of text) h = (h * 31 + (ch.codePointAt(0) ?? 0)) | 0;

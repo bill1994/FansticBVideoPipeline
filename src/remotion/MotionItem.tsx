@@ -4,6 +4,7 @@ import type { StoryboardItem } from '../core/types.ts';
 import { getTemplate } from '../templates/registry.ts';
 import { EMPTY_CAPTION, type CaptionData } from './caption.ts';
 import { getTemplateComponent } from './templates/index.tsx';
+import type { StylePack as PackStyle } from '../core/style-pack.ts';
 
 /**
  * motion item 的渲染壳 —— 负责「定位 + 时间换算 + 分发」，**不负责画什么**。
@@ -28,12 +29,14 @@ export const MotionItem: FC<{
   itemIndex: number;
   item: StoryboardItem;
   caption?: CaptionData;
+  /** 样式包（P1-4）：由 Overlay 从 render props 透传，缺省走 tokens。 */
+  style?: PackStyle;
   /**
    * 载体类专属：被包裹的内层（实拍视频 / 更内层载体结构）。
    * 叠加类不传 —— 组件拿到的 children 恒为 `undefined`（见 contract.tsx）。
    */
   children?: ReactNode;
-}> = ({ trackId, itemIndex, item, caption, children }) => {
+}> = ({ trackId, itemIndex, item, caption, style, children }) => {
   const frame = useCurrentFrame();
   // 画面宽度（P6）：模板要用它把 `footprint` 换算成像素宽，才能判断文字放不放得下。
   // P4 之后画面宽度不再是常量（竖屏/任意分辨率），不能由模板自己假设 1920。
@@ -62,6 +65,7 @@ export const MotionItem: FC<{
         item={item}
         caption={cap}
         canvasWidth={canvasWidth}
+        {...(style === undefined ? {} : { style })}
       >
         {children}
       </Component>
