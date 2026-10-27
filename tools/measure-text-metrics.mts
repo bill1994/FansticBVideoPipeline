@@ -87,6 +87,14 @@ interface Measurement {
 /** 该模板的文字颜色（与 tokens.ts 的令牌一致）。 */
 function textColorOf(id: string): { r: number; g: number; b: number } {
   if (id.startsWith('data/stat-card')) return { r: 255, g: 197, b: 61 }; // COLOR.brand
+  /**
+   * `outline-fill` 在测量帧（45f）是**空心**的：填充透明、只有 2px 描边。
+   * 按 `COLOR.ink`（白）找像素会一无所获（2026-10-27 实测报「找不到文字像素」），
+   * 故改用描边色 `STROKE_DIM = rgb(138,118,104)`。
+   * ⚠️ 描边会让包围盒左右各外扩 2px，但那是**常数偏移**，
+   *    线性拟合的截距会吸收它，斜率（每字前进宽度）不受影响。
+   */
+  if (id.startsWith('typography/outline-fill')) return { r: 138, g: 118, b: 104 };
   return { r: 255, g: 255, b: 255 }; // COLOR.ink
 }
 

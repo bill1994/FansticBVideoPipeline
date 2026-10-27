@@ -39,7 +39,7 @@ D-B2 文本度量实测表落地（见 §3.1.5）。
 | `02-perceive` 主体检测 | ✅ | **内置后端三通道齐备**：ffmpeg `scdet` 镜头切分 → YuNet 人脸（`face`）；人脸框外扩（`handheld`，不做物体检测——主物品是鞋子，而 COCO 80 类**没有 shoe**）；无脸镜头用经典显著性（`broll`），框不到即退让。抽帧**按帧号且每个 shot 至少 1 帧**。未配 `PERCEIVER_CMD` 也能跑。**三条真实素材**合计 77 shot（kukini 15 / 3月22日 29 / 5月28日 33），**0 低置信**（`real30` 尚未跑 perceive，不计入） |
 | `03-storyboard` 起草 | ✅ | 管线通；模型只写 `motion` / `footprint` / `params`（禁写帧与坐标）。锚点支持 `word:N` / **`cue:N`（C2-6，字幕专用）** / `abs:`。kukini 实测：7 轨 / 55 条锚点 / 闸1 阈值 T=0.800 |
 | `04-validate` 校验 | ✅ | **18 项**（+#18 载体变换后主体可见比）+ **2 条起草原生约束**；kukini 实测 **0 error / 11 warning**（demo 0 error / 2 warning）。tier1 平移消解、tier2 载体档均已真实施加 |
-| `05-render` 渲染 | ✅ | **12 个模板全部有真实实现**；**真素材成片已产出**（kukini 6667 帧 / 218MB / 墙钟 20–22 分钟）。通道方案 A 在画面上被证实：校验期平移的 footprint 确实改变了成片位置 |
+| `05-render` 渲染 | ✅ | **13 个模板全部有真实实现**；**真素材成片已产出**（kukini 6667 帧 / 218MB / 墙钟 20–22 分钟）。通道方案 A 在画面上被证实：校验期平移的 footprint 确实改变了成片位置 |
 
 **结论：六道闸全部打通，真素材可端到端出片。** 剩下的不是「能不能出」，而是
 「字幕/对白精度、参数手感、占位值校准」这类**质量**问题。
@@ -242,12 +242,12 @@ D-B2 逐模板实测系数**均已落地；剩「warning 升 error」待裁决�
 
 - **命令**：`npm run templates:gallery` → `out/template-gallery/`
   （`gallery.html` + `images/<slug>-f{6,45,72}.png` + `catalog.json`）。
-- **覆盖**：20 个声明 = **20 个已实现 × 3 帧 = 60 张图**（2026-10-24 起无未实现项；占位块降级路径仍由单测守护）。
+- **覆盖**：21 个声明 = **21 个已实现 × 3 帧 = 63 张图**（2026-10-24 起无未实现项；占位块降级路径仍由单测守护）。
 - **目录真源**：`src/templates/gallery.ts` 从注册表 + `isImplemented()` 派生，
   不手抄模板表；未来 MCP `templates_list` 直接复用。
 - **预览合成**：`TemplateGallery` 只渲一个 item，但走 `MotionItem`（与成片同一条主链）；
   背景是合成底板 + 主体剪影，`center-emphasis` / `split-frame` 的遮挡/分屏形态因此可见。
-- **确定性**：两次生成 60 张图里仅 `punch-in` f72 有 1/255 GPU 抖动
+- **确定性**：两次生成 63 张图里仅 `punch-in` f72 有 1/255 GPU 抖动
   （mean diff ≈ 5.6e-6、显著像素比 0），属内容稳定下的像素微差。
 - **测试**：`tests/template-gallery.test.ts` 7 项（覆盖性 / 实现状态 / 三帧 / 必填参数 / 字幕夹具 / HTML 离线转义 / slug）。
 
@@ -516,7 +516,7 @@ kukini 实测：落进 6.74s 静音的词 **9→0**、`silentWordRatio` **5.9%�
             OPEN：C2-2（待实测）/ C2-3（倾向不做）/ M-1d（共 3 条；
                   M-1f 已落地、M-1e 由其收敛关闭，M-4 已 RESOLVED）
 模板        11 个声明 / 11 个实现      ← 2026-10-24 补齐 pointer-callout、whip-pan
-            画廊 20 个已实现 × 3 帧 = 60 张（无未实现项）
+            画廊 21 个已实现 × 3 帧 = 63 张（无未实现项）
 背景链      2 个实现：punch-in（放大）/ split-frame（裁切分屏）
             机制：src/remotion/carrier.tsx **时间表渲染**（不再嵌套）+ carrier-synth.ts 影子载体轨
 遮挡判定    tier1 平移 + tier2 载体档**都真实施加**（真渲验证：分屏 + 主体锚定成立）
@@ -619,7 +619,7 @@ npm run pipeline -- render     --job e2e-perceive     # 约 20–22 分钟（666
 npm run typecheck
 npm test
 
-# 模板预览画廊（P0-1）：20 个已实现模板 × 3 帧 → out/template-gallery/
+# 模板预览画廊（P0-1）：21 个已实现模板 × 3 帧 → out/template-gallery/
 npm run templates:gallery
 ```
 

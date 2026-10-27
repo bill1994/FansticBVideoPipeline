@@ -152,7 +152,12 @@ describe('#16 回归锁 —— 锁死不该被改坏的设计决定', () => {
     // 高亮色应走命名令牌（'brand'|'accent'），不给模型 hex。
     for (const t of BUILTIN_TEMPLATES) {
       for (const key of Object.keys(t.paramsSchema)) {
-        expect(`${t.id}:${key}`).not.toMatch(/color|colour|hex|fill|stroke|bg|background/i);
+        // ⚠️ 只匹配**参数名**，不要把模板 id 拼进来：
+        //    正则里的 `fill`/`stroke` 会误伤模板名（如 `typography/outline-fill`，
+        //    2026-10-27 实撞）。模板 id 放进提示消息，保留定位能力。
+        expect(key, `${t.id} 的参数 ${key} 命名像颜色类参数`).not.toMatch(
+          /color|colour|hex|fill|stroke|bg|background/i,
+        );
       }
     }
   });

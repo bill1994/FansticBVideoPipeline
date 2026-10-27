@@ -215,6 +215,52 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     textMetrics: { fontSizePx: 54, paddingPx: 0, latinWidthEm: 0.617 },
   },
   {
+    // ── P1-3 第二个落地模板（2026-10-27）──
+    // 手法借自 `video-shotcraft` @ 43bd349 的 `outline-word-fill`（Apache-2.0，未复制源码）。
+    // 与 center-emphasis 的区分：那张是**实心白字+底板**静态压上去；
+    // 这张是**先空心后实心**，靠"第 54 帧硬切点亮"制造冲击，两者语义不同、可并存。
+    // 🔴 `occludesSubject: true`：点亮后是实心大字，客观上遮挡（不学"声明 true 却不遮挡"那种写法）。
+    id: 'typography/outline-fill@1.0',
+    family: 'typography',
+    subtype: 'outline-fill',
+    version: '1.0',
+    doc: {
+      summary: '3.2 倍空心大字急缩落位，虚线环慢收锁定，第 54 帧一帧硬切成实心白热字、一闪辉光定格。',
+      fits: ['单词式利益点', '节奏卡点上的"钉子"', '需要最强视觉冲击的一句话'],
+      energy: 'high',
+      params: [
+        {
+          key: 'text',
+          typical: '2–6 字（96px 空心字，占画宽约 1/3）',
+          feel: '字越多空心越像"气球框"；超过 8 字建议换 center-emphasis',
+        },
+      ],
+      pitfalls: [
+        '🔴 点亮必须是**一帧硬切**：任何 >3f 的慢扫都会把"钉子"降级成美化动画（原文判例）',
+        '空心字字重必须 500：700+ 会让 2px 细描边包住一大块空白，读作气球字',
+        '辉光只留 8f：持续辉光读作"发光字体"，质感立刻廉价',
+        '圆环 44f 的慢收是全片的"呼吸"，压到 20f 会和字的 11f 撞在一起，快慢对比消失',
+        '需要 ≥90f 的 cue（约 3s）：太短时整条节拍被等比压缩，冲击力会削弱',
+      ],
+    },
+    scope: 'overlay-safe',
+    layer: 70,
+    occludesSubject: true,
+    status: 'experimental',
+    paramsSchema: { text: 'string' },
+    requiredParams: ['text'],
+    // 🔴 高度必须够：圆环直径取 footprint **短边**（meet），
+    //    0.46×1080≈497px ⇒ 圆≈477px，才能包住 4 字 ×84px≈336px 的字。
+    //    曾经给 0.3（324px），结果圆比字小、字溢出环外（2026-10-27 实渲发现）。
+    footprint: [0.15, 0.28, 0.7, 0.46],
+    minVisibleInFrames: 90,
+    // fontSize 与组件一致（84）；无底板故 paddingPx 0。
+    // 🔴 latinWidthEm = **0.587**，不是同字体 700 字重的 0.616 ——
+    //    本模板空心字用 500 字重（原文判例：700+ 会糊成气球字），数字明显更窄。
+    //    这正是 D-B2 要逐模板实测的原因：字重一变，em 系数就变。
+    textMetrics: { fontSizePx: 84, paddingPx: 0, latinWidthEm: 0.587 },
+  },
+  {
     // ── D-A（2026-10-16 落地）：首批里**唯一** `occludesSubject: true` 的叠加模板 ──
     // 「居中大字强调」：一行大字压在画面中部（主体所在区），是口播视频里
     // 「压在人身上的大字」这一高频手法的具象。它让 D2 的遮挡判定链路

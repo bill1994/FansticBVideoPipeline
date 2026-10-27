@@ -193,6 +193,45 @@
       }
     },
     {
+      "id": "typography/outline-fill@1.0",
+      "key": "text",
+      "fontSizePx": 84,
+      "classes": {
+        "cjk": {
+          "char": "测",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            80,
+            164,
+            836
+          ],
+          "pxPerChar": 84,
+          "measuredEm": 1,
+          "currentEm": 1
+        },
+        "latin": {
+          "char": "1",
+          "lengths": [
+            1,
+            2,
+            10
+          ],
+          "widthsPx": [
+            23,
+            73,
+            467
+          ],
+          "pxPerChar": 49.301369863013704,
+          "measuredEm": 0.5869210697977822,
+          "currentEm": 0.616
+        }
+      }
+    },
+    {
       "id": "typography/center-emphasis@1.0",
       "key": "text",
       "fontSizePx": 72,

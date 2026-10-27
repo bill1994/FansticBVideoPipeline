@@ -67,6 +67,7 @@ const ALL: Array<{ id: string; params: Record<string, unknown> }> = [
   { id: 'transition/whip-pan@1.0', params: { direction: 'left' } },
   // P1-3（2026-10-27）：借手法路线的第一个落地模板
   { id: 'typography/marker-underline@1.0', params: { text: '必看' } },
+  { id: 'typography/outline-fill@1.0', params: { text: '必买' } },
 ];
 
 function makeItem(id: string, params: Record<string, unknown>, fromFrame = 100): StoryboardItem {
@@ -104,15 +105,15 @@ describe('D1 · 渲染映射表自洽', () => {
     expect(() => assertRenderMapValid()).not.toThrow();
   });
 
-  it('12 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个 + D4-t2 P2 一个 + 2026-10-24 两个 + P1-3 一个）', () => {
+  it('13 个已实现模板全部在册（D1 五个 + 批次 2 两个 + D-A 一个 + D4-t2 P2 一个 + 2026-10-24 两个 + P1-3 两个）', () => {
     for (const { id } of ALL) {
       expect(isImplemented(id), `${id} 应有真实实现`).toBe(true);
     }
-    expect(listImplemented()).toHaveLength(12);
+    expect(listImplemented()).toHaveLength(13);
   });
 
-  it('覆盖率：已实现 12 / 声明 12（外层实现 100%）', () => {
-    expect(renderCoverage()).toEqual({ implemented: 12, declared: 12 });
+  it('覆盖率：已实现 13 / 声明 13（外层实现 100%）', () => {
+    expect(renderCoverage()).toEqual({ implemented: 13, declared: 13 });
     expect(listUnimplemented()).toEqual([]);
   });
 
@@ -154,7 +155,7 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
       }
     }
     // 十一份输出互不相同（去重后应为 11）
-    expect(new Set(htmls.values()).size).toBe(12);
+    expect(new Set(htmls.values()).size).toBe(13);
   });
 
   it('每个模板都输出自己的 data-template 标识', () => {
@@ -171,6 +172,7 @@ describe('D1 · 渲染输出两两不同（防灰框回归 · 计划书 1.4）',
       'annotation/pointer-callout@1.0': 'pointer-callout',
       'transition/whip-pan@1.0': 'whip-pan',
       'typography/marker-underline@1.0': 'marker-underline',
+      'typography/outline-fill@1.0': 'outline-fill',
     };
     for (const { id, params } of ALL) {
       expect(renderAt(id, params, 30)).toContain(`data-template="${expected[id]}"`);
