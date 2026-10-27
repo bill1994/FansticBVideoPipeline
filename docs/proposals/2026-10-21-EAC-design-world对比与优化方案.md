@@ -6,11 +6,12 @@
 > （需 FFmpeg / Edge / Windows SAPI / 本地转录模型，且仓库未安装依赖）
 > 对比基线：本地 `VideoPipeline` main @ `20457b5`（2026-10-21，691 项测试全过）
 >
-> 🟢 **实施状态（2026-10-26 更新，详见 §十一）**：**P0 四项全部落地；P1-2 任务队列已落地**
-> （P0-1/P0-2 于 10-22，P0-3/P0-4 于 10-26，P1-2 于 10-26）。
-> **P1-1 / P1-3 / P1-4 仍未开工**（`src/mcp/` 不存在、无 `@modelcontextprotocol/sdk`）；
-> P2-1~P2-4 为探索项，触发条件未到。
-> ⚠️ P1-1 动手前先确认是否还需自建 MCP server —— 本文写于 10-21，宿主环境可能已提供通道。
+> 🟢 **实施状态（2026-10-27 更新，详见 §十一）**：**P0 四项全部落地；P1-2 已落地；P1-1 裁决不做**
+> （P0-1/P0-2 于 10-22，P0-3/P0-4 于 10-26，P1-2 于 10-26，P1-1 于 10-27 由用户裁决不做）。
+> **P1-3 / P1-4 仍未开工**；P2-1~P2-4 为探索项，触发条件未到。
+> 🔴 **P1-1 不做的理由**：本项目**本身就是 skill 管线**（`SKILL.md` + `npm run pipeline` 即工具层），
+> 再建 MCP server 只会形成「CLI / MCP 双入口」，两套参数与错误语义必然漂移。
+> 若是将来出现**非 WorkBuddy 的 MCP 客户端**，再按需薄封装，不要提前建。
 
 ---
 
@@ -379,6 +380,14 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 
 #### P1-1 MCP 工具层
 
+> ⛔ **2026-10-27 裁决：不做。**
+> 本项目**本身就是 skill 管线** —— 模型通过 `SKILL.md` 学习、通过 `npm run pipeline -- <stage>` 执行，
+> 这就是既有的工具层。本节列的 9 个工具全部已有 CLI 对应（见 §11.1 的 P1-1 行）。
+> 再加一层 stdio MCP server 会形成「CLI / MCP 双入口」：两套参数与错误语义，漂移了没人管，
+> 而收益只是把「拼命令」换成「结构化调用」。
+> 真正要补的是**可发现性**，落点是 SKILL.md（已补 `verify` / `determinism` / `status`·`cancel`·`resume`）。
+> 以下原文保留，作为「若将来出现非 WorkBuddy 的 MCP 客户端」时的参考实现。
+
 **问题**：模型现在读 SKILL、拼 `npm run pipeline -- ...`，再解析 stdout/日志；失败模式多、不可发现。
 
 **做法**
@@ -568,16 +577,17 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 | **P0-2 渲染 QA + 联系表** | ✅ 2026-10-22 | `src/core/media-qa.ts`；`render-report.json.qa`；`05-render/contact-sheet.jpg`；`tests/media-qa.test.ts` 11 项 |
 | P0-3 MotionSpec 配方卡 + 目录标签 | ✅ **2026-10-26 落地** | `SpecDoc` 契约进 `templates/types.ts`（`summary/fits/energy/params/pitfalls`）；11 个内置模板在 `builtin.ts` 写卡、8 份基线 spec 加 `_doc`；`deriveDeclaration` 透传 → `decl.doc` → `gallery` 卡片与 `catalog.json`；`META.description` **已删**（避免与 `doc.summary` 双真源）；storyboard skill 增「先读配方卡再选型」；`canonicalSpecHash` 剥离 `_doc`（补卡不破签章）；`tests/doc-recipe.test.ts` 7 项 |
 | P0-4 motionboard 哈希/修订守卫 | ✅ **2026-10-26 落地（hash 部分，未做 revision 乐观锁）** | `core/stage-inputs.ts` 为唯一实现（字节 sha256，与 `hashStoryboardFile` 同语义）；`bind-report.inputs` 记两子 hash、`storyboard.meta.inputsHash` 记合成值；`validate` 的 `assertInputsUnchanged` 对拍，不一致 → `ConfigError` 指向重跑命令；旧产物无该字段时**跳过**（向后兼容）；`tests/inputs-hash.test.ts` 7 项，其中一条用 `utimesSync` 证明「mTime 版放过、hash 版拦住」 |
-| P1-1 MCP 工具层 | ⏳ **未实施（10-26 复核：`src/mcp/` 不存在，无 `@modelcontextprotocol/sdk`）** | 计划见 §六 P1-1 |
+| P1-1 MCP 工具层 | ⛔ **不做（用户裁决 2026-10-27）** | 🔴 **本项目本身就是 skill 管线**：能力经 `SKILL.md` + `npm run pipeline -- <stage>` 暴露给模型，不另建 MCP server。核对后方案列的 9 个工具**全部已有 CLI 对应**：`pipeline_status`→`pipeline status`（P1-2）、`templates_list`/`template_read`→`catalog.json`（P0-3 带 `doc`）+ `npm run templates:gallery`、`validate`→CLI、`render_submit`→`render`、`render_status`/`cancel`→P1-2、`placeholders_list`→`npm run placeholders`、`doctor`→`npm run doctor`。<br>再加一层 server 的代价是**双入口**（CLI 与 MCP 各一套参数与错误语义，漂移无人管），而收益仅是「结构化调用」；本项目真正的痛点其实是**可发现性**，已落 SKILL.md（新增 `verify` / `determinism` / `status`·`cancel`·`resume`）。<br>⚠️ 例外：将来若有**非 WorkBuddy 的 MCP 客户端**要接，再按需薄封装，**不要提前建** |
 | P1-2 任务队列 / 状态 / 取消 / 恢复 | ✅ **2026-10-26 落地（有意偏离原方案，见下）** | `core/pipeline-state.ts`：状态落 `jobs/<id>/pipeline-state.json`（**job 根目录**，不进任何阶段快照）；原子写（`.tmp` + rename，防中途被杀留下截断 JSON）；崩溃恢复判据是 **runnerPid 是否存活**而非时间阈值。CLI 新增 `status` / `cancel` / `resume`（`src/cli-state.ts`），阶段调度统一走 `runTracked` 包状态记录。<br>🔴 **偏离原方案**：原文要求「把 `spawnSync` 改为可中断的 `spawn`」。核对代码后**没这么做** —— `cancel` 由**另一个进程**发起，只需 pid + `taskkill /T /F` 杀整棵树（ffmpeg/whisper/chrome 都是树的子孙）；改成 async spawn 要把 `align` 整条链同步→异步（波及 cli、测试、stdio 语义），收益为零。<br>`resume` **刻意停在 render 之前**（那一步须人工看片，P1-a 闸），自动续跑到 render 只会撞闸。`status` 对 P1-2 之前的老 job 标「有产物·无记录」（`◌`），避免误导重跑。<br>验证：`tests/pipeline-state.test.ts` 9 项 + 真实子进程实测 cancel（taskkill 回执中文正常、进程确已终止）。<br>⚠️ 顺带修：`taskkill` 回执的 **GBK 乱码**（同 render `outputTail` 那个坑）→ 解码上提为 `core/child-output.ts` 唯一实现 |
 | P1-3 精选 Shotcraft 镜头导入 | ⏳ **未实施** | 计划见 §六 P1-3 |
 | P1-4 样式包 / 设计令牌 | ⏳ **未实施** | 计划见 §六 P1-4 |
 
 > 🔴 **2026-10-26 复核结论（本段同日三次更正）**：**P0 四项全部落地**
 > （P0-1 / P0-2 于 10-22，P0-3 / P0-4 于 10-26）；**P1-2 任务队列已于 10-26 落地**。
-> **P1-1 / P1-3 / P1-4 仍未开工**（`src/mcp/` 不存在、无 `@modelcontextprotocol/sdk`）。
+> **P1-1 已裁决不做**（2026-10-27：本项目即 skill 管线，能力走 `SKILL.md` + CLI，不另建 server）；
+> **P1-3 / P1-4 仍未开工**。
 > P2-1~P2-4 是探索项（原文已写明触发条件），不计入欠账。
-> ⇒ 本方案当前的真实状态是「**P0 完成 4/4，P1 完成 1/4**」。
+> ⇒ 本方案当前的真实状态是「**P0 完成 4/4；P1 落地 1、裁决不做 1、剩 2**」。
 >
 > ⚠️ **本段曾经写错**：P0-3 / P0-4 落地后只改了上表、漏改本段，导致「表格说 ✅、结论说未动」
 > 并存了半天。提醒后来的读者：**状态表与结论文是同一份事实的两处表述，改一处必须改两处**
@@ -616,9 +626,16 @@ Shotcraft 的配方卡（`一句话 / 适用 / 时长 / 能量 / 参数表 / 已
 ✅ **P0 批次已收口（2026-10-26）**：P0-1 / P0-2 / P0-3 / P0-4 全部落地。
 其中 P0-3 顺带结掉了「视觉资产库纳入计划书」的搁置项（配方卡与它原是同一件事）。
 
-后续按 §六 顺序：**P1-2 任务队列**（align 14–28 分钟、render 20 分钟，进程被杀只剩日志，痛感最真实）
-→ **P1-1 MCP 工具层**（⚠️ 动手前先确认是否还需要自建 `@modelcontextprotocol/sdk` server，
-本文件写于 2026-10-21，宿主环境可能已提供通道）→ P1-3 / P1-4（内容与视觉扩张，需先过许可与裁决）。
+✅ **P1-2 任务队列已落地（2026-10-26）**：`pipeline status` / `cancel` / `resume` +
+`jobs/<id>/pipeline-state.json`（细节见 §11.1 对应行）。
+
+⛔ **P1-1 MCP 工具层：不做（2026-10-27 用户裁决）**。本项目本身就是 skill 管线 ——
+`SKILL.md` 教模型怎么用、`npm run pipeline -- <stage>` 就是执行入口，
+方案列的 9 个工具全部已有 CLI 对应。再建 server 会形成双入口，收益小于维护成本。
+**替代路径**：把可发现性做进 SKILL.md（已补 `verify` / `determinism` / `status`·`cancel`·`resume`）。
+
+**下一步只剩 P1-3 / P1-4** —— 两者都是内容与视觉扩张（精选镜头导入、样式包/设计令牌），
+需先过许可确认与视觉裁决，不能直接开工。
 
 > 🔴 2026-10-26 备注：`P0-4` 只做了 hash 守卫，**未做**方案里的 `meta.revision` 乐观锁。
 > revision 要求人工/模型每次改稿手动递增，属额外纪律负担；hash 已能覆盖「改过没重跑」这个真实事故。

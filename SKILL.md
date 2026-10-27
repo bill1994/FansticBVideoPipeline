@@ -139,10 +139,22 @@ description: >-
 | 字幕内容对但高亮不亮 | `words.json` 词时与 SRT 窗口偏离 >20% | 产物层已由 `M-1f` 按 SRT 窗口重铺；仍有残余偏差时（`M-1d` 告警档 2%、阻断线未校准），显示层兜底：宁可不高亮，不显示错句子 |
 | 渲染全黑 | 视频没挂载，或素材开头本来就黑 | 抽单像素判断：容器底 `0,0,0` / 占位底 `16,20,24` |
 
-## 两条操作纪律
+## 操作纪律
 
 - 🔴 **阶段目录语义不对称，别搞混**：`align` / `perceive` 已有产物即跳过（不可变快照）—— 改了这两个阶段的代码必须加 `--force`，否则你会白等十几分钟；`storyboard` / `validate` / `render` 没有跳过逻辑，每次重算（改它们无需 `--force`）。
-- 🔴 **长任务别 `| tail`**：错误会被吞掉。重定向到日志文件再 `grep`。
+- 🔴 **长任务别 `| tail`**：错误会被吞掉。重定向到日志文件再 `grep`；**想知道跑到哪，用 `pipeline status` 而不是猜**。
+- 🔴 **跑之前先看状态，被杀之后先查状态**（P1-2）：
+
+  ```bash
+  npm run pipeline -- status --job <id>     # 每阶段 状态/耗时/退出码 + 下一步
+  npm run pipeline -- cancel --job <id>     # 终止运行中的阶段（杀整棵进程树）
+  npm run pipeline -- resume --job <id>     # 从第一个未完成阶段继续
+  ```
+
+  `status` 会把「进程已死但还标着 running」自动修成 failed（判据是 pid 是否存活，不是时间）；
+  老 job（此机制上线前跑的）显示 `◌ done?（有产物无记录）`，那是**正常**的，别去重跑。
+  ⚠️ `resume` **停在 render 之前** —— 那一步必须人工看片（P1-a 闸），这是设计，不是 bug。
+- 🔴 **交付前跑 `npm run verify`**：三段（typecheck → test → e2e-demo）。**单测全绿不等于流程还能跑** —— 这条命令存在的唯一理由就是回答后者。快速冒烟加 `-- --skip-test`。
 
 ## 数字从哪查（别凭记忆）
 
@@ -152,3 +164,4 @@ description: >-
 | 哪些阈值还是占位值、怎么校准 | `docs/decisions/PARAM-DECISIONS.md`（`npm run placeholders` 生成） |
 | 某个"为什么这么设计" | `docs/decisions/OPEN-DECISIONS.md`（裁决唯一真源） |
 | 还没解决的问题 | `PROGRESS.md` §四 / `OPEN-DECISIONS.md` 的 OPEN 清单 |
+| 渲染是不是真的确定性 | `npm run determinism -- --job <id>`（抽样帧各渲两次比 PNG 字节） |
