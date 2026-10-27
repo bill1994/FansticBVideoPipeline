@@ -39,7 +39,7 @@ src/
 
 templates/specs/      8 个 custom 模板的 MotionSpec JSON（fade-up、typewriter-cn 等）
 tools/                doctor 自检、whisper 安装、各类探针脚本
-tests/                vitest 测试（56 个测试文件 / 845 项）
+tests/                vitest 测试（57 个测试文件 / 852 项）
 examples/demo/        无需真实素材、可端到端跑通的示例 job
 docs/                 spec / decisions / proposals / reviews / changelog
 jobs/                 逐任务工作区（git 不入库）

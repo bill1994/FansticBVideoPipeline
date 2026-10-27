@@ -194,6 +194,19 @@ Spec 附录 A 第 1 条硬约束明文「禁写坐标 / 帧数 / **颜色** / CS
 | `cue:N` | 第 N 条 cue 的起点 | 该 **cue** 的整段长度 | 🔴 **字幕类必须用它** |
 | `abs:<帧\|秒s>` | 手写帧号 | 模板 `minVisibleInFrames` | 逃生口，不承担抢拍 |
 
+🔴 **`word:N` 的隐式时长通常撑不满模板门槛**（2026-10-27 实测踩坑）：
+中文词在 30fps 下常见 3–15f，而模板的 `minVisibleInFrames` 是 **24–36f**
+（fade-up 24 / kinetic-line 30 / tag-float 36）⇒ 用 `word:N` 配 `intent` **大概率 no-fits**，
+报错长这样：`候选 … 均未通过时长门控或文案提取（cue 0–12）`。
+
+这不是 bug：`word:N` 是给"词级强调"准备的（配短模板或 `entry` 动效）；
+**`intent` 条目一般应锚 `cue:N`**（整条 cue 通常 30–130f，够撑）；
+确实要钉帧就用 `abs:` —— 它跳过门控，`durationInFrames` 抬到模板最小值。
+
+**short-cue 兜底**：`keypoint` 等 intent 的候选里现在含 **`custom/fade-up@1.0`**（spec 驱动，只要 24f）。
+24–29f 的 cue 此前在所有 intent 下都 no-fits，现在会落到它。**这是设计好的降档，不是误判** ——
+看到 `custom/fade-up` 被选中，说明这条 cue 比其他模板的门槛更短。
+
 > 显式 `durationInFrames` **永远优先**于隐式时长。但字幕类**不要**手写它 —— 那是手算帧。
 
 - **偏移可为负 —— 负偏移＝抢拍，合法且有意为之**。边界只有一条：**不得早于锚定词所在 cue 的起点**

@@ -552,7 +552,20 @@ export const MOTIONBOARD_INTENTS: Readonly<
     description: '定义句式',
   },
   keypoint: {
-    candidates: ['typography/kinetic-line@1.0', 'typography/tag-float@1.0'],
+    /**
+     * 🔴 `custom/fade-up@1.0`（spec 驱动）**刻意放在最后**，只作**短 cue 兜底**：
+     *   kinetic-line `minVisible=30f`、tag-float `36f`，而 fade-up 只要 `24f`
+     *   ⇒ 24–29f 的 cue 此前在所有 intent 下都 no-fits（2026-10-27 实测）。
+     *   放末尾保证「能塞进 kinetic-line 的仍优先 kinetic-line」，fade-up 只接窄缝。
+     *
+     * ⚠️ 这条同时是 spec 层的**接线意义之验证**：8 份基线 spec 此前在 intent 词表里
+     *   一个都没有（`grep custom/ rhythm-rules.ts` = 0），等于整层孤立。
+     */
+    candidates: [
+      'typography/kinetic-line@1.0',
+      'typography/tag-float@1.0',
+      'custom/fade-up@1.0',
+    ],
     description: '要点泛称（材质 / 推荐 / 无更强语义时的归口）',
   },
 };

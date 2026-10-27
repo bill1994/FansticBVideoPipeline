@@ -9,7 +9,19 @@
  *  - 同一 motionboard 两次绑定逐字节一致
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadSpecsFromDisk } from '../src/core/spec-loader.ts';
+import { hasTemplate } from '../src/templates/registry.ts';
+
+/**
+ * 🔴 必须装载 `templates/specs/*.json`（2026-10-27 补）：
+ *   intent 词表里现在含 `custom/fade-up@1.0`（短 cue 兜底）。不装载的话
+ *   `REGISTRY.get('custom/fade-up@1.0')` 是 undefined，AC-6「候选都已注册」会误报失败 ——
+ *   而真实管线里 `cli.ts` 是**先 loadSpecsFromDisk 再进阶段**的，测试要模拟同一前提。
+ */
+beforeAll(() => {
+  loadSpecsFromDisk();
+});
 import { buildRhythmTable } from '../src/core/rhythm.ts';
 import {
   builtinTemplateLookup,
@@ -20,7 +32,9 @@ import { assertMotionboardKeys, bindMotionboard } from '../src/core/motionboard.
 import type { Cue, MotionBoard, MotionBoardItem, WordTimestamp } from '../src/core/types.ts';
 
 const FPS = 30;
-const REGISTRY = builtinTemplateLookup();
+// ⚠️ 不要在模块顶层建这个快照：`builtinTemplateLookup()` 会把当时的 
+// `listTemplates()` 固化成 Map，而 spec 是 `beforeAll` 才装载的 ——
+// 顶部快照永远看不见 custom/*（2026-10-27 修）。AC-6 改用运行时 `hasTemplate()`。
 
 function words(n: number): WordTimestamp[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -401,10 +415,13 @@ describe('generateMotionboard —— 规则底稿（intent 形态）', () => {
   });
 
   it('词表完整性：每个 intent 的候选都已注册（AC-6）', () => {
+    // 在断言处再装载一次（幂等）：本文件另有钉死条目测试不依赖 spec，
+    // 若顶层 beforeAll 因隔离模式未生效，这里兜住。
+    loadSpecsFromDisk();
     for (const [intent, def] of Object.entries(MOTIONBOARD_INTENTS)) {
       expect(def.candidates.length, intent).toBeGreaterThan(0);
       for (const c of def.candidates) {
-        expect(REGISTRY.get(c), `${intent} -> ${c}`).toBeDefined();
+        expect(hasTemplate(c), `${intent} -> ${c}`).toBe(true);
       }
     }
   });

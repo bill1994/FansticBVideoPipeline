@@ -103,7 +103,7 @@ must_review 条目（`typo-main/002`）—— `render` 在此条目被人工确�
 ```bash
 npm run typecheck   # tsc --noEmit
 npm run verify      # 一条命令三段：typecheck + test + demo 端到端（A3）
-npm test            # vitest：56 个测试文件 / 845 项（校验 · 模板渲染 · 集成 · spec 契约 …）
+npm test            # vitest：57 个测试文件 / 852 项（校验 · 模板渲染 · 集成 · spec 契约 …）
 npm run templates:gallery  # 生成模板预览画廊 → out/template-gallery/gallery.html
 npm run determinism -- --job demo --jobs-dir examples  # 双渲像素一致性检查（抽样帧各渲两次比 PNG 字节）
 npm run render:video  # 直接调 remotion render（已内置 --gl=angle）

@@ -22,6 +22,7 @@ import {
   builtinTemplateLookup,
   carrierRouteForSpan,
   paramsForMotion,
+  extractExcerpt,
   CAPTION_MOTION,
   CAPTION_TRACK,
   MOTIONBOARD_INTENTS,
@@ -166,16 +167,26 @@ function anchorSpan(
 }
 
 /** featuredText → params 的填补规则（schema 感知，不做隐式转换）。 */
+/**
+ * 把 `featuredText` 落到模板的**文案参数键**上。
+ *
+ * 🔴 2026-10-27 修：此前只认 `['text','value','title']` 三个键，而 spec 驱动的模板
+ *   （`deriveDeclaration` 用 **slot 名**作键：`main` / `sub`）一个都不匹配 ⇒
+ *   `featuredText` 无处可落、`paramsWithFeatured` 原样返回 ⇒ 后续校验失败 ⇒
+ *   8 份基线 spec **永远绑不上 intent**（`grep custom/ rhythm-rules.ts` = 0 的根因之一）。
+ *
+ * 现在的顺序：已知语义键优先（tsx 模板的习惯），否则取 schema 里第一个 `string` 键
+ * （spec 模板走这条）。**不把 slot 名硬编码进白名单** —— 那是让绑定器懂渲染器的内部命名，
+ * 键名该由模板自己的 `paramsSchema` 说了算。
+ */
 function paramsWithFeatured(
   tplParamsSchema: Record<string, string>,
   params: Record<string, unknown> | null,
   featuredText: string,
 ): Record<string, unknown> | null {
-  // 模板声明的文案语义键：text → value → title（取第一个声明者）。
-  // 无论机械提取是否已产出 params，featuredText 一律覆盖语义键 ——
-  // 模型的提炼文案优先于机械提取（评审 P1：此前 value/title 键会被静默丢弃）。
-  const textKey = ['text', 'value', 'title'].find((k) => k in tplParamsSchema);
-  if (!textKey) return params; // 模板无文案键 → featuredText 无处可落，保留原 params
+  const known = ['text', 'value', 'title'].find((k) => k in tplParamsSchema);
+  const textKey = known ?? Object.keys(tplParamsSchema).find((k) => tplParamsSchema[k] === 'string');
+  if (textKey === undefined) return params; // 模板无文案键 → featuredText 无处可落，保留原 params
   return { ...(params ?? {}), [textKey]: featuredText };
 }
 
@@ -278,6 +289,24 @@ export function bindMotionboard(
         params = item.params; // 作者随条目预填的参数（生成器按首选模板提取）
       } else {
         params = paramsForMotion(mid, span.cueText, []);
+        if (params === null) {
+          /**
+           * 🔴 白名单兜底（2026-10-27）。`paramsForMotion` 的 switch 只列了 5 个 tsx 模板，
+           *   `default: return null` —— 所有 `custom/*`（spec 驱动）都直接 null ⇒ 永远 no-fits。
+           *   这正是「8 份基线 spec 零实战使用」的**直接原因**。
+           *
+           * 兜底规则：这些模板的文案键由自己的 `paramsSchema` 声明（`main` / `sub`），
+           *   取 schema 里第一个 `string` 键填提炼文案即可。**不硬编码键名** ——
+           *   否则绑定器就绑死在渲染器的内部命名上了。
+           */
+          const textKey = Object.keys(tpl.paramsSchema).find(
+            (k) => tpl.paramsSchema[k] === 'string',
+          );
+          if (textKey !== undefined) {
+            const excerpt = extractExcerpt(span.cueText, []);
+            if (excerpt !== null) params = { [textKey]: excerpt };
+          }
+        }
       }
       if (item.featuredText !== undefined) {
         params = paramsWithFeatured(tpl.paramsSchema, params, item.featuredText);
