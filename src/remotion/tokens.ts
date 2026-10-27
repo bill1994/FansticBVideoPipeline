@@ -29,6 +29,16 @@ import { Easing } from 'remotion';
  * 🔴 全部为**深底浅字**配置：项目产物是叠加在实拍口播视频上的，
  * 深底保证任何画面背景下字幕都可读。
  */
+/** 一套配色的形状 —— `COLOR` / `COLOR_LIGHT` 都满足它（值不同，结构相同）。 */
+export interface Tone {
+  readonly ink: string;
+  readonly inkDim: string;
+  readonly brand: string;
+  readonly accent: string;
+  readonly plate: string;
+  readonly hairline: string;
+}
+
 export const COLOR = {
   /** 主文本 / 字幕底色。 */
   ink: '#FFFFFF',
@@ -42,7 +52,37 @@ export const COLOR = {
   plate: 'rgba(14,17,20,0.78)',
   /** 描边。 */
   hairline: 'rgba(255,255,255,0.22)',
-} as const;
+} as const satisfies Tone;
+
+/**
+ * **亮底配色** —— 与 `COLOR` 逐键对应，供模板的 `onLight` 参数使用。
+ *
+ * 🔴 为什么需要第二套（2026-10-27 实渲发现）：`COLOR` 全部是「深底浅字」，
+ * 而白字落在纯白画面上几乎不可见（只有投影勾出一圈轮廓，实测截图确认）。
+ * 模板无法预知自己会落在什么背景上，只能由写稿的人 / 模型声明 `onLight`。
+ *
+ * ⚠️ 这**不是给模型填 hex 的口子**：模型只说「这段画面是亮的」（boolean），
+ * 具体色值仍由本文件决定 —— 这正是「颜色走令牌」纪律的体现，
+ * 「模型只填表」那条约束并没有被突破。
+ */
+export const COLOR_LIGHT = {
+  /** 主文本：深墨，亮底上对比最强。 */
+  ink: '#101418',
+  inkDim: 'rgba(16,20,24,0.72)',
+  /** 品牌强调：金色在亮底上会发灰，改用深橙。 */
+  brand: '#C2410C',
+  /** 辅助强调：深蓝。 */
+  accent: '#1D4ED8',
+  /** 底板：亮色半透明（需要压住背景时用）。 */
+  plate: 'rgba(255,255,255,0.86)',
+  /** 描边。 */
+  hairline: 'rgba(16,20,24,0.28)',
+} as const satisfies Tone;
+
+/** 按 `onLight` 选一套配色 —— 模板内部统一走这里，别各写三元表达式。 */
+export function toneOf(onLight: boolean): Tone {
+  return onLight ? COLOR_LIGHT : COLOR;
+}
 
 /**
  * 字体栈。全部为系统字体，理由见文件头注释。
@@ -197,8 +237,19 @@ export function fadeInOut(frame: number, durationInFrames: number): number {
  * 否则亮背景上白字直接消失 —— 这是"能发布"与"能看"的差别。
  */
 export const SHADOW = {
-  /** 字幕级：紧致投影。 */
-  text: '0 2px 8px rgba(0,0,0,0.85)',
+  /**
+   * 字幕级：**四向 1px 描边 + 向下投影**。
+   *
+   * 🔴 2026-10-27 升级：原先只有 `0 2px 8px rgba(0,0,0,0.85)` 一层投影，
+   * 在纯白画面上白字几乎不可见（实渲验证过）。四向描边是字幕的标准做法 ——
+   * 它保证**任何背景下至少"能读"**，而且**不依赖背景亮度判断**（比 `onLight` 更兜底）。
+   *
+   * 观感代价：字缘会多一圈极细暗边。刻意压到 1px / 0.85–0.92，正常尺寸下不易察觉。
+   */
+  text:
+    '0 0 1px rgba(0,0,0,0.92), 0 1px 0 rgba(0,0,0,0.85), 0 -1px 0 rgba(0,0,0,0.85), 1px 0 0 rgba(0,0,0,0.85), -1px 0 0 rgba(0,0,0,0.85), 0 2px 8px rgba(0,0,0,0.85)',
+  /** 亮底用：深字不需要黑描边，只留一层极浅白色外扩，防止深字糊进暗部。 */
+  textOnLight: '0 0 2px rgba(255,255,255,0.85)',
   /** 卡片级：带主色辉光。 */
   card: '0 8px 32px rgba(0,0,0,0.55)',
 } as const;

@@ -193,6 +193,11 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
           typical: '2–8 字（与标题同字号）',
           feel: '划线宽度跟随文字；超过一屏宽的 2/3 时线会显得比字更抢',
         },
+        {
+          key: 'onLight',
+          typical: 'true / false（默认 false）',
+          feel: '画面是**亮底**时置 true：文字转深墨、线转深橙、去掉黑描边。白底上不置会几乎看不见',
+        },
       ],
       pitfalls: [
         '划线 10f 是实测节奏：**14f 版被裁偏慢**，>14f 读作进度条',
@@ -205,7 +210,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     layer: 60,
     occludesSubject: false,
     status: 'experimental',
-    paramsSchema: { text: 'string' },
+    paramsSchema: { text: 'string', onLight: 'boolean' },
     requiredParams: ['text'],
     // 高度给足：文字行高 + 下方 -0.1em 的划线与渗开层
     footprint: [0.18, 0.58, 0.64, 0.22],
@@ -231,8 +236,13 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       params: [
         {
           key: 'text',
-          typical: '2–6 字（96px 空心字，占画宽约 1/3）',
+          typical: '2–6 字（84px 空心字，占画宽约 1/3）',
           feel: '字越多空心越像"气球框"；超过 8 字建议换 center-emphasis',
+        },
+        {
+          key: 'onLight',
+          typical: 'true / false（默认 false）',
+          feel: '画面是**亮底**时置 true：描边转深灰、点亮色转深橙、辉光转深色扩散',
         },
       ],
       pitfalls: [
@@ -247,7 +257,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
     layer: 70,
     occludesSubject: true,
     status: 'experimental',
-    paramsSchema: { text: 'string' },
+    paramsSchema: { text: 'string', onLight: 'boolean' },
     requiredParams: ['text'],
     // 🔴 高度必须够：圆环直径取 footprint **短边**（meet），
     //    0.46×1080≈497px ⇒ 圆≈477px，才能包住 4 字 ×84px≈336px 的字。

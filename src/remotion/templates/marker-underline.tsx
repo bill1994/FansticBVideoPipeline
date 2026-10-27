@@ -45,8 +45,8 @@
  * 参数：`text`（必填）。
  */
 
-import { COLOR, enterExitProgress, FONT, SHADOW } from '../tokens.ts';
-import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
+import { enterExitProgress, FONT, SHADOW, toneOf } from '../tokens.ts';
+import { bool, fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 /** 线性进度（帧 → 0..1）。 */
 const ramp = (f: number, from: number, to: number): number => {
@@ -75,6 +75,12 @@ export const MarkerUnderline: TemplateComponent = ({
   canvasWidth,
 }) => {
   const text = str(item.params, 'text');
+  /**
+   * 亮底模式（2026-10-27）：模型/人只说「这段画面是亮的」，**不给色值**。
+   * 具体配色由 `toneOf` 从令牌里选 —— 这既解决了白底看不见，也没突破「颜色走令牌」。
+   */
+  const onLight = bool(item.params, 'onLight', false);
+  const tone = toneOf(onLight);
   /** 内容派生的确定性 id（见文件头纪律 2）。 */
   let h = 0;
   for (const ch of text) h = (h * 31 + (ch.codePointAt(0) ?? 0)) | 0;
@@ -106,8 +112,8 @@ export const MarkerUnderline: TemplateComponent = ({
           fontSize: FONT_SIZE,
           fontWeight: 700,
           lineHeight: 1.15,
-          color: COLOR.ink,
-          textShadow: SHADOW.text,
+          color: tone.ink,
+          textShadow: onLight ? SHADOW.textOnLight : SHADOW.text,
           whiteSpace: 'nowrap',
           opacity: textIn * (1 - exit),
           transform: `translateY(${(1 - textIn) * 8}px) scale(${fit})`,
@@ -205,7 +211,7 @@ export const MarkerUnderline: TemplateComponent = ({
             <path
               d={`M 1.5 8.6 Q 26 5.1 52 ${INK_Y + 0.4} T 98.5 5.9`}
               fill="none"
-              stroke={COLOR.brand}
+              stroke={tone.brand}
               strokeWidth={INK_W}
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"

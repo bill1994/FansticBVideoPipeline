@@ -27,8 +27,8 @@
  * 参数：`text`（必填）。
  */
 
-import { COLOR, enterExitProgress, FONT, SHADOW } from '../tokens.ts';
-import { fitScaleFor, str, type TemplateComponent } from './contract.tsx';
+import { COLOR_LIGHT, enterExitProgress, FONT, SHADOW, toneOf } from '../tokens.ts';
+import { bool, fitScaleFor, str, type TemplateComponent } from './contract.tsx';
 
 /** 线性进度（帧 → 0..1）。 */
 const ramp = (f: number, from: number, to: number): number => {
@@ -51,9 +51,12 @@ const T_LIT = 54; // 🔴 硬切点亮
 const T_FLASH_END = 62; // 辉光 8f 衰完
 
 const FONT_SIZE = 84;
-/** 空心字描边：2px 暖灰（原文值）-> 预热到亮橙。 */
+/** 空心字描边：2px 暖灰（原文值）-> 预热到亮橙。**暗底**用这套。 */
 const STROKE_DIM = 'rgb(138,118,104)';
 const STROKE_HOT = 'rgb(255,176,112)';
+/** **亮底**用这套：暖灰在浅背景上会糊掉，换深灰；点亮色用深橙（= COLOR_LIGHT.brand）。 */
+const STROKE_DIM_LIGHT = 'rgb(90,80,72)';
+const STROKE_HOT_LIGHT = COLOR_LIGHT.brand;
 
 export const OutlineFill: TemplateComponent = ({
   frame,
@@ -62,6 +65,9 @@ export const OutlineFill: TemplateComponent = ({
   canvasWidth,
 }) => {
   const text = str(item.params, 'text');
+  /** 亮底模式（2026-10-27）：同样是语义 boolean，不给色值。 */
+  const onLight = bool(item.params, 'onLight', false);
+  const tone = toneOf(onLight);
   const { exit } = enterExitProgress(frame, durationInFrames);
   const fit = fitScaleFor(text, item.motion, item, canvasWidth);
 
@@ -88,8 +94,21 @@ export const OutlineFill: TemplateComponent = ({
   /** 内圈刻度继续慢转 —— 锁定后画面仍在呼吸。 */
   const innerRot = -frame * 0.35;
 
-  const ringColor = lit === 1 ? 'rgba(255,150,80,0.9)' : 'rgba(255,255,255,0.55)';
-  const glow = flash > 0 ? `0 0 ${14 * flash}px #fff, 0 0 ${60 * flash}px rgba(255,140,60,0.9)` : 'none';
+  const ringColor =
+    lit === 1
+      ? onLight
+        ? 'rgba(194,65,12,0.9)'
+        : 'rgba(255,150,80,0.9)'
+      : onLight
+        ? 'rgba(30,35,40,0.45)'
+        : 'rgba(255,255,255,0.55)';
+  const glow =
+    flash > 0
+      ? onLight
+        ? // 亮底上白辉光等于没有，改用深色扩散 + 深橙
+          `0 0 ${14 * flash}px rgba(0,0,0,0.55), 0 0 ${60 * flash}px rgba(194,65,12,0.55)`
+        : `0 0 ${14 * flash}px #fff, 0 0 ${60 * flash}px rgba(255,140,60,0.9)`
+      : 'none';
 
   return (
     <div
@@ -190,9 +209,20 @@ export const OutlineFill: TemplateComponent = ({
             lineHeight: 1.1,
             whiteSpace: 'nowrap',
             // 硬切：点睛前后只有两个值
-            color: lit === 1 ? '#fff5ee' : 'transparent',
-            WebkitTextStroke: `2px ${lit === 1 ? STROKE_HOT : STROKE_DIM}`,
-            textShadow: lit === 1 ? `${glow}${glow === 'none' ? '' : ', '}${SHADOW.text}` : 'none',
+            color: lit === 1 ? (onLight ? tone.ink : '#fff5ee') : 'transparent',
+            WebkitTextStroke: `2px ${
+              lit === 1
+                ? onLight
+                  ? STROKE_HOT_LIGHT
+                  : STROKE_HOT
+                : onLight
+                  ? STROKE_DIM_LIGHT
+                  : STROKE_DIM
+            }`,
+            textShadow:
+              lit === 1
+                ? `${glow}${glow === 'none' ? '' : ', '}${onLight ? SHADOW.textOnLight : SHADOW.text}`
+                : 'none',
             transform: `scale(${textScale * fit})`,
             transformOrigin: 'center center',
             opacity: ramp(frame, at(T_TEXT_IN), at(T_TEXT_IN) + 2 * k),
