@@ -9,6 +9,7 @@
     "summary": "文字下方一条横线从左向右描出。",
     "fits": ["标题下划线","强调句尾落点"],
     "energy": "low",
+    "designIntent": "句尾落点强调：横线描出与阅读同步，描到即强调完。它是制图式直线——人手马克笔的语义归 marker-underline，两者不混用。",
     "params": [{ "key":"main","typical":"≤10 字（建议）","feel":"横线长度跟随文本宽度" }],
     "pitfalls": ["描出方向固定从左到右：与阅读方向相反时会显得别扭","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
   },

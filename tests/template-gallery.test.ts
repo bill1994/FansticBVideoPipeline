@@ -19,8 +19,12 @@ describe('模板预览画廊', () => {
       .map((t) => t.id)
       .sort();
     expect(catalog.map((e) => e.id).sort()).toEqual(declared);
-    // 22 = 14 个内置实现（2026-10-24 补齐两个；2026-10-27 加 marker-underline / outline-fill / gradient-sweep）+ 8 个 MotionSpec
-    expect(catalog.filter((e) => e.implemented)).toHaveLength(22);
+    // 22 = 14 个内置实现 + 8 个基线 MotionSpec。custom-*（motion:accept 入库）
+    // 随使用增长，不进钉线 —— 钉总数会让每落一个 custom 模板就误报一次
+    // （2026-10-31 pulse-accent@0.1 首次触发）。真正的不变量是
+    // 「声明即实现」与「无未实现」，钉线只做下限防误删。
+    expect(catalog.length).toBeGreaterThanOrEqual(22);
+    expect(catalog.filter((e) => e.implemented)).toHaveLength(catalog.length);
     expect(catalog.filter((e) => !e.implemented)).toEqual([]);
   });
 
@@ -58,12 +62,13 @@ describe('模板预览画廊', () => {
     expect(entry?.preview?.caption?.words.length).toBeGreaterThan(0);
   });
 
-  test('gallery.html 离线、确定、22 张卡全部有图、无未实现', () => {
+  test('gallery.html 离线、确定、每张卡全部有图、无未实现', () => {
     const catalog = buildTemplateCatalog();
     const html = renderGalleryHtml(catalog);
-    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(22);
+    expect((html.match(/data-gallery-card="1"/g) ?? [])).toHaveLength(catalog.length);
     expect((html.match(/data-gallery-card="0"/g) ?? [])).toHaveLength(0);
-    expect((html.match(/<img /g) ?? [])).toHaveLength(66);
+    // 每卡 3 帧预览（上方测试已锁 frames 长度为 3）。
+    expect((html.match(/<img /g) ?? [])).toHaveLength(catalog.length * 3);
     expect(html).not.toMatch(/https?:\/\//);
     expect(html).toBe(renderGalleryHtml(catalog));
   });

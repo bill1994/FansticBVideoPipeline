@@ -100,6 +100,13 @@ export interface SpecDoc {
   fits: string[];
   /** 能量档：决定配在强句还是弱句上（`mid-high` = 强调但不抢镜）。 */
   energy: 'low' | 'mid' | 'mid-high' | 'high';
+  /**
+   * 设计意图：这个动效**解释什么**——强调 / 状态变化 / 空间关系 / 注意力引导，
+   * 四者居其一（借自 impeccable `animate.md` 的焦点论，见
+   * `docs/templates/2026-10-31-模板设计验收单.md` 维度 A）。
+   * 说不出这一句的动效是装饰，装饰是动画债。
+   */
+  designIntent?: string;
   /** 参数手感：键 / 典型值 / 调大调小各会怎样。 */
   params?: { key: string; typical: string; feel: string }[];
   /** 已知坑 —— 前人踩过的，避免重复。 */

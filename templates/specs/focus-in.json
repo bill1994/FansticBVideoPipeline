@@ -9,6 +9,7 @@
     "summary": "从轻微失焦 + 放大状态收束到清晰落位。",
     "fits": ["重要信息落定","需要「聚焦」感的一句话"],
     "energy": "mid",
+    "designIntent": "用镜头合焦的语言说「这句话值得对准焦距」：blur 与 scale 同时收束才像对焦，只做其一就读成普通淡入或放大。",
     "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"失焦模糊度写死在 spec，调大容易糊成一片" }],
     "pitfalls": ["失焦靠 filter blur：帧间差异大，逐帧 diff 类测试要按「允许非零」处理","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
   },

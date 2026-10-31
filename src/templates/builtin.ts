@@ -35,6 +35,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '底部字幕带，说到哪个字哪个字变亮；文本来自 SRT，不由 params 填写。',
       fits: ['有字幕的口播全程', '需要逐字阅读引导'],
       energy: 'low',
+      designIntent: '解释阅读进度：说到哪个字哪个字亮。它是字幕通道不是强调戏，唯一的动效语言就是高亮本身——所以刻意不加任何位移。',
       params: [
         { key: 'boxed', typical: 'true（实拍推荐）', feel: 'false 无底板，亮背景下白字会看不清' },
       ],
@@ -71,6 +72,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '中部偏左的强调大字，逐字切出、短暂停留，左侧带一道强调竖条。',
       fits: ['一句话里的核心强调词', '结论句'],
       energy: 'mid-high',
+      designIntent: '注意力引导：把视线钉到结论句的核心词上，左侧竖条是视线落点。强调但不遮蔽——footprint 压在中部偏左就是给主体让位。',
       params: [
         { key: 'text', typical: '1–6 字', feel: '字数越多字号感越挤' },
         { key: 'enter', typical: 'from-left', feel: 'pop 最抓眼（起始放大 18% 再回落），长文本慎用' },
@@ -118,6 +120,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '贴左滑入的姓名 / 职务双行条，方角深色底板。',
       fits: ['首次介绍人物', '身份 / 职务说明'],
       energy: 'low',
+      designIntent: '引入身份状态：回答「现在说话的人是谁」。贴左滑入的空间语义是「从画面外来、留在画面里」，所以出场也向左推出而不是凭空淡掉。',
       params: [
         { key: 'title', typical: '2–10 字', feel: '姓名；实测 16 字时文本溢出条形背景' },
         { key: 'subtitle', typical: '可选', feel: '留空单行、有值双行；空串与整个键缺失等价' },
@@ -149,6 +152,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '右上浮动的关键词气泡，进出场非对称（进上浮 24px / 出下沉 16px）。',
       fits: ['短标签', '关键词强调'],
       energy: 'mid',
+      designIntent: '标记关键词：轻量地说「这个词值得注意」。上浮 24px 的语义是「浮上来」——再大就成「从别处飞进来」，标注变成了搬运。',
       params: [{ key: 'text', typical: '2–6 字', feel: '字数越多越容易撑破胶囊框' }],
       pitfalls: [
         '实测约 13 字溢出（撑破 240px 胶囊框）',
@@ -187,6 +191,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '标题落定后，关键词下方一笔手绘马克笔从左到右划过（微上斜、变宽、墨色渗开）。',
       fits: ['标题里强调单个词', '手写感 / 有人味的调性', '正文式标注'],
       energy: 'low',
+      designIntent: '模拟人手圈重点：划线是看完标题后补的一笔强调，不是另一个信息层——所以必须晚于标题落定起笔，且自己不带入场动画。',
       params: [
         {
           key: 'text',
@@ -233,6 +238,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '3.2 倍空心大字急缩落位，虚线环慢收锁定，第 54 帧一帧硬切成实心白热字、一闪辉光定格。',
       fits: ['单词式利益点', '节奏卡点上的"钉子"', '需要最强视觉冲击的一句话'],
       energy: 'high',
+      designIntent: '节奏卡点上的一记钉子：空心收缩是蓄势、虚线环慢收是瞄准，第 54 帧一帧硬切是释放——整条动效只为点亮那一个瞬间服务。',
       params: [
         {
           key: 'text',
@@ -284,6 +290,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '关键词被渐变彩光从左扫过"充能"：波前最亮、向后衰减，填满后跳细闪电、整词泛光呼吸。',
       fits: ['卖点词充能', '能量高潮段的文字戏', '黑场标语里的关键词'],
       energy: 'high',
+      designIntent: '用充能的过程感解释「这个词正在变重要」：波前扫过是注入，闪电是能量外溢。可读的是过程，不是最终颜色多好看。',
       params: [
         {
           key: 'text',
@@ -331,6 +338,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '画面中央「压上去」的遮蔽型大字：底板 + 左金条，进出场均无位移。',
       fits: ['强结论', '需要最高视觉权重的一句话'],
       energy: 'high',
+      designIntent: '强结论的权重顶格：底板加左金条把一句话压到画面中央，语义是「其他一切可以让位，这句必须看到」。进出场无位移——压上去的东西不漂移。',
       params: [{ key: 'text', typical: '≤8 字（保守建议）', feel: '#17 估算阈值约 20 字' }],
       pitfalls: [
         'occludesSubject: true —— 压到人脸区（预算 0%）会被校验拦截或告警',
@@ -361,6 +369,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '大字号数字卡，靠字号与品牌色建立层级，动画幅度刻意最小。',
       fits: ['数字 / 金额 / 指标', '参数播报'],
       energy: 'mid',
+      designIntent: '让数字自己当主角：大字号加品牌色建立层级，动画幅度刻意压到最小——播报中的数字一旦滚动或抖动，就读作「不值得当真」。',
       params: [
         { key: 'value', typical: '≤8 位', feel: '建议位数是**可读性**而非溢出线（#17 约 23 位才 warning）' },
         { key: 'unit', typical: '可选', feel: '留空则单行显示' },
@@ -397,6 +406,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '指向画面某一区域的标注：左上标签写说明，配轻量指示，不做实心底色大箭头。',
       fits: ['指认某个实物 / 区域', '讲解画面里的细节'],
       energy: 'mid',
+      designIntent: '空间指认：把视线引到画面里的某个实物或区域。footprint 就是目标本身、指示保持轻量——标注的职责是指出，不是盖住被指的东西。',
       params: [{ key: 'target', typical: '必填，2–8 字', feel: '标注文字；长文本由 fitScaleFor 压回框内' }],
       pitfalls: [
         'footprint 就是**目标区域本身**，不是标签的摆放位置',
@@ -428,6 +438,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '把实拍视频缩进一侧，另一侧留白给 overlay —— 是布局切换，不是动效。',
       fits: ['需要大面积文字 / 图表', '单侧构图'],
       energy: 'low',
+      designIntent: '布局切换：画面让出一半给文字或图表，是空间重排不是动效。切换即到位——缓动滑入会读成镜头横移，可见比判据也会跟着漂。',
       params: [
         { key: 'side', typical: 'right', feel: '视频显在哪侧；改它不改变主体被切的程度' },
         { key: 'ratio', typical: '0.5', feel: '0.3 视频窄 / overlay 宽，0.7 反之；钳制 [0.3,0.7]' },
@@ -466,6 +477,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '全画面推近：推进段（前 78%）+ 回退段（后 22%），缓起缓停的镜头感。',
       fits: ['强调某个瞬间', '情绪推近'],
       energy: 'mid',
+      designIntent: '镜头语言的情绪推近：「靠近看这个瞬间」。推进 78% 加回退 22% 是一次完整的呼吸——只进不退，结束瞬间会跳回全景读作剪辑事故。',
       params: [{ key: 'scale', typical: '1.06', feel: '越大推近越强；钳制 [1.0,1.6]' }],
       pitfalls: [
         '回退段必须有：无剪辑场景不回退 = 结束瞬间跳回全景',
@@ -491,6 +503,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '全屏速度线沿一个方向扫过，配一层很轻的暗底，做段落转场。',
       fits: ['段落切换', '场景跳转'],
       energy: 'high',
+      designIntent: '段落转场：10 帧速度线扫过的瞬间说「这一章结束了」。瞬时性就是全部语义——慢下来或反复用，转场就退化成装饰。',
       params: [
         { key: 'direction', typical: 'left', feel: 'left / right / up / down 四向；未知值静默回退 left' },
       ],
@@ -516,6 +529,7 @@ export const BUILTIN_TEMPLATES: TemplateDeclaration[] = [
       summary: '全屏胶片颗粒，每帧换 seed，相邻帧纹理完全不同。',
       fits: ['统一质感', '压住数码感'],
       energy: 'low',
+      designIntent: '质感统一：给多源素材盖一层一致的胶片颗粒，让片子读作「一条」而不是「拼的」。它的成功标准是没人注意到它。',
       params: [{ key: 'opacity', typical: '0.05', feel: '0.03–0.08 是胶片颗粒典型量级；钳制 [0,1]' }],
       pitfalls: [
         'opacity >0.08 会被读成「雪花屏」',

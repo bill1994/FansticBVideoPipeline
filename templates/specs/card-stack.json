@@ -9,6 +9,7 @@
     "summary": "多层卡片依次落下堆叠，最后露出主文本。",
     "fits": ["多条信息罗列","卡片式排版"],
     "energy": "mid",
+    "designIntent": "把「信息有好几条」变成可数的空间关系：卡片依次落下是计数，最后露出的主文本是堆叠的终点而非又一条信息。",
     "params": [{ "key":"main","typical":"≤8 字（建议）","feel":"卡片层数与 stagger 都写死在 spec，改层数要重算" }],
     "pitfalls": ["多层错峰动画总时长随层数增长：短 cue 会截在堆叠中途","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
   },

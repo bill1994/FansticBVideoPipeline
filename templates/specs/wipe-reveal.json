@@ -9,6 +9,7 @@
     "summary": "一条擦除边界扫过画面，带出完整文字。",
     "fits": ["转场式揭示","段落切换"],
     "energy": "mid-high",
+    "designIntent": "段落级揭幕：擦除边界扫过等于「翻页」，把上一段与这一段在视觉上切开。文字不位移——位移会读成滑入而不是揭开。",
     "params": [{ "key":"main","typical":"≤10 字（建议）","feel":"擦除速度写死，边界扫过整幅画面" }],
     "pitfalls": ["擦除边界必须扫完整个 footprint，否则文字露不全","可见帧数低于 minVisibleInFrames 时校验项 #6 报 error"]
   },

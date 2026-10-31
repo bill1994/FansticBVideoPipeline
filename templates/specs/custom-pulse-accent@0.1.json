@@ -1,0 +1,133 @@
+{
+  "specVersion": 1,
+  "id": "custom/pulse-accent@0.1",
+  "layer": 60,
+  "footprint": [
+    0.12,
+    0.6,
+    0.7,
+    0.18
+  ],
+  "minVisibleInFrames": 36,
+  "occludesSubject": false,
+  "_doc": {
+    "summary": "文字驻留期先全亮点亮（brand）再半亮余韵（inkDim），配渐弱微缩放，不重新入场。",
+    "fits": [
+      "句子已在画面上的持续强调",
+      "关键词驻留",
+      "弱重读"
+    ],
+    "energy": "mid",
+    "designIntent": "驻留期强调：句子已经在画面上，用「一次全亮 + 一次半亮余韵」的渐弱脉冲说「这个词持续重要」——不重新入场、不挪位置，动效语言只有颜色和 5% 以内的呼吸。",
+    "params": [
+      {
+        "key": "main",
+        "typical": "≤8 字（建议）",
+        "feel": "字号 56px；长句触发 #17 估算溢出"
+      }
+    ],
+    "pitfalls": [
+      "spec 通道没有 onLight 参数（那是 tsx 模板的 params 机制）：inkDim 半亮余韵与 brand 金色在亮底实拍上的表现未经验证——亮底素材慎用，上真素材前必须真渲抽帧确认（设计验收单维度 B）",
+      "color 轨是阶跃、键上禁写 ease（结构门实测拒绝）——想要渐变亮暗只能换 color 令牌硬切或叠加 opacity",
+      "两口气不能设计成完全对称：对称双呼吸会让验收探针（约 t=0.07/0.5/0.8）有两个落进同一状态，过不了「动效贯穿」门"
+    ]
+  },
+  "_note": "本仓第一个动 color 轨的 spec。渐弱双脉冲：brand 全亮（scale 1.05）→ inkDim 半亮余韵（scale 1.02）→ 归 ink，比对称双呼吸多一条「收束弧线」，且三个验收探针自然落进三个状态。呼吸用相对比例 t∈[0,1] 表达，驻留期任意时长都成立。",
+  "elements": [
+    {
+      "type": "text",
+      "slot": "main",
+      "content": "excerpt",
+      "sizePx": 56,
+      "weight": 700,
+      "align": "left",
+      "paddingPx": 20
+    }
+  ],
+  "tracks": [
+    {
+      "element": 0,
+      "property": "opacity",
+      "keys": [
+        {
+          "t": "0f",
+          "v": 0,
+          "ease": "out"
+        },
+        {
+          "t": "3f",
+          "v": 1,
+          "ease": "out"
+        }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "color",
+      "keys": [
+        {
+          "t": 0.08,
+          "v": "ink"
+        },
+        {
+          "t": 0.3,
+          "v": "brand"
+        },
+        {
+          "t": 0.52,
+          "v": "ink"
+        },
+        {
+          "t": 0.74,
+          "v": "inkDim"
+        },
+        {
+          "t": 0.95,
+          "v": "ink"
+        }
+      ]
+    },
+    {
+      "element": 0,
+      "property": "scale",
+      "keys": [
+        {
+          "t": 0.08,
+          "v": 1,
+          "ease": "inOut"
+        },
+        {
+          "t": 0.3,
+          "v": 1.05,
+          "ease": "inOut"
+        },
+        {
+          "t": 0.52,
+          "v": 1,
+          "ease": "inOut"
+        },
+        {
+          "t": 0.74,
+          "v": 1.02,
+          "ease": "inOut"
+        },
+        {
+          "t": 0.95,
+          "v": 1,
+          "ease": "inOut"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "toolVersion": 1,
+    "specHash": "0084bbd5c79b7ab1237974c5ac84f8e2e671da0c01e2b9c2503995a840af7b3d",
+    "gates": [
+      "structure",
+      "registration",
+      "frames",
+      "animates",
+      "lint"
+    ]
+  }
+}

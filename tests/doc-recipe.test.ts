@@ -25,13 +25,17 @@ const specFiles = fs
   .readdirSync(SPEC_DIR)
   .filter((f) => f.endsWith('.json'))
   .sort();
+// 基线 = 非 custom 入库文件。`custom-*.json` 是创作期生成、经 motion:accept
+// 入库的模板，数量随使用增长 —— 计数钉线只钉基线，钉总数会让每落一个
+// custom 模板就误报一次（2026-10-31 pulse-accent@0.1 首次触发）。
+const baselineFiles = specFiles.filter((f) => !f.startsWith('custom-'));
 
 const readSpec = (file: string): Record<string, unknown> =>
   JSON.parse(fs.readFileSync(path.join(SPEC_DIR, file), 'utf8')) as Record<string, unknown>;
 
 describe('配方卡 _doc：8 份基线 spec 全部覆盖', () => {
   it('每份 spec 都有 _doc，且结构字段齐备（summary 非空 / fits 非空 / energy 合法）', () => {
-    expect(specFiles.length).toBe(8);
+    expect(baselineFiles.length).toBe(8);
     for (const file of specFiles) {
       const raw = readSpec(file);
       const doc = raw['_doc'] as Record<string, unknown> | undefined;
