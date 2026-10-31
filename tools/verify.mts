@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { writeE2EFixture } from '../tests/fixtures/e2e-job.ts';
 
 interface StepResult {
   name: string;
@@ -104,9 +105,11 @@ function main(): number {
 
   results.push(
     step('e2e-demo', () => {
+      // 2026-10-31 起 examples/demo 已移除（用户裁决，仓库零假数据文件）：
+      // 夹具由 tests/fixtures/e2e-job.ts 运行时写入临时目录，跑完即删。
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-verify-'));
       try {
-        fs.cpSync(path.join(ROOT, 'examples', 'demo'), path.join(tmp, 'demo'), { recursive: true });
+        writeE2EFixture(tmp, 'demo');
         // ⚠️ stage 必须紧跟 `--`（CLI 的解析顺序是 `pipeline -- <stage> --job <id>`）
         const cli = (stage: string, ...extra: string[]): string[] => [
           'run',

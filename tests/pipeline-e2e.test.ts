@@ -5,7 +5,8 @@
  *   每个阶段单独可测，但「五阶段串起来还成立吗」从未被任何测试证明。
  *   README 的第一条命令能不能跑，只能靠人手工试。
  *
- * 编排：`examples/demo` 的真实产物复制到临时目录 → 依次真跑
+ * 编排：五份输入夹具（`tests/fixtures/e2e-job.ts` 内嵌原 demo 的已知良好数据，
+ *   运行时写入临时目录、跑完即删）→ 依次真跑
  *   `storyboard` → `validate` → `review` → `render --dry-run`，
  *   每段断言**产物契约**，而不是只断言「没抛错」。
  *
@@ -26,14 +27,14 @@ import { runValidateStage } from '../src/stages/validate.ts';
 import { writePreviewProps } from '../src/stages/review.ts';
 import { runRender } from '../src/stages/render.ts';
 import { ConfigError } from '../src/core/exit-code.ts';
+import { writeE2EFixture } from './fixtures/e2e-job.ts';
 
-const DEMO = path.join(process.cwd(), 'examples', 'demo');
 const JOB = 'demo';
 let root: string;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-e2e-'));
-  fs.cpSync(DEMO, path.join(root, JOB), { recursive: true });
+  writeE2EFixture(root, JOB);
 });
 
 afterEach(() => {
@@ -49,6 +50,9 @@ function writeJson(rel: string, data: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
+
+// 2026-10-31：examples/demo 已按用户裁决移除，夹具改由 fixtures/e2e-job.ts
+// 运行时生成（仓库零假数据文件），集成覆盖恢复全量。
 
 describe('跨阶段集成：storyboard → validate → review → render', () => {
   it('① storyboard 重烘焙：三份产物齐备，且写入输入指纹', () => {

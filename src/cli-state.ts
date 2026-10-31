@@ -68,7 +68,7 @@ const KEY_ARTIFACT: Record<string, string> = {
  * 该阶段是否已有**终点产物**（而非仅仅是跑过一次）。
  *
  * 🔴 为什么需要：`pipeline-state.json` 是 P1-2（2026-10-26）才有的，**此前的 job
- *   全都没有状态记录**（如 `examples/demo` 的 01/02 是 fixture 给的）。
+ *   全都没有状态记录**（如测试夹具直接给的 01/02 产物、或手工拷贝的工作区）。
  *   若只看 state 就说「下一步 align」，用户会去重跑一个本来就有产物的阶段。
  *   ⇒ 这里如实标成「有产物·无记录」，与「真的没跑过」区分开。
  */
@@ -142,8 +142,8 @@ export function runStatusCommand(args: StateCommandArgs): ExitCode {
  * 第一个「既没标 done、也没有终点产物」的阶段。
  *
  * 🔴 为什么要看产物而不只看 state：`pipeline-state.json` 是 P1-2（2026-10-26）才有的。
- *   对 P1-2 之前的 job（如 `examples/demo`，01/02 由 fixture 提供），state 里一片 pending ——
- *   只看 state 的话 `resume` 会从头跑 `align`，而 demo 根本没有视频素材，一跑就炸。
+ *   对 P1-2 之前的 job（01/02 产物由夹具或手工拷贝提供），state 里一片 pending ——
+ *   只看 state 的话 `resume` 会从头跑 `align`，而这类 job 可能根本没有视频素材，一跑就炸。
  *   「有终点产物」= 这阶段已经完成过，跳过去。`status` 与 `resume` 共用这一判定。
  */
 function firstRunnableStage(

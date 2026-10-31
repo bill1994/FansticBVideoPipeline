@@ -27,4 +27,4 @@ if (!doctorOk(results)) {
   process.stdout.write('环境未就绪 —— 按上面的 ↳ 逐条处理，处理后**重开终端**再跑一次。\n');
   process.exit(1);
 }
-process.stdout.write('环境就绪。可以跑 demo：npm run pipeline -- validate --job demo --jobs-dir examples\n');
+process.stdout.write('环境就绪。建一个真实素材 job：npm run pipeline -- init --job <id>，把视频+SRT 放进 jobs/<id>/00-input/\n');

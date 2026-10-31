@@ -164,22 +164,18 @@ npm run doctor
 npm run typecheck && npm test
 ```
 
-**③ 端到端 demo（无需真实素材）**
+**③ 端到端整链验证（无需真实素材，2026-10-31 起）**
+
+示例 job（`examples/demo`）已按用户裁决移除（根目录去杂物）。整链验证走
+`npm run verify` 的 e2e 段：夹具（原 demo 的五份输入产物 + 可编辑 motionboard）
+内嵌在 `tests/fixtures/e2e-job.ts`，运行时写入临时目录、跑完即删——**仓库里没有假数据文件**。
 
 ```bash
-npm run pipeline -- storyboard --job demo --jobs-dir examples
-npm run pipeline -- validate   --job demo --jobs-dir examples
-npm run pipeline -- review     --job demo --jobs-dir examples --dry-run
-npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
+npm run verify -- --skip-test   # 快速冒烟：typecheck + e2e 整链（约 30s）
 ```
 
-⚠️ P1-a 审核闸：demo 会产出一条 must_review 条目（`typo-main/002`）—— `render`
-在其被确认前 exit 1。看片（或信任 fixture）后把 ref 写进
-`examples/demo/06-review/confirmed.json` 的 `acknowledgedReview` 数组，再跑
-`render --dry-run` 即放行；详见 README「端到端跑通仓库自带的示例」。
-
-`validate` 的预期输出：`checked=18 项 + 2 条起草原生约束, warning=2`（两条都是 `W-F6-01`）。
-⚠️ 这个预期**只在用仓库里已有的 `examples/demo` 快照时成立**；重跑 `storyboard` 会重算烘焙，结果可能不同（见 `PROGRESS.md` 的雷区）。
+该段真实跑 `storyboard → validate(18 项) → review → render 闸`，并双向验证 P1-a 审核闸：
+未确认时 `render` 被 must_review 条目拦截、写 `confirmed.json` 后放行。
 
 ---
 

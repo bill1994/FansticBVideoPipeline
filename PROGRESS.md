@@ -1,6 +1,6 @@
 # 项目进度 — Remotion 视频动效叠加管线
 
-> 最近更新：**2026-10-26**（合并远端 29 提交后复核：58 文件 / 860 项全过，占位值 11 项 / 19 数值，错误码 28 条）
+> 最近更新：**2026-10-31**（§3.1.9 新增模板设计验收单——借手法于 impeccable，配方卡补 `designIntent` 栏 22 张；上一轮 2026-10-26：合并远端 29 提交后复核 58 文件 / 860 项全过）
 > 状态标记：✅ 完成 / 🔶 进行中 / ⛔ 明确不做 / ❌ 未做
 > 📄 最近一次全量审计：`docs/reviews/2026-10-19-全量进展审计报告.md`（该报告的计数已部分过期，以本文件为准）
 
@@ -263,6 +263,24 @@ D-B2 逐模板实测系数**均已落地；剩「warning 升 error」待裁决�
   Windows shim 无法被 Node spawn 时用 `FFMPEG_BIN` / `FFPROBE_BIN` 指向真实 exe。
 - **实测**：demo 占位成片（30s、无素材底）被如实检出「1 段黑场 + 1 段整片静帧」，联系表正常产出；
   时长 30.000s vs 预期 30.000s。测试 `tests/media-qa.test.ts` 11 项。
+
+### 3.1.9 模板设计验收单（✅ 2026-10-31 · 借手法于 impeccable）
+
+防线上补齐「审美验收」一层。此前 18 项校验全是结构判定、媒体 QA 是技术体检，
+「渲出来好不好看」无制度兜底——灰框事故能逃过全部防线正是证明。
+参照 EAC 借鉴的同一纪律（**借手法，不装包**，用户 2026-10-31 裁决），从
+[`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) v4.8.0（Apache-2.0）蒸馏出：
+
+- **验收单本体** [`docs/templates/2026-10-31-模板设计验收单.md`](docs/templates/2026-10-31-模板设计验收单.md)：
+  六维度（目的与焦点 / 对比度与可读性 / 排版层级 / 时值缓动 / 克制 / 令牌体系）+ 修复顺序 + 判例库。
+  **不是第 19 项校验**（审美判断主观，强制门误报吃信任）——约束力来自流程挂接与判例回填。
+- **流程挂接**：SKILL.md 创作期流程表第 3 与第 4 步之间过单；tsx 模板入库前同样过单。
+  六道验收管「能不能用」，这张单管「好不好看」。
+- **配方卡新增 `designIntent`（设计意图）栏**：每张卡一句话回答「这个动效解释什么」
+  （借 impeccable `animate.md` 的焦点论）。`SpecDoc` 契约加可选字段，
+  22 张卡（14 tsx + 8 spec）全部补齐——字段在 `_doc` 内，进 hash 剥离名单，不影响签章。
+- **不借**：检测器二进制（扫 DOM，视频没有）、npm 全套安装（双工具面，同 P1-1 裁决）、
+  a11y/响应式/触控（固定 1080p 无此概念）、毫秒时值表（交互延迟经验值，数值归手感表）。
 
 ### 3.2 三条硬规则的代码化
 
@@ -604,10 +622,8 @@ node --experimental-strip-types tools/setup-whisper.mts base
 #    用 base 就必须 export WHISPER_MODEL=base，否则 align 找不到模型。
 #    doctor 会检查这一项。详见 docs/SETUP.md §4。
 
-# 无需真实素材的端到端 demo
-npm run pipeline -- storyboard --job demo --jobs-dir examples
-npm run pipeline -- validate   --job demo --jobs-dir examples
-npm run pipeline -- render     --job demo --jobs-dir examples --dry-run
+# 无需真实素材的整链验证（2026-10-31 起：示例 job 已移除，走 verify —— 夹具运行时生成）
+npm run verify      # typecheck + 单测 + storyboard → validate → review → render 闸
 
 # 真素材全流程（示例：jobs/e2e-perceive）
 npm run pipeline -- align      --job e2e-perceive     # 约 14 分钟（whisper small）
